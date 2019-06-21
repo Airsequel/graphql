@@ -1,50 +1,22 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
--- | This module defines a parser for @GraphQL@ request documents.
+{-# LANGUAGE OverloadedStrings #-}
 module Data.GraphQL.Parser where
 
-import Prelude hiding (takeWhile)
-
-import Control.Applicative ((<|>), Alternative, empty, many, optional)
-import Control.Monad (when)
-import Data.Char (isDigit, isSpace)
-import Data.Foldable (traverse_)
-import Data.Monoid ((<>))
-import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.Scientific (floatingOrInteger, scientific, toBoundedInteger)
-
-import Data.Text (Text, append)
-import Data.Attoparsec.Combinator (lookAhead)
-import Data.Attoparsec.Text
-  ( Parser
-  , (<?>)
-  , anyChar
-  , endOfLine
-  , inClass
-  , many1
-  , manyTill
-  , option
-  , peekChar
-  , takeWhile
-  , takeWhile1
-  )
-import qualified Data.Attoparsec.Text as Attoparsec (scientific)
-
+import Control.Applicative ( Alternative(..)
+                           , optional
+                           )
 import Data.GraphQL.AST
-
--- * Name
-
-name :: Parser Name
-name = tok $ append <$> takeWhile1 isA_z
-                    <*> takeWhile ((||) <$> isDigit <*> isA_z)
-  where
-    -- `isAlpha` handles many more Unicode Chars
-    isA_z =  inClass $ '_' : ['A'..'Z'] <> ['a'..'z']
-
--- * Document
+import Language.GraphQL.Lexer
+import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.Text as T
+import Text.Megaparsec ( lookAhead
+                       , option
+                       , try
+                       , (<?>)
+                       )
 
 document :: Parser Document
-document = whiteSpace *> manyNE definition
+document = spaceConsumer >> lexeme (manyNE definition)
 
 definition :: Parser Definition
 definition = DefinitionOperation <$> operationDefinition
@@ -61,9 +33,9 @@ operationDefinition = OperationSelectionSet <$> selectionSet
                   <?> "operationDefinition error"
 
 operationType :: Parser OperationType
-operationType = Query    <$ tok "query"
-            <|> Mutation <$ tok "mutation"
-            <?> "operationType error"
+operationType = Query <$ symbol "query"
+    <|> Mutation <$ symbol "mutation"
+    <?> "operationType error"
 
 -- * SelectionSet
 
@@ -71,11 +43,11 @@ selectionSet :: Parser SelectionSet
 selectionSet = braces $ manyNE selection
 
 selectionSetOpt :: Parser SelectionSetOpt
-selectionSetOpt = braces $ many1 selection
+selectionSetOpt = braces $ some selection
 
 selection :: Parser Selection
 selection = SelectionField          <$> field
-        <|> SelectionFragmentSpread <$> fragmentSpread
+        <|> try (SelectionFragmentSpread <$> fragmentSpread)
         <|> SelectionInlineFragment <$> inlineFragment
         <?> "selection error!"
 
@@ -89,145 +61,115 @@ field = Field <$> optional alias
               <*> opt selectionSetOpt
 
 alias :: Parser Alias
-alias = name <* tok ":"
+alias = try $ name <* colon
 
 -- * Arguments
 
 arguments :: Parser Arguments
-arguments = parens $ many1 argument
+arguments = parens $ some argument
 
 argument :: Parser Argument
-argument = Argument <$> name <* tok ":" <*> value
+argument = Argument <$> name <* colon <*> value
 
 -- * Fragments
 
 fragmentSpread :: Parser FragmentSpread
-fragmentSpread = FragmentSpread <$  tok "..."
+fragmentSpread = FragmentSpread <$  spread
                                 <*> fragmentName
                                 <*> opt directives
 
 inlineFragment :: Parser InlineFragment
-inlineFragment = InlineFragment <$  tok "..."
+inlineFragment = InlineFragment <$  spread
                                 <*> optional typeCondition
                                 <*> opt directives
                                 <*> selectionSet
 
 fragmentDefinition :: Parser FragmentDefinition
 fragmentDefinition = FragmentDefinition
-                 <$  tok "fragment"
+                 <$  symbol "fragment"
                  <*> name
                  <*> typeCondition
                  <*> opt directives
                  <*> selectionSet
 
 fragmentName :: Parser FragmentName
-fragmentName = but (tok "on") *> name
+fragmentName = but (symbol "on") *> name
 
 typeCondition :: Parser TypeCondition
-typeCondition = tok "on" *> name
+typeCondition = symbol "on" *> name
 
 -- * Input Values
 
 value :: Parser Value
 value = ValueVariable <$> variable
-    <|> tok floatOrInt32Value
+    <|> ValueFloat    <$> try float
+    <|> ValueInt      <$> integer
     <|> ValueBoolean  <$> booleanValue
-    <|> ValueNull     <$  tok "null"
-    <|> ValueString   <$> stringValue
-    <|> ValueEnum     <$> enumValue
+    <|> ValueNull     <$  symbol "null"
+    <|> ValueString   <$> string
+    <|> ValueString   <$> blockString
+    <|> ValueEnum     <$> try enumValue
     <|> ValueList     <$> listValue
     <|> ValueObject   <$> objectValue
     <?> "value error!"
   where
     booleanValue :: Parser Bool
-    booleanValue = True  <$ tok "true"
-               <|> False <$ tok "false"
-
-    floatOrInt32Value :: Parser Value
-    floatOrInt32Value =
-      Attoparsec.scientific >>=
-      either (pure . ValueFloat)
-             (maybe (fail "Integer value is out of range.")
-                    (pure . ValueInt)
-                    . toBoundedInteger . (`scientific` 0))
-             . floatingOrInteger
-
-    -- TODO: Escape characters. Look at `jsstring_` in aeson package.
-    stringValue :: Parser Text
-    stringValue = quotes (takeWhile (/= '"'))
+    booleanValue = True  <$ symbol "true"
+               <|> False <$ symbol "false"
 
     enumValue :: Parser Name
-    enumValue = but (tok "true") *> but (tok "false") *> but (tok "null") *> name
+    enumValue = but (symbol "true") *> but (symbol "false") *> but (symbol "null") *> name
 
     listValue :: Parser [Value]
-    listValue = brackets $ many1 value
+    listValue = brackets $ some value
 
     objectValue :: Parser [ObjectField]
-    objectValue = braces $ many1 objectField
+    objectValue = braces $ some objectField
 
 objectField :: Parser ObjectField
-objectField = ObjectField <$> name <* tok ":" <*> value
+objectField = ObjectField <$> name <* symbol ":" <*> value
 
 -- * Variables
 
 variableDefinitions :: Parser VariableDefinitions
-variableDefinitions = parens $ many1 variableDefinition
+variableDefinitions = parens $ some variableDefinition
 
 variableDefinition :: Parser VariableDefinition
 variableDefinition = VariableDefinition <$> variable
-                                        <*  tok ":"
+                                        <*  colon
                                         <*> type_
                                         <*> optional defaultValue
-
 variable :: Parser Variable
-variable = tok "$" *> name
+variable = dollar *> name
 
 defaultValue :: Parser DefaultValue
-defaultValue = tok "=" *> value
+defaultValue = equals *> value
 
 -- * Input Types
 
 type_ :: Parser Type
-type_ = TypeNamed   <$> name <* but "!"
-    <|> TypeList    <$> brackets type_
-    <|> TypeNonNull <$> nonNullType
+type_ = try (TypeNamed <$> name <* but "!")
+    <|> TypeList       <$> brackets type_
+    <|> TypeNonNull    <$> nonNullType
     <?> "type_ error!"
 
 nonNullType :: Parser NonNullType
-nonNullType = NonNullTypeNamed <$> name <* tok "!"
-          <|> NonNullTypeList  <$> brackets type_  <* tok "!"
+nonNullType = NonNullTypeNamed <$> name <* bang
+          <|> NonNullTypeList  <$> brackets type_  <* bang
           <?> "nonNullType error!"
 
 -- * Directives
 
 directives :: Parser Directives
-directives = many1 directive
+directives = some directive
 
 directive :: Parser Directive
 directive = Directive
-        <$  tok "@"
+        <$  at
         <*> name
         <*> opt arguments
 
 -- * Internal
-
-tok :: Parser a -> Parser a
-tok p = p <* whiteSpace
-
-parens :: Parser a -> Parser a
-parens = between "(" ")"
-
-braces :: Parser a -> Parser a
-braces = between "{" "}"
-
-quotes :: Parser a -> Parser a
-quotes = between "\"" "\""
-
-brackets :: Parser a -> Parser a
-brackets = between "[" "]"
-
-between :: Parser Text -> Parser Text -> Parser a -> Parser a
-between open close p = tok open *> p <* tok close
 
 opt :: Monoid a => Parser a -> Parser a
 opt = option mempty
@@ -235,14 +177,8 @@ opt = option mempty
 -- Hack to reverse parser success
 but :: Parser a -> Parser ()
 but pn = False <$ lookAhead pn <|> pure True >>= \case
-  False -> empty
-  True  -> pure ()
+    False -> empty
+    True  -> pure ()
 
 manyNE :: Alternative f => f a -> f (NonEmpty a)
 manyNE p = (:|) <$> p <*> many p
-
-whiteSpace :: Parser ()
-whiteSpace = peekChar >>= traverse_ (\c ->
-    if isSpace c || c == ','
-       then anyChar *> whiteSpace
-       else when (c == '#') $ manyTill anyChar endOfLine *> whiteSpace)

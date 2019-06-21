@@ -1,32 +1,37 @@
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-#if !MIN_VERSION_base(4,8,0)
-import Control.Applicative ((<$>), (<*>))
-#endif
-
-import Data.Attoparsec.Text (parseOnly)
-import qualified Data.Text.IO as Text
-import Test.Tasty (TestTree, defaultMain, testGroup)
-import Test.Tasty.HUnit
-
-import qualified Data.GraphQL.Parser as Parser
+import Control.Monad.IO.Class (liftIO)
 import qualified Data.GraphQL.Encoder as Encoder
-
-import qualified Test.StarWars.QueryTests as SW
+import qualified Language.GraphQL.LexerTest as LexerTest
+import qualified Data.GraphQL.Parser as Parser
+import qualified Data.Text.IO as T.IO
+import Text.Megaparsec ( errorBundlePretty
+                       , parse
+                       )
+import Test.Tasty ( TestTree
+                  , defaultMain
+                  , testGroup
+                  )
+import Test.Tasty.HUnit ( assertEqual
+                        , assertFailure
+                        , testCase
+                        )
 import Paths_graphql (getDataFileName)
+import qualified Test.StarWars.QueryTests as SW
 
 main :: IO ()
-main = defaultMain . testGroup "Tests" . (: [SW.test]) =<< kitchenTest
+main = defaultMain $ testGroup "Tests"
+    [ testGroup "Reference tests" [LexerTest.reference, SW.test]
+    , testGroup "Implementation tests" [LexerTest.implementation]
+    , kitchenTest
+    ]
 
-kitchenTest :: IO TestTree
-kitchenTest = testCase "Kitchen Sink"
-     <$> (assertEqual "Encode" <$> expected <*> actual)
-  where
-    expected = Text.readFile
-           =<< getDataFileName "tests/data/kitchen-sink.min.graphql"
+kitchenTest :: TestTree
+kitchenTest = testCase "Kitchen Sink" $ do
+    dataFileName <- getDataFileName "tests/data/kitchen-sink.min.graphql"
+    expected <- T.IO.readFile dataFileName
 
-    actual = either (error "Parsing error!") Encoder.document
-          .  parseOnly Parser.document
-         <$> expected
+    either
+        (assertFailure . errorBundlePretty)
+        (assertEqual "Encode" expected . Encoder.document)
+        $ parse Parser.document dataFileName expected

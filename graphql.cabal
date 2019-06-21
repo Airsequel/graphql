@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5e8ecb58b182478576a725b6da5466c8e71db7dda7735397006e2b14406ee3ad
+-- hash: 06d3fa29e37864ef5e4254215c50d95942b4a33b0ea4f4d4c930a071fdcd2872
 
 name:           graphql
 version:        0.3
@@ -46,16 +46,16 @@ library
       Data.GraphQL.Execute
       Data.GraphQL.Parser
       Data.GraphQL.Schema
+      Language.GraphQL.Lexer
   other-modules:
       Paths_graphql
   hs-source-dirs:
       ./.
   build-depends:
       aeson
-    , attoparsec
     , base >=4.7 && <5
+    , megaparsec
     , scientific
-    , semigroups
     , text
     , unordered-containers
   default-language: Haskell2010
@@ -64,6 +64,7 @@ test-suite tasty
   type: exitcode-stdio-1.0
   main-is: tasty.hs
   other-modules:
+      Language.GraphQL.LexerTest
       Test.StarWars.Data
       Test.StarWars.QueryTests
       Test.StarWars.Schema
@@ -73,11 +74,10 @@ test-suite tasty
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
-    , attoparsec
     , base >=4.7 && <5
     , graphql
+    , megaparsec
     , raw-strings-qq
-    , semigroups
     , tasty
     , tasty-hunit
     , text

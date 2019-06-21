@@ -27,9 +27,8 @@ data-files:
 
 dependencies:
 - aeson
-- attoparsec
 - base >= 4.7 && < 5
-- semigroups
+- megaparsec
 - text
 - unordered-containers
 

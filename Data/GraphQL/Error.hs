@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 module Data.GraphQL.Error (
   parseError,
   CollectErrsT,
@@ -31,7 +32,7 @@ joinErrs = fmap $ fmap fst &&& concatMap snd
 
 -- | Wraps the given 'Applicative' to handle errors
 errWrap :: Functor f => f a -> f (a, [Aeson.Value])
-errWrap = fmap (flip (,) [])
+errWrap = fmap (, [])
 
 -- | Adds an error to the list of errors.
 addErr :: Functor f => Aeson.Value -> CollectErrsT f a -> CollectErrsT f a
