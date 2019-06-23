@@ -38,12 +38,9 @@ import Data.List (dropWhileEnd)
 import Data.Proxy (Proxy(..))
 import Data.Void (Void)
 import Text.Megaparsec ( Parsec
-                       , MonadParsec
-                       , Token
                        , between
                        , chunk
                        , chunkToTokens
-                       , lookAhead
                        , notFollowedBy
                        , oneOf
                        , option
@@ -162,7 +159,7 @@ blockString = between "\"\"\"" "\"\"\"" stringValue
         | not (isWhiteSpace $ T.head x) = acc
         | acc == 0 = T.length x
         | otherwise = min acc $ T.length x
-    removeIndent n [] = []
+    removeIndent _ [] = []
     removeIndent n (x:chunks) = T.drop n x : chunks
 
 -- | Parser for integers.

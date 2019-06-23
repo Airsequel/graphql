@@ -32,7 +32,9 @@ document schema (op :| []) = operation schema op
 document _ _ = error "Multiple operations not supported yet"
 
 operation :: Alternative f => Schema f -> AST.Core.Operation -> f Aeson.Value
-operation schema (AST.Core.Query flds) =
-  Aeson.Object . HashMap.singleton "data"
-             <$> Schema.resolve (NE.toList schema) (NE.toList flds)
-operation _ _ = error "Mutations not supported yet"
+operation schema (AST.Core.Query flds)
+    = Aeson.Object . HashMap.singleton "data"
+    <$> Schema.resolve (NE.toList schema) (NE.toList flds)
+operation schema (AST.Core.Mutation flds)
+    = Aeson.Object . HashMap.singleton "data"
+    <$> Schema.resolve (NE.toList schema) (NE.toList flds)

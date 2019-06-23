@@ -8,7 +8,6 @@ import Control.Applicative ( Alternative(..)
 import Data.GraphQL.AST
 import Language.GraphQL.Lexer
 import Data.List.NonEmpty (NonEmpty(..))
-import qualified Data.Text as T
 import Text.Megaparsec ( lookAhead
                        , option
                        , try
