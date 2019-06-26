@@ -6,7 +6,6 @@ module Language.GraphQL.LexerTest
     , reference
     ) where
 
-import Control.Applicative (Alternative(..))
 import Language.GraphQL.Lexer
 import qualified Data.Text as T
 import Data.Void (Void)
@@ -58,11 +57,11 @@ reference = testGroup "Lexer"
             """|] @?= Right "spans\n  multiple\n    lines"
 
     , testCase "lexes numbers" $ do
-        runParser integer "4" @?= Right 4
+        runParser integer "4" @?= Right (4 :: Int)
         runParser float "4.123" @?= Right 4.123
-        runParser integer "-4" @?= Right (-4)
-        runParser integer "9" @?= Right 9
-        runParser integer "0" @?= Right 0
+        runParser integer "-4" @?= Right (-4 :: Int)
+        runParser integer "9" @?= Right (9 :: Int)
+        runParser integer "0" @?= Right (0 :: Int)
         runParser float "-4.123" @?= Right (-4.123)
         runParser float "0.123" @?= Right 0.123
         runParser float "123e4" @?= Right 123e4

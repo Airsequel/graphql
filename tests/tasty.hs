@@ -1,6 +1,5 @@
 module Main where
 
-import Control.Monad.IO.Class (liftIO)
 import qualified Data.GraphQL.Encoder as Encoder
 import qualified Language.GraphQL.LexerTest as LexerTest
 import qualified Data.GraphQL.Parser as Parser
