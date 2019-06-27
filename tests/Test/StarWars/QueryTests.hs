@@ -149,9 +149,6 @@ test = testGroup "Star Wars Query Tests"
                 name
               }
             }
-        -- The GraphQL spec specifies that an error should be reported when the
-        -- type of the argument is Non-Nullable. However the equivalent test in
-        -- `graphql-js` doesn't check for any errors.
         |] $ object ["data" .= object ["human" .= Aeson.Null]]
     , testCase "Luke aliased" . testQuery
         [r| query FetchLukeAliased {

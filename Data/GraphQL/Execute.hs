@@ -4,12 +4,10 @@
 module Data.GraphQL.Execute (execute) where
 
 import Control.Applicative (Alternative, empty)
+import Data.GraphQL.Error
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty((:|)))
-
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
-
 import qualified Data.GraphQL.AST as AST
 import qualified Data.GraphQL.AST.Core as AST.Core
 import qualified Data.GraphQL.AST.Transform as Transform
@@ -33,8 +31,6 @@ document _ _ = error "Multiple operations not supported yet"
 
 operation :: Alternative f => Schema f -> AST.Core.Operation -> f Aeson.Value
 operation schema (AST.Core.Query flds)
-    = Aeson.Object . HashMap.singleton "data"
-    <$> Schema.resolve (NE.toList schema) (NE.toList flds)
+    = runCollectErrs (Schema.resolve (NE.toList schema) (NE.toList flds))
 operation schema (AST.Core.Mutation flds)
-    = Aeson.Object . HashMap.singleton "data"
-    <$> Schema.resolve (NE.toList schema) (NE.toList flds)
+    = runCollectErrs (Schema.resolve (NE.toList schema) (NE.toList flds))
