@@ -3,7 +3,7 @@
 --   according to a 'Schema'.
 module Data.GraphQL.Execute (execute) where
 
-import Control.Applicative (Alternative, empty)
+import Control.Monad (MonadPlus(..))
 import Data.GraphQL.Error
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -21,15 +21,17 @@ import qualified Data.GraphQL.Schema as Schema
 --   Returns the result of the query against the 'Schema' wrapped in a /data/ field, or
 --   errors wrapped in an /errors/ field.
 execute
-  :: (Alternative f, Monad f)
-  => Schema f -> Schema.Subs -> AST.Document -> f Aeson.Value
-execute schema subs doc = document schema =<< maybe empty pure (Transform.document subs doc)
+  :: (MonadPlus m)
+  => Schema m -> Schema.Subs -> AST.Document -> m Aeson.Value
+execute schema subs doc = do
+    coreDocument <- maybe mzero pure (Transform.document subs doc)
+    document schema coreDocument
 
-document :: Alternative f => Schema f -> AST.Core.Document -> f Aeson.Value
+document :: MonadPlus m => Schema m -> AST.Core.Document -> m Aeson.Value
 document schema (op :| []) = operation schema op
 document _ _ = error "Multiple operations not supported yet"
 
-operation :: Alternative f => Schema f -> AST.Core.Operation -> f Aeson.Value
+operation :: MonadPlus m => Schema m -> AST.Core.Operation -> m Aeson.Value
 operation schema (AST.Core.Query flds)
     = runCollectErrs (Schema.resolve (NE.toList schema) (NE.toList flds))
 operation schema (AST.Core.Mutation flds)

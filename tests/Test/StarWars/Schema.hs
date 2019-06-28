@@ -2,10 +2,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Test.StarWars.Schema where
 
-import Control.Applicative (Alternative, empty)
+import Control.Applicative (Alternative(..))
+import Control.Monad (MonadPlus)
 import Data.List.NonEmpty (NonEmpty((:|)))
 
-import Data.GraphQL.Schema (Schema, Resolver, Argument(..), Value(..))
+import Data.GraphQL.Schema ( Schema
+                           , Resolver
+                           , Argument(..)
+                           , Value(..)
+                           )
 import qualified Data.GraphQL.Schema as Schema
 
 import Test.StarWars.Data
@@ -13,10 +18,10 @@ import Test.StarWars.Data
 -- * Schema
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: Alternative f => Schema f
+schema :: MonadPlus m => Schema m
 schema = hero :| [human, droid]
 
-hero :: Alternative f => Resolver f
+hero :: MonadPlus m => Resolver m
 hero = Schema.objectA "hero" $ \case
   [] -> character artoo
   [Argument "episode" (ValueInt n)]   -> character . getHero $ fromIntegral n
@@ -25,17 +30,17 @@ hero = Schema.objectA "hero" $ \case
   [Argument "episode" (ValueEnum "JEDI"   )] -> character $ getHero 6
   _ -> empty
 
-human :: Alternative f => Resolver f
+human :: MonadPlus m => Resolver m
 human = Schema.objectA "human" $ \case
   [Argument "id" (ValueString i)] -> character =<< getHuman i
   _ -> empty
 
-droid :: Alternative f => Resolver f
+droid :: MonadPlus m => Resolver m
 droid = Schema.objectA "droid" $ \case
    [Argument "id" (ValueString i)] -> character =<< getDroid i
    _ -> empty
 
-character :: Alternative f => Character -> [Resolver f]
+character :: MonadPlus m => Character -> [Resolver m]
 character char =
   [ Schema.scalar "id"              $ id_ char
   , Schema.scalar "name"            $ name char

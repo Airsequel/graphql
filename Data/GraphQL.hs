@@ -1,7 +1,7 @@
 -- | This module provides the functions to parse and execute @GraphQL@ queries.
 module Data.GraphQL where
 
-import Control.Applicative (Alternative)
+import Control.Monad (MonadPlus)
 
 import qualified Data.Text as T
 
@@ -21,7 +21,7 @@ import Data.GraphQL.Error
 --   executed according to the given 'Schema'.
 --
 --   Returns the response as an @Aeson.@'Aeson.Value'.
-graphql :: (Alternative m, Monad m) => Schema m -> T.Text -> m Aeson.Value
+graphql :: MonadPlus m => Schema m -> T.Text -> m Aeson.Value
 graphql = flip graphqlSubs $ const Nothing
 
 -- | Takes a 'Schema', a variable substitution function and text
@@ -30,7 +30,7 @@ graphql = flip graphqlSubs $ const Nothing
 --   query and the query is then executed according to the given 'Schema'.
 --
 --   Returns the response as an @Aeson.@'Aeson.Value'.
-graphqlSubs :: (Alternative m, Monad m) => Schema m -> Subs -> T.Text -> m Aeson.Value
+graphqlSubs :: MonadPlus m => Schema m -> Subs -> T.Text -> m Aeson.Value
 graphqlSubs schema f =
     either (parseError . errorBundlePretty) (execute schema f)
     . parse document ""
