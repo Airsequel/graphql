@@ -34,7 +34,7 @@ dependencies:
 - unordered-containers
 
 library:
-  source-dirs: .
+  source-dirs: src
   dependencies:
   - scientific
 

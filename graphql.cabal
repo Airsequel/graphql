@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aba9e6c1a0e250a7d0dbabbbdae5dceb119343f6acf06744da66677a487fcca6
+-- hash: 4035f9ebd6df2085ad80f5918fc5a65f22b2699f620f7f03c2a3e58ac84827d6
 
 name:           graphql
 version:        0.3
@@ -50,7 +50,7 @@ library
   other-modules:
       Paths_graphql
   hs-source-dirs:
-      ./.
+      src
   build-depends:
       aeson
     , base >=4.7 && <5
