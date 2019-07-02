@@ -2,8 +2,10 @@
 {-# LANGUAGE QuasiQuotes #-}
 module Test.StarWars.QueryTests (test) where
 
-import qualified Data.Aeson as Aeson (Value(Null), toJSON)
-import Data.Aeson (object, (.=))
+import qualified Data.Aeson as Aeson
+import Data.Aeson ( object
+                  , (.=)
+                  )
 import Data.Text (Text)
 import Text.RawString.QQ (r)
 
@@ -258,20 +260,26 @@ test = testGroup "Star Wars Query Tests"
     ]
     , testGroup "Errors in resolvers"
       [  testCase "error on secretBackstory" . testQuery
-          [r| query HeroNameQuery {
-                hero {
-                  name
+          [r|
+            query HeroNameQuery {
+              hero {
+                name
                   secretBackstory
-                }
               }
-            |]
-      $ object ["data" .= object [
-          "hero" .= [r2d2Name, secretBackstory]
-        ]
-        , "errors" .= object [
-            "message" .= Aeson.toJSON [secretText]
-          , "path" .= Aeson.toJSON [[ "hero" :: Text, "secretBackstory" :: Text ]]
-        ]]
+            }
+          |]
+          $ object
+              [ "data" .= object
+                  [ "hero" .= object
+                      [ "name" .= ("R2-D2" :: Text)
+                      , "secretBackstory" .= Aeson.Null
+                      ]
+                  ]
+              , "errors" .=
+                  [ object
+                      ["message" .= ("secretBackstory is secret." :: Text)]
+                  ]
+              ]
       , testCase "Error in a list" . testQuery
           [r| query HeroNameQuery {
                 hero {
@@ -283,17 +291,31 @@ test = testGroup "Star Wars Query Tests"
                 }
               }
             |]
-      $ object ["data" .= object [
-          "hero" .= [r2d2Name, "friends" .= [
-            object [lukeName, secretBackstory]
-          , object [hanName, secretBackstory]
-          , object [leiaName, secretBackstory]
-          ]]
+      $ object ["data" .= object
+          [ "hero" .= object
+              [ "name" .= ("R2-D2" :: Text)
+              , "friends" .=
+                  [ object
+                      [ "name" .= ("Luke Skywalker" :: Text)
+                      , "secretBackstory" .= Aeson.Null
+                      ]
+                  , object
+                      [ "name" .= ("Han Solo" :: Text)
+                      , "secretBackstory" .= Aeson.Null
+                      ]
+                  , object
+                      [ "name" .= ("Leia Organa" :: Text)
+                      , "secretBackstory" .= Aeson.Null
+                      ]
+                  ]
+              ]
+          ]
+        , "errors" .=
+            [ object ["message" .= ("secretBackstory is secret." :: Text)]
+            , object ["message" .= ("secretBackstory is secret." :: Text)]
+            , object ["message" .= ("secretBackstory is secret." :: Text)]
+            ]
         ]
-        , "errors" .= object [
-            "message" .= Aeson.toJSON [secretText, secretText, secretText]
-          , "path" .= Aeson.toJSON [secretPath 0, secretPath 1, secretPath 2]
-        ]]
       , testCase "error on secretBackstory with alias" . testQuery
           [r| query HeroNameQuery {
                 mainHero: hero {
@@ -302,14 +324,18 @@ test = testGroup "Star Wars Query Tests"
                 }
               }
             |]
-      $ object ["data" .= object [
-          "mainHero" .= [r2d2Name, "story" .= ()]
+          $ object
+              [ "data" .= object
+                  [ "mainHero" .= object
+                      [ "name" .= ("R2-D2" :: Text)
+                      , "story" .= Aeson.Null
+                      ]
+                  ]
+              , "errors" .=
+                  [ object ["message" .= ("secretBackstory is secret." :: Text)]
+                  ]
+              ]
         ]
-        , "errors" .= object [
-            "message" .= Aeson.toJSON [secretText]
-          , "path" .= Aeson.toJSON [[ "mainHero" :: Text, "story" :: Text ]]
-        ]]
-      ]
   ]
   where
     lukeName = "name" .= ("Luke Skywalker" :: Text)
@@ -319,9 +345,6 @@ test = testGroup "Star Wars Query Tests"
     c3poName = "name" .= ("C-3PO" :: Text)
     tatooine = "homePlanet" .= ("Tatooine" :: Text)
     alderaan = "homePlanet" .= ("Alderaan" :: Text)
-    secretBackstory = "secretBackstory" .= ()
-    secretText = "secretBackstory is secret" :: Text
-    secretPath n = ("hero", "friends", n, "secretBackstory") :: (Text, Text, Int, Text)
 
 testQuery :: Text -> Aeson.Value -> Assertion
 testQuery q expected = graphql schema q @?= Just expected

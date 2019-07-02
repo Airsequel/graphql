@@ -2,17 +2,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Test.StarWars.Schema where
 
-import Control.Applicative (Alternative(..))
-import Control.Monad (MonadPlus)
+import Control.Monad (MonadPlus(..))
+import Control.Monad.Trans.Except (throwE)
+import Control.Monad.Trans.Class (lift)
 import Data.List.NonEmpty (NonEmpty((:|)))
-
 import Data.GraphQL.Schema ( Schema
                            , Resolver
                            , Argument(..)
                            , Value(..)
                            )
 import qualified Data.GraphQL.Schema as Schema
-
+import Language.GraphQL.Trans
 import Test.StarWars.Data
 
 -- * Schema
@@ -28,25 +28,25 @@ hero = Schema.objectA "hero" $ \case
   [Argument "episode" (ValueEnum "NEWHOPE")] -> character $ getHero 4
   [Argument "episode" (ValueEnum "EMPIRE" )] -> character $ getHero 5
   [Argument "episode" (ValueEnum "JEDI"   )] -> character $ getHero 6
-  _ -> empty
+  _ -> ActionT $ throwE "Invalid arguments."
 
 human :: MonadPlus m => Resolver m
 human = Schema.objectA "human" $ \case
-  [Argument "id" (ValueString i)] -> character =<< getHuman i
-  _ -> empty
+  [Argument "id" (ValueString i)] -> character =<< lift (getHuman i)
+  _ -> ActionT $ throwE "Invalid arguments."
 
 droid :: MonadPlus m => Resolver m
 droid = Schema.objectA "droid" $ \case
-   [Argument "id" (ValueString i)] -> character =<< getDroid i
-   _ -> empty
+   [Argument "id" (ValueString i)] -> character =<< lift (getDroid i)
+   _ -> ActionT $ throwE "Invalid arguments."
 
-character :: MonadPlus m => Character -> [Resolver m]
-character char =
-  [ Schema.scalar "id"              $ id_ char
-  , Schema.scalar "name"            $ name char
-  , Schema.array  "friends"         $ character <$> getFriends char
-  , Schema.enum   "appearsIn"       . traverse getEpisode $ appearsIn char
-  , Schema.scalar "secretBackstory" $ secretBackstory char
-  , Schema.scalar "homePlanet"      $ either mempty homePlanet char
-  , Schema.scalar "__typename"      $ typeName char
-  ]
+character :: MonadPlus m => Character -> ActionT m [Resolver m]
+character char = return
+    [ Schema.scalar "id"              $ return $ id_ char
+    , Schema.scalar "name"            $ return $ name char
+    , Schema.array  "friends"         $ traverse character $ getFriends char
+    , Schema.enum   "appearsIn"       $ return $ foldMap getEpisode $ appearsIn char
+    , Schema.scalar "secretBackstory" $ secretBackstory char
+    , Schema.scalar "homePlanet"      $ return $ either mempty homePlanet char
+    , Schema.scalar "__typename"      $ return $ typeName char
+    ]

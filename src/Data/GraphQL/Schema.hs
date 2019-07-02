@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
+
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 --   functions for defining and manipulating Schemas.
 module Data.GraphQL.Schema
@@ -25,12 +25,9 @@ module Data.GraphQL.Schema
   , Value(..)
   ) where
 
-import Control.Applicative (Alternative(..))
-import Control.Monad (MonadPlus)
+import Control.Monad (MonadPlus(..))
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State ( get
-                                 , put
-                                 )
+import Control.Monad.Trans.Except (runExceptT)
 import Data.Foldable ( find
                      , fold
                      )
@@ -42,7 +39,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Data.Text as T
-
+import Language.GraphQL.Trans
 import Data.GraphQL.AST.Core
 
 -- | A GraphQL schema.
@@ -63,104 +60,93 @@ type Arguments = [Argument]
 type Subs = Name -> Maybe Value
 
 -- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
-object :: MonadPlus m => Name -> [Resolver m] -> Resolver m
-object name resolvers = objectA name $ \case
-  [] -> resolvers
-  _  -> empty
+object :: MonadPlus m => Name -> ActionT m [Resolver m] -> Resolver m
+object name = objectA name . const
 
 -- | Like 'object' but also taking 'Argument's.
-objectA
-  :: MonadPlus m
-  => Name -> (Arguments -> [Resolver m]) -> Resolver m
-objectA name f = Resolver name go
+objectA :: MonadPlus m
+    => Name -> (Arguments -> ActionT m [Resolver m]) -> Resolver m
+objectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args flds) = withField name (resolve (f args) flds) fld
-
+    resolveRight fld@(Field _ _ _ flds) resolver = withField name (resolve resolver flds) fld
 
 -- | Create a named 'Resolver' from a list of 'Resolver's.
-object' :: MonadPlus m => Name -> m [Resolver m] -> Resolver m
-object' name resolvs = objectA' name $ \case
-     [] -> resolvs
-     _  -> empty
+object' :: MonadPlus m => Name -> ActionT m [Resolver m] -> Resolver m
+object' name = objectA' name . const
 
 -- | Like 'object'' but also taking 'Argument's.
-objectA'
-  :: MonadPlus m
-  => Name -> (Arguments -> m [Resolver m]) -> Resolver m
-objectA' name f = Resolver name go
+objectA' :: MonadPlus m
+    => Name -> (Arguments -> ActionT m [Resolver m]) -> Resolver m
+objectA' name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args flds) = do
-        resolvs <- lift $ f args
-        withField name (resolve resolvs flds) fld
+    resolveRight fld@(Field _ _ _ flds) resolver = withField name (resolve resolver flds) fld
 
 -- | A scalar represents a primitive value, like a string or an integer.
-scalar :: (MonadPlus m, Aeson.ToJSON a) => Name -> a -> Resolver m
-scalar name s = scalarA name $ \case
-    [] -> pure s
-    _  -> empty
+scalar :: (MonadPlus m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
+scalar name = scalarA name . const
 
 -- | Like 'scalar' but also taking 'Argument's.
-scalarA
-  :: (MonadPlus m, Aeson.ToJSON a)
-  => Name -> (Arguments -> m a) -> Resolver m
-scalarA name f = Resolver name go
+scalarA :: (MonadPlus m, Aeson.ToJSON a)
+    => Name -> (Arguments -> ActionT m a) -> Resolver m
+scalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args []) = withField name (lift $ f args) fld
-    go _ = empty
+    resolveRight fld@(Field _ _ _ []) result = withField name (return result) fld
+    resolveRight _ _ = mzero
 
-array :: MonadPlus m => Name -> [[Resolver m]] -> Resolver m
-array name resolvers = arrayA name $ \case
-    [] -> resolvers
-    _  -> empty
+array :: MonadPlus m => Name -> ActionT m [[Resolver m]] -> Resolver m
+array name = arrayA name . const
 
 -- | Like 'array' but also taking 'Argument's.
-arrayA
-  :: MonadPlus m
-  => Name -> (Arguments -> [[Resolver m]]) -> Resolver m
-arrayA name f = Resolver name go
+arrayA :: MonadPlus m
+    => Name -> (Arguments -> ActionT m [[Resolver m]]) -> Resolver m
+arrayA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args sels) = withField name (traverse (`resolve` sels) $ f args) fld
+    resolveRight fld@(Field _ _ _ sels) resolver
+        = withField name (traverse (`resolve` sels) resolver) fld
 
 -- | Like 'object'' but taking lists of 'Resolver's instead of a single list.
-array' :: MonadPlus m => Name -> m [[Resolver m]] -> Resolver m
-array' name resolvs = arrayA' name $ \case
-    [] -> resolvs
-    _  -> empty
+array' :: MonadPlus m => Name -> ActionT m [[Resolver m]] -> Resolver m
+array' name = arrayA' name . const
 
 -- | Like 'array'' but also taking 'Argument's.
-arrayA'
-  :: MonadPlus m
-  => Name -> (Arguments -> m [[Resolver m]]) -> Resolver m
-arrayA' name f = Resolver name go
+arrayA' :: MonadPlus m
+    => Name -> (Arguments -> ActionT m [[Resolver m]]) -> Resolver m
+arrayA' name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args sels) = do
-        resolvs <- lift $ f args
-        withField name (traverse (`resolve` sels) resolvs) fld
+    resolveRight fld@(Field _ _ _ sels) resolver
+        = withField name (traverse (`resolve` sels) resolver) fld
 
 -- | Represents one of a finite set of possible values.
 --   Used in place of a 'scalar' when the possible responses are easily enumerable.
-enum :: MonadPlus m => Name -> m [Text] -> Resolver m
-enum name enums = enumA name $ \case
-     [] -> enums
-     _  -> empty
+enum :: MonadPlus m => Name -> ActionT m [Text] -> Resolver m
+enum name = enumA name . const
 
 -- | Like 'enum' but also taking 'Argument's.
-enumA :: MonadPlus m => Name -> (Arguments -> m [Text]) -> Resolver m
-enumA name f = Resolver name go
+enumA :: MonadPlus m => Name -> (Arguments -> ActionT m [Text]) -> Resolver m
+enumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    go fld@(Field _ _ args []) = withField name (lift $ f args) fld
-    go _ = empty
+    resolveRight fld resolver = withField name (return resolver) fld
+
+resolveFieldValue :: MonadPlus m
+    => ([Argument] -> ActionT m a)
+    -> (Field -> a -> CollectErrsT m (HashMap Text Aeson.Value))
+    -> Field
+    -> CollectErrsT m (HashMap Text Aeson.Value)
+resolveFieldValue f resolveRight fld@(Field alias name args _) = do
+    result <- lift $ runExceptT . runActionT $ f args
+    either resolveLeft (resolveRight fld) result
+      where
+        resolveLeft err = do
+            _ <- addErrMsg err
+            return $ HashMap.singleton (fromMaybe name alias) Aeson.Null
 
 -- | Helper function to facilitate 'Argument' handling.
 withField :: (MonadPlus m, Aeson.ToJSON a)
-          => Name -> CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
-withField name v (Field alias _ _ _) = do
-    collection <- HashMap.singleton aliasOrName . Aeson.toJSON <$> runAppendErrs v
-    errors <- get
-    if null errors
-        then return collection
-        -- TODO: Report error when Non-Nullable type for field argument.
-        else put [] >> return (HashMap.singleton aliasOrName Aeson.Null)
+    => Name -> CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
+withField name v (Field alias _ _ _)
+    = HashMap.singleton aliasOrName . Aeson.toJSON <$> runAppendErrs v
+    {- TODO: Report error when Non-Nullable type for field argument.
+    else return (HashMap.singleton aliasOrName Aeson.Null) -}
   where
     aliasOrName = fromMaybe name alias
 
@@ -168,10 +154,10 @@ withField name v (Field alias _ _ _) = do
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
 resolve :: MonadPlus m
-        => [Resolver m] -> Fields -> CollectErrsT m Aeson.Value
+    => [Resolver m] -> Fields -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where
-    tryResolvers fld = maybe empty (tryResolver fld) (find (compareResolvers fld) resolvers) <|> errmsg fld
+    tryResolvers fld = mplus (maybe mzero (tryResolver fld) $ find (compareResolvers fld) resolvers) $ errmsg fld
     compareResolvers (Field _ name _ _) (Resolver name' _) = name == name'
     tryResolver fld (Resolver _ resolver)  = resolver fld
     errmsg (Field alias name _ _) = do

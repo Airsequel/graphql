@@ -2,10 +2,12 @@
 module Test.StarWars.Data where
 
 import Data.Monoid (mempty)
-import Control.Applicative (Alternative, (<|>), empty, liftA2)
+import Control.Applicative (liftA2)
+import Control.Monad (MonadPlus(..))
+import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
-
 import Data.Text (Text)
+import Language.GraphQL.Trans
 
 -- * Data
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsData.js
@@ -50,8 +52,8 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: Character -> Text
-secretBackstory = error "secretBackstory is secret."
+secretBackstory :: MonadPlus m => Character -> ActionT m Text
+secretBackstory = const $ ActionT $ throwE "secretBackstory is secret."
 
 typeName :: Character -> Text
 typeName = either (const "Droid") (const "Human")
@@ -148,30 +150,30 @@ getHero _ = artoo
 getHeroIO :: Int -> IO Character
 getHeroIO = pure . getHero
 
-getHuman :: Alternative f => ID -> f Character
+getHuman :: MonadPlus m => ID -> m Character
 getHuman = fmap Right . getHuman'
 
-getHuman' :: Alternative f => ID -> f Human
+getHuman' :: MonadPlus m => ID -> m Human
 getHuman' "1000" = pure luke'
 getHuman' "1001" = pure vader
 getHuman' "1002" = pure han
 getHuman' "1003" = pure leia
 getHuman' "1004" = pure tarkin
-getHuman' _      = empty
+getHuman' _      = mzero
 
-getDroid :: Alternative f => ID -> f Character
+getDroid :: MonadPlus m => ID -> m Character
 getDroid = fmap Left . getDroid'
 
-getDroid' :: Alternative f => ID -> f Droid
+getDroid' :: MonadPlus m => ID -> m Droid
 getDroid' "2000" = pure threepio
 getDroid' "2001" = pure artoo'
-getDroid' _      = empty
+getDroid' _      = mzero
 
 getFriends :: Character -> [Character]
-getFriends char = catMaybes $ liftA2 (<|>) getDroid getHuman <$> friends char
+getFriends char = catMaybes $ liftA2 mplus getDroid getHuman <$> friends char
 
-getEpisode :: Alternative f => Int -> f Text
+getEpisode :: MonadPlus m => Int -> m Text
 getEpisode 4 = pure "NEWHOPE"
 getEpisode 5 = pure "EMPIRE"
 getEpisode 6 = pure "JEDI"
-getEpisode _ = empty
+getEpisode _ = mzero
