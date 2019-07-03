@@ -6,16 +6,16 @@ module Data.GraphQL.Schema
   ( Schema
   , Resolver
   , Subs
+  , nullableArray
+  , nullableEnum
+  , nullableObject
+  , nullableScalar
   , object
-  , object'
   , objectA
-  , objectA'
   , scalar
   , scalarA
   , array
-  , array'
   , arrayA
-  , arrayA'
   , enum
   , enumA
   , resolve
@@ -68,18 +68,16 @@ objectA :: MonadPlus m
     => Name -> (Arguments -> ActionT m [Resolver m]) -> Resolver m
 objectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ flds) resolver = withField name (resolve resolver flds) fld
+    resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
 
--- | Create a named 'Resolver' from a list of 'Resolver's.
-object' :: MonadPlus m => Name -> ActionT m [Resolver m] -> Resolver m
-object' name = objectA' name . const
-
--- | Like 'object'' but also taking 'Argument's.
-objectA' :: MonadPlus m
-    => Name -> (Arguments -> ActionT m [Resolver m]) -> Resolver m
-objectA' name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'object' but can be null.
+nullableObject :: MonadPlus m
+    => Name -> (Arguments -> ActionT m (Maybe [Resolver m])) -> Resolver m
+nullableObject name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ flds) resolver = withField name (resolve resolver flds) fld
+    resolveRight fld@(Field _ _ _ flds) (Just resolver) = withField (resolve resolver flds) fld
+    resolveRight fld Nothing
+        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
 -- | A scalar represents a primitive value, like a string or an integer.
 scalar :: (MonadPlus m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
@@ -90,9 +88,20 @@ scalarA :: (MonadPlus m, Aeson.ToJSON a)
     => Name -> (Arguments -> ActionT m a) -> Resolver m
 scalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ []) result = withField name (return result) fld
+    resolveRight fld@(Field _ _ _ []) result = withField (return result) fld
     resolveRight _ _ = mzero
 
+-- | Lika 'scalar' but can be null.
+nullableScalar :: (MonadPlus m, Aeson.ToJSON a)
+    => Name -> (Arguments -> ActionT m (Maybe a)) -> Resolver m
+nullableScalar name f = Resolver name $ resolveFieldValue f resolveRight
+  where
+    resolveRight fld@(Field _ _ _ []) (Just result) = withField (return result) fld
+    resolveRight fld Nothing
+        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
+    resolveRight _ _ = mzero
+
+-- | Creates a list of 'Resolver's.
 array :: MonadPlus m => Name -> ActionT m [[Resolver m]] -> Resolver m
 array name = arrayA name . const
 
@@ -102,19 +111,17 @@ arrayA :: MonadPlus m
 arrayA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ sels) resolver
-        = withField name (traverse (`resolve` sels) resolver) fld
+        = withField (traverse (`resolve` sels) resolver) fld
 
--- | Like 'object'' but taking lists of 'Resolver's instead of a single list.
-array' :: MonadPlus m => Name -> ActionT m [[Resolver m]] -> Resolver m
-array' name = arrayA' name . const
-
--- | Like 'array'' but also taking 'Argument's.
-arrayA' :: MonadPlus m
-    => Name -> (Arguments -> ActionT m [[Resolver m]]) -> Resolver m
-arrayA' name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'array' but can be null.
+nullableArray :: MonadPlus m
+    => Name -> (Arguments -> ActionT m (Maybe [[Resolver m]])) -> Resolver m
+nullableArray name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ sels) resolver
-        = withField name (traverse (`resolve` sels) resolver) fld
+    resolveRight fld@(Field _ _ _ sels) (Just resolver)
+        = withField (traverse (`resolve` sels) resolver) fld
+    resolveRight fld Nothing
+        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
 -- | Represents one of a finite set of possible values.
 --   Used in place of a 'scalar' when the possible responses are easily enumerable.
@@ -125,7 +132,16 @@ enum name = enumA name . const
 enumA :: MonadPlus m => Name -> (Arguments -> ActionT m [Text]) -> Resolver m
 enumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld resolver = withField name (return resolver) fld
+    resolveRight fld resolver = withField (return resolver) fld
+
+-- | Like 'array'' but also taking 'Argument's.
+nullableEnum :: MonadPlus m
+    => Name -> (Arguments -> ActionT m (Maybe [Text])) -> Resolver m
+nullableEnum name f = Resolver name $ resolveFieldValue f resolveRight
+  where
+    resolveRight fld (Just resolver) = withField (return resolver) fld
+    resolveRight fld Nothing
+        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
 resolveFieldValue :: MonadPlus m
     => ([Argument] -> ActionT m a)
@@ -138,17 +154,13 @@ resolveFieldValue f resolveRight fld@(Field alias name args _) = do
       where
         resolveLeft err = do
             _ <- addErrMsg err
-            return $ HashMap.singleton (fromMaybe name alias) Aeson.Null
+            return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
 -- | Helper function to facilitate 'Argument' handling.
 withField :: (MonadPlus m, Aeson.ToJSON a)
-    => Name -> CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
-withField name v (Field alias _ _ _)
-    = HashMap.singleton aliasOrName . Aeson.toJSON <$> runAppendErrs v
-    {- TODO: Report error when Non-Nullable type for field argument.
-    else return (HashMap.singleton aliasOrName Aeson.Null) -}
-  where
-    aliasOrName = fromMaybe name alias
+    => CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
+withField v fld
+    = HashMap.singleton (aliasOrName fld) . Aeson.toJSON <$> runAppendErrs v
 
 -- | Takes a list of 'Resolver's and a list of 'Field's and applies each
 --   'Resolver' to each 'Field'. Resolves into a value containing the
@@ -160,8 +172,9 @@ resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
     tryResolvers fld = mplus (maybe mzero (tryResolver fld) $ find (compareResolvers fld) resolvers) $ errmsg fld
     compareResolvers (Field _ name _ _) (Resolver name' _) = name == name'
     tryResolver fld (Resolver _ resolver)  = resolver fld
-    errmsg (Field alias name _ _) = do
+    errmsg fld@(Field alias name _ _) = do
         addErrMsg $ T.unwords ["field", name, "not resolved."]
-        return $ HashMap.singleton aliasOrName Aeson.Null
-          where
-            aliasOrName = fromMaybe name alias
+        return $ HashMap.singleton (aliasOrName fld) Aeson.Null
+
+aliasOrName :: Field -> Text
+aliasOrName (Field alias name _ _) = fromMaybe name alias
