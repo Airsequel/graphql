@@ -1,7 +1,7 @@
 # Haskell GraphQL
 
 [![Hackage Version](https://img.shields.io/hackage/v/graphql.svg)](https://hackage.haskell.org/package/graphql)
-[![Build Status](https://img.shields.io/travis/jdnavarro/graphql-haskell.svg)](https://travis-ci.org/jdnavarro/graphql-haskell)
+[![Build Status](https://semaphoreci.com/api/v1/belka-ew/graphql/branches/master/badge.svg)](https://semaphoreci.com/belka-ew/graphql)
 
 For now this only provides the data types to represent the GraphQL AST,
 but the idea is to be a Haskell port of
