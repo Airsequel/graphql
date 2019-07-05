@@ -13,6 +13,7 @@ import Data.GraphQL.Schema ( Schema
                            )
 import qualified Data.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
+import Language.GraphQL.Type
 import Test.StarWars.Data
 
 -- * Schema
@@ -30,12 +31,12 @@ hero = Schema.objectA "hero" $ \case
   _ -> ActionT $ throwE "Invalid arguments."
 
 human :: MonadPlus m => Resolver m
-human = Schema.nullableObject "human" $ \case
+human = Schema.wrappedObjectA "human" $ \case
   [Argument "id" (ValueString i)] -> do
       humanCharacter <- lift $ return $ getHuman i >>= Just
       case humanCharacter of
-        Nothing -> return Nothing
-        Just e -> Just <$> character e
+        Nothing -> return Null
+        Just e -> Named <$> character e
   _ -> ActionT $ throwE "Invalid arguments."
 
 droid :: MonadPlus m => Resolver m
@@ -45,11 +46,12 @@ droid = Schema.objectA "droid" $ \case
 
 character :: MonadPlus m => Character -> ActionT m [Resolver m]
 character char = return
-    [ Schema.scalar "id"              $ return $ id_ char
-    , Schema.scalar "name"            $ return $ name char
-    , Schema.array  "friends"         $ traverse character $ getFriends char
-    , Schema.enum   "appearsIn"       $ return $ foldMap getEpisode $ appearsIn char
+    [ Schema.scalar "id" $ return $ id_ char
+    , Schema.scalar "name" $ return $ name char
+    , Schema.wrappedObject "friends"
+        $ traverse character $ List $ Named <$> getFriends char
+    , Schema.enum "appearsIn" $ return $ foldMap getEpisode $ appearsIn char
     , Schema.scalar "secretBackstory" $ secretBackstory char
-    , Schema.scalar "homePlanet"      $ return $ either mempty homePlanet char
-    , Schema.scalar "__typename"      $ return $ typeName char
+    , Schema.scalar "homePlanet" $ return $ either mempty homePlanet char
+    , Schema.scalar "__typename" $ return $ typeName char
     ]

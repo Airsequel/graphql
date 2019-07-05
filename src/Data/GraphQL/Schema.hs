@@ -3,22 +3,22 @@
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 --   functions for defining and manipulating Schemas.
 module Data.GraphQL.Schema
-  ( Schema
-  , Resolver
+  ( Resolver
+  , Schema
   , Subs
-  , nullableArray
-  , nullableEnum
-  , nullableObject
-  , nullableScalar
   , object
   , objectA
   , scalar
   , scalarA
-  , array
-  , arrayA
   , enum
   , enumA
   , resolve
+  , wrappedEnum
+  , wrappedEnumA
+  , wrappedObject
+  , wrappedObjectA
+  , wrappedScalar
+  , wrappedScalarA
   -- * AST Reexports
   , Field
   , Argument(..)
@@ -40,6 +40,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Data.Text as T
 import Language.GraphQL.Trans
+import Language.GraphQL.Type
 import Data.GraphQL.AST.Core
 
 -- | A GraphQL schema.
@@ -70,14 +71,18 @@ objectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
 
--- | Like 'object' but can be null.
-nullableObject :: MonadPlus m
-    => Name -> (Arguments -> ActionT m (Maybe [Resolver m])) -> Resolver m
-nullableObject name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'object' but also taking 'Argument's and can be null or a list of objects.
+wrappedObjectA :: MonadPlus m
+    => Name -> (Arguments -> ActionT m (Wrapping [Resolver m])) -> Resolver m
+wrappedObjectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ flds) (Just resolver) = withField (resolve resolver flds) fld
-    resolveRight fld Nothing
-        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
+    resolveRight fld@(Field _ _ _ sels) resolver
+        = withField (traverse (`resolve` sels) resolver) fld
+
+-- | Like 'object' but can be null or a list of objects.
+wrappedObject :: MonadPlus m
+    => Name -> ActionT m (Wrapping [Resolver m]) -> Resolver m
+wrappedObject name = wrappedObjectA name . const
 
 -- | A scalar represents a primitive value, like a string or an integer.
 scalar :: (MonadPlus m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
@@ -88,40 +93,22 @@ scalarA :: (MonadPlus m, Aeson.ToJSON a)
     => Name -> (Arguments -> ActionT m a) -> Resolver m
 scalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ []) result = withField (return result) fld
-    resolveRight _ _ = mzero
+    resolveRight fld result = withField (return result) fld
 
--- | Lika 'scalar' but can be null.
-nullableScalar :: (MonadPlus m, Aeson.ToJSON a)
-    => Name -> (Arguments -> ActionT m (Maybe a)) -> Resolver m
-nullableScalar name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Lika 'scalar' but also taking 'Argument's and can be null or a list of scalars.
+wrappedScalarA :: (MonadPlus m, Aeson.ToJSON a)
+    => Name -> (Arguments -> ActionT m (Wrapping a)) -> Resolver m
+wrappedScalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ []) (Just result) = withField (return result) fld
-    resolveRight fld Nothing
+    resolveRight fld (Named result) = withField (return result) fld
+    resolveRight fld Null
         = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
-    resolveRight _ _ = mzero
+    resolveRight fld (List result) = withField (return result) fld
 
--- | Creates a list of 'Resolver's.
-array :: MonadPlus m => Name -> ActionT m [[Resolver m]] -> Resolver m
-array name = arrayA name . const
-
--- | Like 'array' but also taking 'Argument's.
-arrayA :: MonadPlus m
-    => Name -> (Arguments -> ActionT m [[Resolver m]]) -> Resolver m
-arrayA name f = Resolver name $ resolveFieldValue f resolveRight
-  where
-    resolveRight fld@(Field _ _ _ sels) resolver
-        = withField (traverse (`resolve` sels) resolver) fld
-
--- | Like 'array' but can be null.
-nullableArray :: MonadPlus m
-    => Name -> (Arguments -> ActionT m (Maybe [[Resolver m]])) -> Resolver m
-nullableArray name f = Resolver name $ resolveFieldValue f resolveRight
-  where
-    resolveRight fld@(Field _ _ _ sels) (Just resolver)
-        = withField (traverse (`resolve` sels) resolver) fld
-    resolveRight fld Nothing
-        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
+-- | Like 'scalar' but can be null or a list of scalars.
+wrappedScalar :: (MonadPlus m, Aeson.ToJSON a)
+    => Name -> ActionT m (Wrapping a) -> Resolver m
+wrappedScalar name = wrappedScalarA name . const
 
 -- | Represents one of a finite set of possible values.
 --   Used in place of a 'scalar' when the possible responses are easily enumerable.
@@ -134,14 +121,19 @@ enumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld resolver = withField (return resolver) fld
 
--- | Like 'array'' but also taking 'Argument's.
-nullableEnum :: MonadPlus m
-    => Name -> (Arguments -> ActionT m (Maybe [Text])) -> Resolver m
-nullableEnum name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'enum' but also taking 'Argument's and can be null or a list of enums.
+wrappedEnumA :: MonadPlus m
+    => Name -> (Arguments -> ActionT m (Wrapping [Text])) -> Resolver m
+wrappedEnumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld (Just resolver) = withField (return resolver) fld
-    resolveRight fld Nothing
+    resolveRight fld (Named resolver) = withField (return resolver) fld
+    resolveRight fld Null
         = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
+    resolveRight fld (List resolver) = withField (return resolver) fld
+
+-- | Like 'enum' but can be null or a list of enums.
+wrappedEnum :: MonadPlus m => Name -> ActionT m (Wrapping [Text]) -> Resolver m
+wrappedEnum name = wrappedEnumA name . const
 
 resolveFieldValue :: MonadPlus m
     => ([Argument] -> ActionT m a)
