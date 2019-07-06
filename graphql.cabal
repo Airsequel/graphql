@@ -4,20 +4,21 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2f09ae8e288ccdea02b6f59bec6625b3f8795841f7ccf7cb19d1de428f0f63cb
+-- hash: 3b6e8e64a62fa7a1ef602db8cb6aec07bfb21e81af7c91c939bfa03833879a81
 
 name:           graphql
-version:        0.3
+version:        0.4.0.0
 synopsis:       Haskell GraphQL implementation
 description:    This package provides a rudimentary parser for the <https://facebook.github.io/graphql/ GraphQL> language.
 category:       Web
 homepage:       https://github.com/jdnavarro/graphql-haskell
 bug-reports:    https://github.com/jdnavarro/graphql-haskell/issues
-author:         Danny Navarro,
-                Matthías Páll Gissurarson,
-                Sólrún Halla Einarsdóttir
-maintainer:     j@dannynavarro.net
-copyright:      Copyright (C) 2015-2019 J. Daniel Navarro
+author:         Danny Navarro <j@dannynavarro.net>,
+                Matthías Páll Gissurarson <mpg@mpg.is>,
+                Sólrún Halla Einarsdóttir <she@mpg.is>
+maintainer:     belka@caraus.de
+copyright:      (c) 2019 Eugen Wissner,
+                (c) 2015-2017 J. Daniel Navarro
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple

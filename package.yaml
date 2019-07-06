@@ -1,18 +1,20 @@
 name:                graphql
-version:             0.3
+version:             0.4.0.0
 synopsis:            Haskell GraphQL implementation
 description:
   This package provides a rudimentary parser for the
   <https://facebook.github.io/graphql/ GraphQL> language.
 homepage:            https://github.com/jdnavarro/graphql-haskell
-maintainer:          j@dannynavarro.net
-copyright:           Copyright (C) 2015-2019 J. Daniel Navarro
+maintainer:          belka@caraus.de
+copyright:
+- 2019 Eugen Wissner
+- 2015-2017 J. Daniel Navarro
 category:            Web
-github:              jdnavarro/graphql-haskell
+github:              caraus-ecms/graphql
 author:
-- Danny Navarro
-- Matthías Páll Gissurarson
-- Sólrún Halla Einarsdóttir
+- Danny Navarro <j@dannynavarro.net>
+- Matthías Páll Gissurarson <mpg@mpg.is>
+- Sólrún Halla Einarsdóttir <she@mpg.is>
 
 extra-source-files:
 - CHANGELOG.md
