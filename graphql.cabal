@@ -4,15 +4,15 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3b6e8e64a62fa7a1ef602db8cb6aec07bfb21e81af7c91c939bfa03833879a81
+-- hash: 20a76d38355648944315f3aa937e5cd72837bbd1b93037f53e2849906de3f2c0
 
 name:           graphql
 version:        0.4.0.0
 synopsis:       Haskell GraphQL implementation
-description:    This package provides a rudimentary parser for the <https://facebook.github.io/graphql/ GraphQL> language.
-category:       Web
+description:    This package provides a rudimentary parser for the <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
+category:       Language
 homepage:       https://github.com/jdnavarro/graphql-haskell
-bug-reports:    https://github.com/jdnavarro/graphql-haskell/issues
+bug-reports:    https://github.com/caraus-ecms/graphql/issues
 author:         Danny Navarro <j@dannynavarro.net>,
                 Matthías Páll Gissurarson <mpg@mpg.is>,
                 Sólrún Halla Einarsdóttir <she@mpg.is>
@@ -34,20 +34,20 @@ data-files:
 
 source-repository head
   type: git
-  location: https://github.com/jdnavarro/graphql-haskell
+  location: https://github.com/caraus-ecms/graphql
 
 library
   exposed-modules:
-      Data.GraphQL
-      Data.GraphQL.AST
-      Data.GraphQL.AST.Core
-      Data.GraphQL.AST.Transform
-      Data.GraphQL.Encoder
-      Data.GraphQL.Error
-      Data.GraphQL.Execute
-      Data.GraphQL.Parser
-      Data.GraphQL.Schema
+      Language.GraphQL
+      Language.GraphQL.AST
+      Language.GraphQL.AST.Core
+      Language.GraphQL.AST.Transform
+      Language.GraphQL.Encoder
+      Language.GraphQL.Error
+      Language.GraphQL.Execute
       Language.GraphQL.Lexer
+      Language.GraphQL.Parser
+      Language.GraphQL.Schema
       Language.GraphQL.Trans
       Language.GraphQL.Type
   other-modules:
@@ -58,7 +58,6 @@ library
       aeson
     , base >=4.7 && <5
     , megaparsec
-    , scientific
     , text
     , transformers
     , unordered-containers
@@ -86,5 +85,4 @@ test-suite tasty
     , tasty-hunit
     , text
     , transformers
-    , unordered-containers
   default-language: Haskell2010

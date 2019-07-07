@@ -1,18 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module provides the function to execute a @GraphQL@ request --
 --   according to a 'Schema'.
-module Data.GraphQL.Execute (execute) where
+module Language.GraphQL.Execute (execute) where
 
 import Control.Monad (MonadPlus(..))
-import Data.GraphQL.Error
 import qualified Data.List.NonEmpty as NE
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.Aeson as Aeson
-import qualified Data.GraphQL.AST as AST
-import qualified Data.GraphQL.AST.Core as AST.Core
-import qualified Data.GraphQL.AST.Transform as Transform
-import Data.GraphQL.Schema (Schema)
-import qualified Data.GraphQL.Schema as Schema
+import qualified Language.GraphQL.AST as AST
+import qualified Language.GraphQL.AST.Core as AST.Core
+import qualified Language.GraphQL.AST.Transform as Transform
+import Language.GraphQL.Error
+import Language.GraphQL.Schema (Schema)
+import qualified Language.GraphQL.Schema as Schema
 
 -- | Takes a 'Schema', a variable substitution function ('Schema.Subs'), and a
 --   @GraphQL@ 'document'. The substitution is applied to the document using

@@ -6,12 +6,12 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.GraphQL.Schema ( Schema
-                           , Resolver
-                           , Argument(..)
-                           , Value(..)
-                           )
-import qualified Data.GraphQL.Schema as Schema
+import Language.GraphQL.Schema ( Schema
+                               , Resolver
+                               , Argument(..)
+                               , Value(..)
+                               )
+import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
 import Language.GraphQL.Type
 import Test.StarWars.Data

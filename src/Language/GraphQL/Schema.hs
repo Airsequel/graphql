@@ -2,7 +2,7 @@
 
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 --   functions for defining and manipulating Schemas.
-module Data.GraphQL.Schema
+module Language.GraphQL.Schema
   ( Resolver
   , Schema
   , Subs
@@ -31,7 +31,6 @@ import Control.Monad.Trans.Except (runExceptT)
 import Data.Foldable ( find
                      , fold
                      )
-import Data.GraphQL.Error
 import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
@@ -39,9 +38,10 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Data.Text as T
+import Language.GraphQL.Error
 import Language.GraphQL.Trans
 import Language.GraphQL.Type
-import Data.GraphQL.AST.Core
+import Language.GraphQL.AST.Core
 
 -- | A GraphQL schema.
 --   @f@ is usually expected to be an instance of 'Alternative'.

@@ -7,14 +7,11 @@ import Data.Aeson ( object
                   , (.=)
                   )
 import Data.Text (Text)
+import Language.GraphQL
+import Language.GraphQL.Schema (Subs)
 import Text.RawString.QQ (r)
-
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (Assertion, testCase, (@?=))
-
-import Data.GraphQL
-import Data.GraphQL.Schema (Subs)
-
 import Test.StarWars.Schema
 
 -- * Test

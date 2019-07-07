@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.GraphQL.AST.Transform where
+module Language.GraphQL.AST.Transform where
 
 import Control.Applicative (empty)
 import Control.Monad ((<=<))
@@ -8,12 +8,10 @@ import Data.Either (partitionEithers)
 import Data.Foldable (fold, foldMap)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid (Alt(Alt,getAlt), (<>))
-
 import Data.Text (Text)
-
-import qualified Data.GraphQL.AST as Full
-import qualified Data.GraphQL.AST.Core as Core
-import qualified Data.GraphQL.Schema as Schema
+import qualified Language.GraphQL.AST as Full
+import qualified Language.GraphQL.AST.Core as Core
+import qualified Language.GraphQL.Schema as Schema
 
 type Name = Text
 

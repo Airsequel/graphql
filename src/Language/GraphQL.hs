@@ -1,5 +1,5 @@
 -- | This module provides the functions to parse and execute @GraphQL@ queries.
-module Data.GraphQL where
+module Language.GraphQL where
 
 import Control.Monad (MonadPlus)
 
@@ -10,11 +10,11 @@ import Text.Megaparsec ( errorBundlePretty
                        , parse
                        )
 
-import Data.GraphQL.Execute
-import Data.GraphQL.Parser
-import Data.GraphQL.Schema
+import Language.GraphQL.Execute
+import Language.GraphQL.Parser
+import Language.GraphQL.Schema
 
-import Data.GraphQL.Error
+import Language.GraphQL.Error
 
 -- | Takes a 'Schema' and text representing a @GraphQL@ request document.
 --   If the text parses correctly as a @GraphQL@ query the query is

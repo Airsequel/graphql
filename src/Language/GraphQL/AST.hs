@@ -3,7 +3,7 @@
 --
 -- Target AST for Parser.
 
-module Data.GraphQL.AST where
+module Language.GraphQL.AST where
 
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)

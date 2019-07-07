@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.GraphQL.Error
+module Language.GraphQL.Error
   ( parseError
   , CollectErrsT
   , addErr

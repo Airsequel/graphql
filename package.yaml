@@ -3,14 +3,14 @@ version:             0.4.0.0
 synopsis:            Haskell GraphQL implementation
 description:
   This package provides a rudimentary parser for the
-  <https://facebook.github.io/graphql/ GraphQL> language.
+  <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
 homepage:            https://github.com/jdnavarro/graphql-haskell
 maintainer:          belka@caraus.de
-copyright:
-- 2019 Eugen Wissner
-- 2015-2017 J. Daniel Navarro
-category:            Web
 github:              caraus-ecms/graphql
+category:            Language
+copyright:
+- (c) 2019 Eugen Wissner
+- (c) 2015-2017 J. Daniel Navarro
 author:
 - Danny Navarro <j@dannynavarro.net>
 - Matthías Páll Gissurarson <mpg@mpg.is>
@@ -33,12 +33,11 @@ dependencies:
 - megaparsec
 - text
 - transformers
-- unordered-containers
 
 library:
   source-dirs: src
   dependencies:
-  - scientific
+  - unordered-containers
 
 tests:
   tasty:

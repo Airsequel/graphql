@@ -1,13 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Data.GraphQL.Parser where
+module Language.GraphQL.Parser where
 
 import Control.Applicative ( Alternative(..)
                            , optional
                            )
-import Data.GraphQL.AST
-import Language.GraphQL.Lexer
 import Data.List.NonEmpty (NonEmpty(..))
+import Language.GraphQL.AST
+import Language.GraphQL.Lexer
 import Text.Megaparsec ( lookAhead
                        , option
                        , try

@@ -1,9 +1,9 @@
 module Main where
 
-import qualified Data.GraphQL.Encoder as Encoder
-import qualified Language.GraphQL.LexerTest as LexerTest
-import qualified Data.GraphQL.Parser as Parser
 import qualified Data.Text.IO as T.IO
+import qualified Language.GraphQL.Encoder as Encoder
+import qualified Language.GraphQL.LexerTest as LexerTest
+import qualified Language.GraphQL.Parser as Parser
 import Text.Megaparsec ( errorBundlePretty
                        , parse
                        )
