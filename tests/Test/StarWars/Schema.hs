@@ -2,9 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Test.StarWars.Schema where
 
-import Control.Monad (MonadPlus(..))
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Language.GraphQL.Schema ( Schema
                                , Resolver
@@ -19,10 +19,10 @@ import Test.StarWars.Data
 -- * Schema
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: MonadPlus m => Schema m
+schema :: MonadIO m => Schema m
 schema = hero :| [human, droid]
 
-hero :: MonadPlus m => Resolver m
+hero :: MonadIO m => Resolver m
 hero = Schema.objectA "hero" $ \case
   [] -> character artoo
   [Argument "episode" (ValueEnum "NEWHOPE")] -> character $ getHero 4
@@ -30,7 +30,7 @@ hero = Schema.objectA "hero" $ \case
   [Argument "episode" (ValueEnum "JEDI"   )] -> character $ getHero 6
   _ -> ActionT $ throwE "Invalid arguments."
 
-human :: MonadPlus m => Resolver m
+human :: MonadIO m => Resolver m
 human = Schema.wrappedObjectA "human" $ \case
   [Argument "id" (ValueString i)] -> do
       humanCharacter <- lift $ return $ getHuman i >>= Just
@@ -39,12 +39,12 @@ human = Schema.wrappedObjectA "human" $ \case
         Just e -> Named <$> character e
   _ -> ActionT $ throwE "Invalid arguments."
 
-droid :: MonadPlus m => Resolver m
+droid :: MonadIO m => Resolver m
 droid = Schema.objectA "droid" $ \case
-   [Argument "id" (ValueString i)] -> character =<< lift (getDroid i)
+   [Argument "id" (ValueString i)] -> character =<< liftIO (getDroid i)
    _ -> ActionT $ throwE "Invalid arguments."
 
-character :: MonadPlus m => Character -> ActionT m [Resolver m]
+character :: MonadIO m => Character -> ActionT m [Resolver m]
 character char = return
     [ Schema.scalar "id" $ return $ id_ char
     , Schema.scalar "name" $ return $ name char

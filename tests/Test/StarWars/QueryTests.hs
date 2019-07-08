@@ -11,7 +11,10 @@ import Language.GraphQL
 import Language.GraphQL.Schema (Subs)
 import Text.RawString.QQ (r)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (Assertion, testCase, (@?=))
+import Test.Tasty.HUnit ( Assertion
+                        , testCase
+                        , (@?=)
+                        )
 import Test.StarWars.Schema
 
 -- * Test
@@ -344,13 +347,7 @@ test = testGroup "Star Wars Query Tests"
     alderaan = "homePlanet" .= ("Alderaan" :: Text)
 
 testQuery :: Text -> Aeson.Value -> Assertion
-testQuery q expected = graphql schema q @?= Just expected
-
--- testFail :: Text -> Assertion
--- testFail q = graphql schema q @?= Nothing
+testQuery q expected = graphql schema q >>= (@?= expected)
 
 testQueryParams :: Subs -> Text -> Aeson.Value -> Assertion
-testQueryParams f q expected = graphqlSubs schema f q @?= Just expected
-
--- testFailParams :: Subs -> Text -> Assertion
--- testFailParams f q = graphqlSubs schema f q @?= Nothing
+testQueryParams f q expected = graphqlSubs schema f q >>= (@?= expected)

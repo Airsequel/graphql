@@ -2,8 +2,10 @@
 module Test.StarWars.Data where
 
 import Data.Monoid (mempty)
-import Control.Applicative (liftA2)
-import Control.Monad (MonadPlus(..))
+import Control.Applicative ( Alternative(..)
+                           , liftA2 
+                           )
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -52,7 +54,7 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: MonadPlus m => Character -> ActionT m Text
+secretBackstory :: MonadIO m => Character -> ActionT m Text
 secretBackstory = const $ ActionT $ throwE "secretBackstory is secret."
 
 typeName :: Character -> Text
@@ -150,30 +152,30 @@ getHero _ = artoo
 getHeroIO :: Int -> IO Character
 getHeroIO = pure . getHero
 
-getHuman :: MonadPlus m => ID -> m Character
+getHuman :: Alternative f => ID -> f Character
 getHuman = fmap Right . getHuman'
 
-getHuman' :: MonadPlus m => ID -> m Human
+getHuman' :: Alternative f => ID -> f Human
 getHuman' "1000" = pure luke'
 getHuman' "1001" = pure vader
 getHuman' "1002" = pure han
 getHuman' "1003" = pure leia
 getHuman' "1004" = pure tarkin
-getHuman' _      = mzero
+getHuman' _      = empty
 
-getDroid :: MonadPlus m => ID -> m Character
+getDroid :: Alternative f => ID -> f Character
 getDroid = fmap Left . getDroid'
 
-getDroid' :: MonadPlus m => ID -> m Droid
+getDroid' :: Alternative f => ID -> f Droid
 getDroid' "2000" = pure threepio
 getDroid' "2001" = pure artoo'
-getDroid' _      = mzero
+getDroid' _      = empty
 
 getFriends :: Character -> [Character]
-getFriends char = catMaybes $ liftA2 mplus getDroid getHuman <$> friends char
+getFriends char = catMaybes $ liftA2 (<|>) getDroid getHuman <$> friends char
 
-getEpisode :: MonadPlus m => Int -> m Text
+getEpisode :: Alternative f => Int -> f Text
 getEpisode 4 = pure "NEWHOPE"
 getEpisode 5 = pure "EMPIRE"
 getEpisode 6 = pure "JEDI"
-getEpisode _ = mzero
+getEpisode _ = empty
