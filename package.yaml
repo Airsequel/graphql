@@ -41,7 +41,7 @@ library:
 
 tests:
   tasty:
-    main: tasty.hs
+    main: Spec.hs
     source-dirs: tests
     ghc-options:
     - -threaded
@@ -49,6 +49,6 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - graphql
+    - hspec
+    - hspec-expectations
     - raw-strings-qq
-    - tasty
-    - tasty-hunit
