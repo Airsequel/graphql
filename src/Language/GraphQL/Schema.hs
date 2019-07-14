@@ -3,27 +3,27 @@
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 --   functions for defining and manipulating Schemas.
 module Language.GraphQL.Schema
-  ( Resolver
-  , Schema
-  , Subs
-  , object
-  , objectA
-  , scalar
-  , scalarA
-  , enum
-  , enumA
-  , resolve
-  , wrappedEnum
-  , wrappedEnumA
-  , wrappedObject
-  , wrappedObjectA
-  , wrappedScalar
-  , wrappedScalarA
-  -- * AST Reexports
-  , Field
-  , Argument(..)
-  , Value(..)
-  ) where
+    ( Resolver
+    , Schema
+    , Subs
+    , object
+    , objectA
+    , scalar
+    , scalarA
+    , enum
+    , enumA
+    , resolve
+    , wrappedEnum
+    , wrappedEnumA
+    , wrappedObject
+    , wrappedObjectA
+    , wrappedScalar
+    , wrappedScalarA
+    -- * AST Reexports
+    , Field
+    , Argument(..)
+    , Value(..)
+    ) where
 
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)

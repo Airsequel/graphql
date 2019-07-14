@@ -2,7 +2,9 @@
 
 -- | This module provides the function to execute a @GraphQL@ request --
 --   according to a 'Schema'.
-module Language.GraphQL.Execute (execute) where
+module Language.GraphQL.Execute
+    ( execute
+    ) where
 
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.List.NonEmpty as NE

@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module defines a printer for the @GraphQL@ language.
-module Language.GraphQL.Encoder where
+module Language.GraphQL.Encoder
+    ( document
+    , spaced
+    ) where
 
 import Data.Foldable (fold)
 import Data.Monoid ((<>))

@@ -1,5 +1,13 @@
 -- | This is the AST meant to be executed.
-module Language.GraphQL.AST.Core where
+module Language.GraphQL.AST.Core
+    ( Argument(..)
+    , Document
+    , Field(..)
+    , Name
+    , ObjectField(..)
+    , Operation(..)
+    , Value(..)
+    ) where
 
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)

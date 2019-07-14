@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Language.GraphQL.Error
-  ( parseError
-  , CollectErrsT
-  , addErr
-  , addErrMsg
-  , runCollectErrs
-  , runAppendErrs
-  ) where
+    ( parseError
+    , CollectErrsT
+    , addErr
+    , addErrMsg
+    , runCollectErrs
+    , runAppendErrs
+    ) where
 
 import qualified Data.Aeson as Aeson
 import Data.Text (Text, pack)

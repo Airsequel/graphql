@@ -1,4 +1,6 @@
-module Language.GraphQL.Trans where
+module Language.GraphQL.Trans
+    ( ActionT(..)
+    ) where
 
 import Control.Applicative (Alternative(..))
 import Control.Monad (MonadPlus(..))

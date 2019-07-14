@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Language.GraphQL.AST.Transform where
+module Language.GraphQL.AST.Transform
+    ( document
+    ) where
 
 import Control.Applicative (empty)
 import Control.Monad ((<=<))

@@ -1,6 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Test.StarWars.Schema where
+module Test.StarWars.Schema
+    ( character
+    , droid
+    , hero
+    , human
+    , schema
+    ) where
 
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)

@@ -1,5 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Test.StarWars.Data where
+module Test.StarWars.Data
+    ( Character
+    , appearsIn
+    , artoo
+    , getDroid
+    , getDroid'
+    , getEpisode
+    , getFriends
+    , getHero
+    , getHeroIO
+    , getHuman
+    , id_
+    , homePlanet
+    , name
+    , secretBackstory
+    , typeName
+    ) where
 
 import Data.Monoid (mempty)
 import Control.Applicative ( Alternative(..)

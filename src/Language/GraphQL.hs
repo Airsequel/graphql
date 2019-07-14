@@ -1,5 +1,8 @@
 -- | This module provides the functions to parse and execute @GraphQL@ queries.
-module Language.GraphQL where
+module Language.GraphQL
+    ( graphql
+    , graphqlSubs
+    ) where
 
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Text as T

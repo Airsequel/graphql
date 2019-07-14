@@ -1,6 +1,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Language.GraphQL.Parser where
+module Language.GraphQL.Parser
+    ( document
+    ) where
 
 import Control.Applicative ( Alternative(..)
                            , optional

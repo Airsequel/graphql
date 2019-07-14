@@ -2,8 +2,37 @@
 --   <https://facebook.github.io/graphql/ Facebook's GraphQL Specification>.
 --
 -- Target AST for Parser.
-
-module Language.GraphQL.AST where
+module Language.GraphQL.AST
+    ( Alias
+    , Argument(..)
+    , Arguments
+    , DefaultValue
+    , Definition(..)
+    , Directive(..)
+    , Directives
+    , Document
+    , Field(..)
+    , FragmentDefinition(..)
+    , FragmentName
+    , FragmentSpread(..)
+    , InlineFragment(..)
+    , ListValue
+    , Name
+    , NonNullType(..)
+    , ObjectField(..)
+    , ObjectValue
+    , OperationDefinition(..)
+    , OperationType(..)
+    , Selection(..)
+    , SelectionSet
+    , SelectionSetOpt
+    , Type(..)
+    , TypeCondition
+    , Value(..)
+    , Variable
+    , VariableDefinition(..)
+    , VariableDefinitions
+    ) where
 
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
