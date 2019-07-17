@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 2ad18ce352b6b5324c5e8c4fa3e7c1dc39022b209696d162367d13300c4046fd
+-- hash: 36fc8a7c107b61579191035619873e2001628165d12013cef25921cd7e31a240
 
 name:           graphql
 version:        0.4.0.0
@@ -26,7 +26,6 @@ extra-source-files:
     CHANGELOG.md
     README.md
     LICENSE
-    TODO
     docs/tutorial/tutorial.lhs
 data-files:
     tests/data/kitchen-sink.graphql
