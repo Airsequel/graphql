@@ -41,10 +41,10 @@ variableDefinition :: VariableDefinition -> Text
 variableDefinition (VariableDefinition var ty dv) =
     variable var <> ":" <> type_ ty <> maybe mempty defaultValue dv
 
-defaultValue :: DefaultValue -> Text
+defaultValue :: Value -> Text
 defaultValue val = "=" <> value val
 
-variable :: Variable -> Text
+variable :: Name -> Text
 variable var = "$" <> var
 
 selectionSet :: SelectionSet -> Text
@@ -113,10 +113,10 @@ booleanValue False = "false"
 stringValue :: Text -> Text
 stringValue = quotes
 
-listValue :: ListValue -> Text
+listValue :: [Value] -> Text
 listValue = bracketsCommas value
 
-objectValue :: ObjectValue -> Text
+objectValue :: [ObjectField] -> Text
 objectValue = bracesCommas objectField
 
 objectField :: ObjectField -> Text

@@ -6,7 +6,6 @@ module Language.GraphQL.AST
     ( Alias
     , Argument(..)
     , Arguments
-    , DefaultValue
     , Definition(..)
     , Directive(..)
     , Directives
@@ -16,11 +15,9 @@ module Language.GraphQL.AST
     , FragmentName
     , FragmentSpread(..)
     , InlineFragment(..)
-    , ListValue
     , Name
     , NonNullType(..)
     , ObjectField(..)
-    , ObjectValue
     , OperationDefinition(..)
     , OperationType(..)
     , Selection(..)
@@ -29,7 +26,6 @@ module Language.GraphQL.AST
     , Type(..)
     , TypeCondition
     , Value(..)
-    , Variable
     , VariableDefinition(..)
     , VariableDefinitions
     ) where
@@ -37,10 +33,9 @@ module Language.GraphQL.AST
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
-
--- * Name
-
-type Name = Text
+import Language.GraphQL.AST.Core ( Alias
+                                 , Name
+                                 )
 
 -- * Document
 
@@ -78,8 +73,6 @@ data Selection = SelectionField          Field
 data Field = Field (Maybe Alias) Name Arguments Directives SelectionSetOpt
              deriving (Eq,Show)
 
-type Alias = Name
-
 -- * Arguments
 
 type Arguments = [Argument]
@@ -101,48 +94,29 @@ type FragmentName = Name
 
 type TypeCondition = Name
 
--- Input Values
+-- * Input values
 
-data Value = ValueVariable Variable
-           | ValueInt IntValue
-           | ValueFloat FloatValue
-           | ValueString StringValue
-           | ValueBoolean BooleanValue
+data Value = ValueVariable Name
+           | ValueInt Int32
+           | ValueFloat Double
+           | ValueString Text
+           | ValueBoolean Bool
            | ValueNull
-           | ValueEnum EnumValue
-           | ValueList ListValue
-           | ValueObject ObjectValue
-             deriving (Eq,Show)
+           | ValueEnum Name
+           | ValueList [Value]
+           | ValueObject [ObjectField]
+           deriving (Eq, Show)
 
-type IntValue = Int32
-
--- GraphQL Float is double precison
-type FloatValue = Double
-
-type StringValue = Text
-
-type BooleanValue = Bool
-
-type EnumValue = Name
-
-type ListValue = [Value]
-
-type ObjectValue = [ObjectField]
-
-data ObjectField = ObjectField Name Value deriving (Eq,Show)
+data ObjectField = ObjectField Name Value deriving (Eq, Show)
 
 -- * Variables
 
 type VariableDefinitions = [VariableDefinition]
 
-data VariableDefinition = VariableDefinition Variable Type (Maybe DefaultValue)
+data VariableDefinition = VariableDefinition Name Type (Maybe Value)
                           deriving (Eq,Show)
 
-type Variable = Name
-
-type DefaultValue = Value
-
--- * Input Types
+-- * Input types
 
 data Type = TypeNamed   Name
           | TypeList    Type

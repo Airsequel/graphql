@@ -1,6 +1,7 @@
 -- | This is the AST meant to be executed.
 module Language.GraphQL.AST.Core
-    ( Argument(..)
+    ( Alias
+    , Argument(..)
     , Document
     , Field(..)
     , Name
@@ -15,6 +16,7 @@ import Data.String
 
 import Data.Text (Text)
 
+-- | Name
 type Name = Text
 
 type Document = NonEmpty Operation

@@ -10,16 +10,13 @@ import Data.Either (partitionEithers)
 import Data.Foldable (fold, foldMap)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid (Alt(Alt,getAlt), (<>))
-import Data.Text (Text)
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
 
-type Name = Text
-
 -- | Replaces a fragment name by a list of 'Field'. If the name doesn't match an
 --   empty list is returned.
-type Fragmenter = Name -> [Core.Field]
+type Fragmenter = Core.Name -> [Core.Field]
 
 -- TODO: Replace Maybe by MonadThrow with CustomError
 document :: Schema.Subs -> Full.Document -> Maybe Core.Document

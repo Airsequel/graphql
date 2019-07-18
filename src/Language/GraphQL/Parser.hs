@@ -140,10 +140,10 @@ variableDefinition = VariableDefinition <$> variable
                                         <*  colon
                                         <*> type_
                                         <*> optional defaultValue
-variable :: Parser Variable
+variable :: Parser Name
 variable = dollar *> name
 
-defaultValue :: Parser DefaultValue
+defaultValue :: Parser Value
 defaultValue = equals *> value
 
 -- * Input Types
