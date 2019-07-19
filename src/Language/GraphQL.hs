@@ -8,9 +8,7 @@ import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Text as T
 
 import qualified Data.Aeson as Aeson
-import Text.Megaparsec ( errorBundlePretty
-                       , parse
-                       )
+import Text.Megaparsec (parse)
 
 import Language.GraphQL.Execute
 import Language.GraphQL.Parser
@@ -34,5 +32,5 @@ graphql = flip graphqlSubs $ const Nothing
 --   Returns the response as an @Aeson.@'Aeson.Value'.
 graphqlSubs :: MonadIO m => Schema m -> Subs -> T.Text -> m Aeson.Value
 graphqlSubs schema f =
-    either (parseError . errorBundlePretty) (execute schema f)
+    either parseError (execute schema f)
     . parse document ""

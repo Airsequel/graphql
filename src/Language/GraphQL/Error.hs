@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 module Language.GraphQL.Error
     ( parseError
     , CollectErrsT
@@ -9,17 +10,34 @@ module Language.GraphQL.Error
     ) where
 
 import qualified Data.Aeson as Aeson
-import Data.Text (Text, pack)
+import Data.Text (Text)
+import Data.Void (Void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State ( StateT
                                  , modify
                                  , runStateT
                                  )
+import Text.Megaparsec ( ParseErrorBundle(..)
+                       , SourcePos(..)
+                       , errorOffset
+                       , parseErrorTextPretty
+                       , reachOffset
+                       , unPos
+                       )
 
 -- | Wraps a parse error into a list of errors.
-parseError :: Applicative f => String -> f Aeson.Value
-parseError s =
-  pure $ Aeson.object [("errors", Aeson.toJSON [makeErrorMsg $ pack s])]
+parseError :: Applicative f => ParseErrorBundle Text Void -> f Aeson.Value
+parseError ParseErrorBundle{..}  =
+  pure $ Aeson.object [("errors", Aeson.toJSON $ fst $ foldl go ([], bundlePosState) bundleErrors)]
+  where
+    errorObject s SourcePos{..} = Aeson.object
+        [ ("message", Aeson.toJSON $ init $ parseErrorTextPretty s)
+        , ("line", Aeson.toJSON $ unPos sourceLine)
+        , ("column", Aeson.toJSON $ unPos sourceColumn)
+        ]
+    go (result, state) x =
+        let (sourcePosition, _, newState) = reachOffset (errorOffset x) state
+         in (errorObject x sourcePosition : result, newState)
 
 -- | A wrapper to pass error messages around.
 type CollectErrsT m = StateT [Aeson.Value] m
