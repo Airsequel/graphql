@@ -15,20 +15,20 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > {-# LANGUAGE LambdaCase #-}
 > module Main where
 >
-> import Prelude hiding (empty, putStrLn)
-> import Data.GraphQL
-> import Data.GraphQL.Schema
-> import qualified Data.GraphQL.Schema as Schema
->
-> import Control.Applicative
-> import Data.List.NonEmpty (NonEmpty((:|)))
-> import Data.Text hiding (empty)
-> import Data.Aeson
+> import Control.Monad.IO.Class (liftIO)
+> import Control.Monad.Trans.Except (throwE)
+> import Data.Aeson (encode)
 > import Data.ByteString.Lazy.Char8 (putStrLn)
+> import Data.List.NonEmpty (NonEmpty(..))
+> import Data.Text (Text)
+> import Data.Time (getCurrentTime)
 >
-> import Data.Time
+> import Language.GraphQL
+> import Language.GraphQL.Schema (Schema)
+> import qualified Language.GraphQL.Schema as Schema
+> import Language.GraphQL.Trans (ActionT(..))
 >
-> import Debug.Trace
+> import Prelude hiding (putStrLn)
 
 === First example ===
 
@@ -37,11 +37,11 @@ example from [graphql.js](https://github.com/graphql/graphql-js).
 
 First we build a GraphQL schema.
 
-> schema1 :: Alternative f => Schema f
+> schema1 :: Schema IO
 > schema1 = hello :| []
 >
-> hello :: Alternative f => Resolver f
-> hello = Schema.scalar "hello" ("it's me" :: Text)
+> hello :: Schema.Resolver IO
+> hello = Schema.scalar "hello" (return ("it's me" :: Text))
 
 This defines a simple schema with one type and one field, that resolves to a fixed value.
 
@@ -70,11 +70,11 @@ For this example, we're going to be using time.
 > schema2 :: Schema IO
 > schema2 = time :| []
 >
-> time :: Resolver IO
+> time :: Schema.Resolver IO
 > time = Schema.scalarA "time" $ \case
->   [] -> do t <- getCurrentTime
+>   [] -> do t <- liftIO getCurrentTime
 >            return $ show t
->   _  -> empty
+>   _ -> ActionT $ throwE "Invalid arguments."
 
 This defines a simple schema with one type and one field,
 which resolves to the current time.
@@ -108,11 +108,11 @@ and the query will fail, as we can see in the following example.
 
 > mainShouldFail :: IO ()
 > mainShouldFail = do
->   r <- graphql schema1 query1
->   putStrLn $ encode r
+>   success <- graphql schema1 query1
+>   putStrLn $ encode success
 >   putStrLn "This will fail"
->   r <- graphql schema1 queryShouldFail
->   putStrLn $ encode r
+>   failure <- graphql schema1 queryShouldFail
+>   putStrLn $ encode failure
 >
 
 This outputs:
@@ -149,3 +149,6 @@ In GraphQL there can only be one operation per query.
 
 More examples on queries and a more complex schema can be found in the test directory,
 in the [Test.StarWars](../../tests/Test/StarWars) module. This includes a more complex schema, and more complex queries.
+
+> main :: IO ()
+> main = main1 >> main2 >> mainShouldFail >> main3

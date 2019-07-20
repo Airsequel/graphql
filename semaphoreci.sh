@@ -18,6 +18,10 @@ test() {
 	$STACK --no-terminal test --pedantic
 }
 
+test_docs() {
+	$STACK --no-terminal ghc -- -Wall -fno-code docs/tutorial/tutorial.lhs
+}
+
 setup_lint() {
 	$STACK --no-terminal install hlint
 }
