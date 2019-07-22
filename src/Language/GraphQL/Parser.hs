@@ -17,7 +17,7 @@ import Text.Megaparsec ( lookAhead
                        )
 
 document :: Parser Document
-document = spaceConsumer >> lexeme (manyNE definition)
+document = unicodeBOM >> spaceConsumer >> lexeme (manyNE definition)
 
 definition :: Parser Definition
 definition = DefinitionOperation <$> operationDefinition

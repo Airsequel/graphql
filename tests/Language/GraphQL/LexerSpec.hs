@@ -5,14 +5,16 @@ module Language.GraphQL.LexerSpec
     ( spec
     ) where
 
-import Language.GraphQL.Lexer
-import qualified Data.Text as T
+import Data.Either (isRight)
+import Data.Text (Text)
 import Data.Void (Void)
+import Language.GraphQL.Lexer
 import Test.Hspec ( Spec
                   , context
                   , describe
                   , it
                   , shouldBe
+                  , shouldSatisfy
                   )
 import Text.Megaparsec ( ParseErrorBundle
                        , parse
@@ -22,6 +24,9 @@ import Text.RawString.QQ (r)
 spec :: Spec
 spec = describe "Lexer" $ do
     context "Reference tests" $ do
+        it "accepts BOM header" $
+            runParser unicodeBOM "\xfeff" `shouldSatisfy` isRight
+
         it "lexes strings" $ do
             runParser string [r|"simple"|] `shouldBe` Right "simple"
             runParser string [r|" white space "|] `shouldBe` Right " white space "
@@ -77,13 +82,13 @@ spec = describe "Lexer" $ do
         it "lexes punctuation" $ do
             runParser bang "!" `shouldBe` Right '!'
             runParser dollar "$" `shouldBe` Right '$'
-            runBetween parens "()" `shouldBe` Right ()
+            runBetween parens "()" `shouldSatisfy` isRight
             runParser spread "..." `shouldBe` Right "..."
             runParser colon ":" `shouldBe` Right ":"
             runParser equals "=" `shouldBe` Right "="
             runParser at "@" `shouldBe` Right '@'
-            runBetween brackets "[]" `shouldBe` Right ()
-            runBetween braces "{}" `shouldBe` Right ()
+            runBetween brackets "[]" `shouldSatisfy` isRight
+            runBetween braces "{}" `shouldSatisfy` isRight
             runParser pipe "|" `shouldBe` Right "|"
 
     context "Implementation tests" $ do
@@ -92,8 +97,8 @@ spec = describe "Lexer" $ do
         it "lexes ampersand" $
             runParser amp "&" `shouldBe` Right "&"
 
-runParser :: forall a. Parser a -> T.Text -> Either (ParseErrorBundle T.Text Void) a
+runParser :: forall a. Parser a -> Text -> Either (ParseErrorBundle Text Void) a
 runParser = flip parse ""
 
-runBetween :: (Parser () -> Parser ()) -> T.Text -> Either (ParseErrorBundle T.Text Void) ()
+runBetween :: (Parser () -> Parser ()) -> Text -> Either (ParseErrorBundle Text Void) ()
 runBetween parser = parse (parser $ pure ()) ""

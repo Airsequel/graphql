@@ -1,5 +1,8 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+-- | This module defines a bunch of small parsers used to parse individual
+--   lexemes.
 module Language.GraphQL.Lexer 
     ( Parser
     , amp
@@ -22,6 +25,7 @@ module Language.GraphQL.Lexer
     , spread
     , string
     , symbol
+    , unicodeBOM
     ) where
 
 import Control.Applicative ( Alternative(..)
@@ -44,6 +48,7 @@ import Text.Megaparsec ( Parsec
                        , notFollowedBy
                        , oneOf
                        , option
+                       , optional
                        , satisfy
                        , sepBy
                        , skipSome
@@ -73,9 +78,11 @@ spaceConsumer = Lexer.space ignoredCharacters comment empty
 comment :: Parser ()
 comment = Lexer.skipLineComment "#"
 
+-- | Lexeme definition which ignores whitespaces and commas.
 lexeme :: forall a. Parser a -> Parser a
 lexeme = Lexer.lexeme spaceConsumer
 
+-- | Symbol definition which ignores whitespaces and commas.
 symbol :: T.Text -> Parser T.Text
 symbol = Lexer.symbol spaceConsumer
 
@@ -213,3 +220,7 @@ escapeSequence = do
         _ -> return escaped
   where
     step accumulator = (accumulator * 16 +) . digitToInt
+
+-- | Parser for the "Byte Order Mark".
+unicodeBOM :: Parser ()
+unicodeBOM = optional (char '\xfeff') >> pure ()
