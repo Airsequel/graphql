@@ -29,15 +29,11 @@ execute
 execute schema subs doc =
     maybe transformError (document schema) $ Transform.document subs doc
   where
-    transformError = return $ Aeson.object
-        [("errors", Aeson.toJSON
-            [ Aeson.object [("message", "Schema transformation error.")]
-            ]
-        )]
+    transformError = return $ singleError "Schema transformation error."
 
 document :: MonadIO m => Schema m -> AST.Core.Document -> m Aeson.Value
 document schema (op :| []) = operation schema op
-document _ _ = error "Multiple operations not supported yet"
+document _ _ = return $ singleError "Multiple operations not supported yet."
 
 operation :: MonadIO m => Schema m -> AST.Core.Operation -> m Aeson.Value
 operation schema (AST.Core.Query flds)

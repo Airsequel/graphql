@@ -7,6 +7,7 @@ module Language.GraphQL.Error
     , addErrMsg
     , runCollectErrs
     , runAppendErrs
+    , singleError
     ) where
 
 import qualified Data.Aeson as Aeson
@@ -46,12 +47,19 @@ type CollectErrsT m = StateT [Aeson.Value] m
 addErr :: Monad m => Aeson.Value -> CollectErrsT m ()
 addErr v = modify (v :)
 
-makeErrorMsg :: Text -> Aeson.Value
-makeErrorMsg s = Aeson.object [("message", Aeson.toJSON s)]
+makeErrorMessage :: Text -> Aeson.Value
+makeErrorMessage s = Aeson.object [("message", Aeson.toJSON s)]
+
+-- | Constructs a response object containing only the error with the given
+--   message.
+singleError :: Text -> Aeson.Value
+singleError message = Aeson.object
+    [ ("errors", Aeson.toJSON [makeErrorMessage message])
+    ]
 
 -- | Convenience function for just wrapping an error message.
 addErrMsg :: Monad m => Text -> CollectErrsT m ()
-addErrMsg = addErr . makeErrorMsg
+addErrMsg = addErr . makeErrorMessage
 
 -- | Appends the given list of errors to the current list of errors.
 appendErrs :: Monad m => [Aeson.Value] -> CollectErrsT m ()

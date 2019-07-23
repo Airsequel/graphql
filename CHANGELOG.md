@@ -1,6 +1,26 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [0.4.0.0] - 2019-07-23
+### Added
+- Support for mutations.
+- Error handling (with monad transformers).
+- Nullable types.
+- Arbitrary nested lists support.
+- Potential BOM header parsing.
+
+### Changed
+- attoparsec is replaced with megaparsec.
+- The library is now under `Language.GraphQL` (instead of `Data.GraphQL`).
+- HUnit and tasty are replaced with Hspec.
+- `Alternative`/`MonadPlus` resolver constraints are replaced with `MonadIO`.
+
+### Removed
+- Duplicates from `Language.GraphQL.AST` already available in
+  `Language.GraphQL.AST.Core`.
+- All module exports are now explicit, so private and help functions aren't
+  exported anymore.
+
 ## [0.3] - 2015-09-22
 ### Changed
 - Exact match numeric types to spec.
@@ -33,6 +53,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Data types for the GraphQL language.
 
-[0.3]: https://github.com/jdnavarro/graphql-haskell/compare/v0.2.1...v0.3
-[0.2.1]: https://github.com/jdnavarro/graphql-haskell/compare/v0.2...v0.2.1
-[0.2]: https://github.com/jdnavarro/graphql-haskell/compare/v0.1...v0.2
+[0.4.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.3...v0.4.0.0
+[0.3]: https://github.com/caraus-ecms/graphql/compare/v0.2.1...v0.3
+[0.2.1]: https://github.com/caraus-ecms/graphql/compare/v0.2...v0.2.1
+[0.2]: https://github.com/caraus-ecms/graphql/compare/v0.1...v0.2

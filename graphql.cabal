@@ -4,14 +4,14 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0738bb4bfceb40525227c29cb0c32d360f528ba3a84890817c65f5950e37b311
+-- hash: dca80d6bcaa432cabc2499efc9f047c6f59546bc2ba75b35fed6efd694895598
 
 name:           graphql
 version:        0.4.0.0
 synopsis:       Haskell GraphQL implementation
 description:    This package provides a rudimentary parser for the <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
 category:       Language
-homepage:       https://github.com/jdnavarro/graphql-haskell
+homepage:       https://github.com/caraus-ecms/graphql#readme
 bug-reports:    https://github.com/caraus-ecms/graphql/issues
 author:         Danny Navarro <j@dannynavarro.net>,
                 Matthías Páll Gissurarson <mpg@mpg.is>,
@@ -66,6 +66,7 @@ test-suite tasty
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Language.GraphQL.ErrorSpec
       Language.GraphQL.LexerSpec
       Language.GraphQL.ParserSpec
       Test.KitchenSinkSpec

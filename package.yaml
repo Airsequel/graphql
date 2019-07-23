@@ -4,7 +4,6 @@ synopsis:            Haskell GraphQL implementation
 description:
   This package provides a rudimentary parser for the
   <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
-homepage:            https://github.com/jdnavarro/graphql-haskell
 maintainer:          belka@caraus.de
 github:              caraus-ecms/graphql
 category:            Language
