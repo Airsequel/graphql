@@ -1,6 +1,14 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Added
+- `executeWithName` executes an operation with the given name.
+
+### Changed
+- `Operation` includes now possible operation name which allows to support
+  documents with multiple operations.
+
 ## [0.4.0.0] - 2019-07-23
 ### Added
 - Support for mutations.

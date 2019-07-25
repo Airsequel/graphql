@@ -21,8 +21,8 @@ type Name = Text
 
 type Document = NonEmpty Operation
 
-data Operation = Query    (NonEmpty Field)
-               | Mutation (NonEmpty Field)
+data Operation = Query (Maybe Text) (NonEmpty Field)
+               | Mutation (Maybe Text) (NonEmpty Field)
                  deriving (Eq,Show)
 
 data Field = Field (Maybe Alias) Name [Argument] [Field] deriving (Eq,Show)

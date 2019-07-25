@@ -41,7 +41,6 @@ operations
   -> Maybe Core.Document
 operations subs fr = NonEmpty.nonEmpty <=< traverse (operation subs fr)
 
--- TODO: Replace Maybe by MonadThrow CustomError
 operation
   :: Schema.Subs
   -> Fragmenter
@@ -50,10 +49,10 @@ operation
 operation subs fr (Full.OperationSelectionSet sels) =
   operation subs fr $ Full.OperationDefinition Full.Query empty empty empty sels
 -- TODO: Validate Variable definitions with substituter
-operation subs fr (Full.OperationDefinition ot _n _vars _dirs sels) =
-  case ot of
-    Full.Query    -> Core.Query    <$> node
-    Full.Mutation -> Core.Mutation <$> node
+operation subs fr (Full.OperationDefinition operationType name _vars _dirs sels)
+    = case operationType of
+        Full.Query -> Core.Query name <$> node
+        Full.Mutation -> Core.Mutation name <$> node
   where
     node = traverse (hush . selection subs fr) sels
 
