@@ -20,10 +20,12 @@ import Text.Megaparsec ( errorBundlePretty
 spec :: Spec
 spec = describe "Kitchen Sink" $
     it "prints the query" $ do
-        dataFileName <- getDataFileName "tests/data/kitchen-sink.min.graphql"
-        expected <- Text.IO.readFile dataFileName
+        dataFileName <- getDataFileName "tests/data/kitchen-sink.graphql"
+        minFileName <- getDataFileName "tests/data/kitchen-sink.min.graphql"
+        actual <- Text.IO.readFile dataFileName
+        expected <- Text.IO.readFile minFileName
 
         either
             (expectationFailure . errorBundlePretty)
             (flip shouldBe expected . Encoder.document)
-            $ parse Parser.document dataFileName expected
+            $ parse Parser.document dataFileName actual

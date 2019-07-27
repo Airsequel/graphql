@@ -1,24 +1,31 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module defines a printer for the @GraphQL@ language.
 module Language.GraphQL.Encoder
-    ( document
-    , spaced
+    ( definition
+    , document
     ) where
 
 import Data.Foldable (fold)
 import Data.Monoid ((<>))
 import qualified Data.List.NonEmpty as NonEmpty (toList)
-import Data.Text (Text, cons, intercalate, pack, snoc)
+import Data.Text (Text, pack)
+import qualified Data.Text as Text
 import Language.GraphQL.AST
 
--- * Document
-
+-- | Converts a 'Document' into a string.
 document :: Document -> Text
-document defs = (`snoc` '\n') . mconcat . NonEmpty.toList $ definition <$> defs
+document defs = Text.intercalate "\n"
+              . NonEmpty.toList
+              $ definition <$> defs
 
+-- | Converts a 'Definition' into a string.
 definition :: Definition -> Text
-definition (DefinitionOperation x) = operationDefinition x
-definition (DefinitionFragment  x) = fragmentDefinition x
+definition x = Text.snoc (encodeDefinition x) '\n'
+  where
+    encodeDefinition (DefinitionOperation operation)
+        = operationDefinition operation
+    encodeDefinition (DefinitionFragment fragment)
+        = fragmentDefinition fragment
 
 operationDefinition :: OperationDefinition -> Text
 operationDefinition (OperationSelectionSet sels) = selectionSet sels
@@ -60,7 +67,7 @@ selection (SelectionFragmentSpread x) = fragmentSpread x
 
 field :: Field -> Text
 field (Field alias name args dirs selso) =
-       optempty (`snoc` ':') (fold alias)
+       optempty (`Text.snoc` ':') (fold alias)
     <> name
     <> optempty arguments args
     <> optempty directives dirs
@@ -146,11 +153,8 @@ nonNullType (NonNullTypeList  x) = listType x <> "!"
 
 -- * Internal
 
-spaced :: Text -> Text
-spaced = cons '\SP'
-
 between :: Char -> Char -> Text -> Text
-between open close = cons open . (`snoc` close)
+between open close = Text.cons open . (`Text.snoc` close)
 
 parens :: Text -> Text
 parens = between '(' ')'
@@ -165,16 +169,16 @@ quotes :: Text -> Text
 quotes = between '"' '"'
 
 spaces :: (a -> Text) -> [a] -> Text
-spaces f = intercalate "\SP" . fmap f
+spaces f = Text.intercalate "\SP" . fmap f
 
 parensCommas :: (a -> Text) -> [a] -> Text
-parensCommas f = parens . intercalate "," . fmap f
+parensCommas f = parens . Text.intercalate "," . fmap f
 
 bracketsCommas :: (a -> Text) -> [a] -> Text
-bracketsCommas f = brackets . intercalate "," . fmap f
+bracketsCommas f = brackets . Text.intercalate "," . fmap f
 
 bracesCommas :: (a -> Text) -> [a] -> Text
-bracesCommas f = braces . intercalate "," . fmap f
+bracesCommas f = braces . Text.intercalate "," . fmap f
 
 optempty :: (Eq a, Monoid a, Monoid b) => (a -> b) -> a -> b
 optempty f xs = if xs == mempty then mempty else f xs

@@ -4,10 +4,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 ### Added
 - `executeWithName` executes an operation with the given name.
+- Export `Language.GraphQL.Encoder.definition`.
 
 ### Changed
 - `Operation` includes now possible operation name which allows to support
   documents with multiple operations.
+
+### Removed
+- Unused `Language.GraphQL.Encoder.spaced`.
 
 ## [0.4.0.0] - 2019-07-23
 ### Added
