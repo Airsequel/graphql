@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module defines a printer for the @GraphQL@ language.
 module Language.GraphQL.Encoder
-    ( definition
+    ( Formatter(..)
+    , definition
     , document
     ) where
 
@@ -12,34 +13,50 @@ import Data.Text (Text, pack)
 import qualified Data.Text as Text
 import Language.GraphQL.AST
 
+-- | Instructs the encoder whether a GraphQL should be minified or pretty
+--   printed.
+data Formatter
+    = Minified
+    | Pretty Int
+
 -- | Converts a 'Document' into a string.
-document :: Document -> Text
-document defs = Text.intercalate "\n"
-              . NonEmpty.toList
-              $ definition <$> defs
+document :: Formatter -> Document -> Text
+document formatter defs
+    | Pretty _ <- formatter = Text.intercalate "\n" encodeDocument
+    | Minified <-formatter = Text.snoc (mconcat encodeDocument) '\n'
+  where
+    encodeDocument = NonEmpty.toList $ definition formatter <$> defs
 
 -- | Converts a 'Definition' into a string.
-definition :: Definition -> Text
-definition x = Text.snoc (encodeDefinition x) '\n'
+definition :: Formatter -> Definition -> Text
+definition formatter x
+    | Pretty _ <- formatter = Text.snoc (encodeDefinition x) '\n'
+    | Minified <- formatter = encodeDefinition x
   where
     encodeDefinition (DefinitionOperation operation)
-        = operationDefinition operation
+        = operationDefinition formatter operation
     encodeDefinition (DefinitionFragment fragment)
-        = fragmentDefinition fragment
+        = fragmentDefinition formatter fragment
 
-operationDefinition :: OperationDefinition -> Text
-operationDefinition (OperationSelectionSet sels) = selectionSet sels
-operationDefinition (OperationDefinition Query    name vars dirs sels) =
-  "query " <> node (fold name) vars dirs sels
-operationDefinition (OperationDefinition Mutation name vars dirs sels) =
-  "mutation " <> node (fold name) vars dirs sels
+operationDefinition :: Formatter -> OperationDefinition -> Text
+operationDefinition formatter (OperationSelectionSet sels)
+    = selectionSet formatter sels
+operationDefinition formatter (OperationDefinition Query name vars dirs sels)
+    = "query " <> node formatter (fold name) vars dirs sels
+operationDefinition formatter (OperationDefinition Mutation name vars dirs sels)
+    = "mutation " <> node formatter (fold name) vars dirs sels
 
-node :: Name -> VariableDefinitions -> Directives -> SelectionSet -> Text
-node name vars dirs sels =
-       name
+node :: Formatter
+     -> Name
+     -> VariableDefinitions
+     -> Directives
+     -> SelectionSet
+     -> Text
+node formatter name vars dirs sels
+    = name
     <> optempty variableDefinitions vars
     <> optempty directives dirs
-    <> selectionSet sels
+    <> selectionSet formatter sels
 
 variableDefinitions :: [VariableDefinition] -> Text
 variableDefinitions = parensCommas variableDefinition
@@ -54,24 +71,26 @@ defaultValue val = "=" <> value val
 variable :: Name -> Text
 variable var = "$" <> var
 
-selectionSet :: SelectionSet -> Text
-selectionSet = bracesCommas selection . NonEmpty.toList
+selectionSet :: Formatter -> SelectionSet -> Text
+selectionSet formatter@(Pretty _) = bracesNewLines (selection formatter) . NonEmpty.toList
+selectionSet Minified = bracesCommas (selection Minified) . NonEmpty.toList
 
-selectionSetOpt :: SelectionSetOpt -> Text
-selectionSetOpt = bracesCommas selection
+selectionSetOpt :: Formatter -> SelectionSetOpt -> Text
+selectionSetOpt formatter@(Pretty _) = bracesNewLines $ selection formatter
+selectionSetOpt Minified = bracesCommas $ selection Minified
 
-selection :: Selection -> Text
-selection (SelectionField          x) = field x
-selection (SelectionInlineFragment x) = inlineFragment x
-selection (SelectionFragmentSpread x) = fragmentSpread x
+selection :: Formatter -> Selection -> Text
+selection formatter (SelectionField          x) = field formatter x
+selection formatter (SelectionInlineFragment x) = inlineFragment formatter x
+selection _ (SelectionFragmentSpread x) = fragmentSpread x
 
-field :: Field -> Text
-field (Field alias name args dirs selso) =
-       optempty (`Text.snoc` ':') (fold alias)
+field :: Formatter -> Field -> Text
+field formatter (Field alias name args dirs selso) =
+       optempty (`Text.append` ":") (fold alias)
     <> name
     <> optempty arguments args
     <> optempty directives dirs
-    <> optempty selectionSetOpt selso
+    <> optempty (selectionSetOpt formatter) selso
 
 arguments :: [Argument] -> Text
 arguments = parensCommas argument
@@ -85,17 +104,17 @@ fragmentSpread :: FragmentSpread -> Text
 fragmentSpread (FragmentSpread name ds) =
     "..." <> name <> optempty directives ds
 
-inlineFragment :: InlineFragment -> Text
-inlineFragment (InlineFragment tc dirs sels) =
+inlineFragment :: Formatter -> InlineFragment -> Text
+inlineFragment formatter (InlineFragment tc dirs sels) =
     "... on " <> fold tc
               <> directives dirs
-              <> selectionSet sels
+              <> selectionSet formatter sels
 
-fragmentDefinition :: FragmentDefinition -> Text
-fragmentDefinition (FragmentDefinition name tc dirs sels) =
+fragmentDefinition :: Formatter -> FragmentDefinition -> Text
+fragmentDefinition formatter (FragmentDefinition name tc dirs sels) =
     "fragment " <> name <> " on " <> tc
                 <> optempty directives dirs
-                <> selectionSet sels
+                <> selectionSet formatter sels
 
 -- * Values
 
@@ -179,6 +198,9 @@ bracketsCommas f = brackets . Text.intercalate "," . fmap f
 
 bracesCommas :: (a -> Text) -> [a] -> Text
 bracesCommas f = braces . Text.intercalate "," . fmap f
+
+bracesNewLines :: (a -> Text) -> [a] -> Text
+bracesNewLines f xs = Text.append (Text.intercalate "\n" $ "{" : fmap f xs) "\n}"
 
 optempty :: (Eq a, Monoid a, Monoid b) => (a -> b) -> a -> b
 optempty f xs = if xs == mempty then mempty else f xs

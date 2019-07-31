@@ -7,11 +7,11 @@
 
 query queryName($foo: ComplexType, $site: Site = MOBILE) {
   whoever123is: node(id: [123, 456]) {
-    id , # Inline test comment
+    id, # Inline test comment
     ... on User @defer {
       field2 {
-        id ,
-        alias: field1(first:10, after:$foo,) @include(if: $foo) {
+        id,
+        alias: field1(first: 10, after: $foo) @include(if: $foo) {
           id,
           ...frag
         }
