@@ -1,4 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExplicitForAll #-}
+
 -- | This module defines a printer for the @GraphQL@ language.
 module Language.GraphQL.Encoder
     ( Formatter(..)
@@ -42,31 +44,38 @@ operationDefinition :: Formatter -> OperationDefinition -> Text
 operationDefinition formatter (OperationSelectionSet sels)
     = selectionSet formatter sels
 operationDefinition formatter (OperationDefinition Query name vars dirs sels)
-    = "query " <> node formatter (fold name) vars dirs sels
+    = "query " <> node formatter name vars dirs sels
 operationDefinition formatter (OperationDefinition Mutation name vars dirs sels)
-    = "mutation " <> node formatter (fold name) vars dirs sels
+    = "mutation " <> node formatter name vars dirs sels
 
 node :: Formatter
-     -> Name
+     -> Maybe Name
      -> VariableDefinitions
      -> Directives
      -> SelectionSet
      -> Text
 node formatter name vars dirs sels
-    = name
-    <> optempty variableDefinitions vars
-    <> optempty directives dirs
+    = fold name
+    <> optempty (variableDefinitions formatter) vars
+    <> optempty (directives formatter) dirs
+    <> eitherFormat formatter " " mempty
     <> selectionSet formatter sels
 
-variableDefinitions :: [VariableDefinition] -> Text
-variableDefinitions = parensCommas variableDefinition
+variableDefinitions :: Formatter -> [VariableDefinition] -> Text
+variableDefinitions formatter
+    = parensCommas formatter $ variableDefinition formatter
 
-variableDefinition :: VariableDefinition -> Text
-variableDefinition (VariableDefinition var ty dv) =
-    variable var <> ":" <> type_ ty <> maybe mempty defaultValue dv
+variableDefinition :: Formatter -> VariableDefinition -> Text
+variableDefinition formatter (VariableDefinition var ty dv)
+    = variable var
+    <> eitherFormat formatter ": " ":"
+    <> type_ ty
+    <> maybe mempty (defaultValue formatter) dv
 
-defaultValue :: Value -> Text
-defaultValue val = "=" <> value val
+defaultValue :: Formatter -> Value -> Text
+defaultValue formatter val
+    = eitherFormat formatter " = " "="
+    <> value formatter val
 
 variable :: Name -> Text
 variable var = "$" <> var
@@ -82,54 +91,64 @@ selectionSetOpt Minified = bracesCommas $ selection Minified
 selection :: Formatter -> Selection -> Text
 selection formatter (SelectionField          x) = field formatter x
 selection formatter (SelectionInlineFragment x) = inlineFragment formatter x
-selection _ (SelectionFragmentSpread x) = fragmentSpread x
+selection formatter (SelectionFragmentSpread x) = fragmentSpread formatter x
 
 field :: Formatter -> Field -> Text
-field formatter (Field alias name args dirs selso) =
-       optempty (`Text.append` ":") (fold alias)
+field formatter (Field alias name args dirs selso)
+    = optempty (`Text.append` colon) (fold alias)
     <> name
-    <> optempty arguments args
-    <> optempty directives dirs
-    <> optempty (selectionSetOpt formatter) selso
+    <> optempty (arguments formatter) args
+    <> optempty (directives formatter) dirs
+    <> selectionSetOpt'
+  where
+    colon = eitherFormat formatter ": " ":"
+    selectionSetOpt'
+        | null selso = mempty
+        | otherwise = eitherFormat formatter " " mempty <> selectionSetOpt formatter selso
 
-arguments :: [Argument] -> Text
-arguments = parensCommas argument
+arguments :: Formatter -> [Argument] -> Text
+arguments formatter = parensCommas formatter $ argument formatter
 
-argument :: Argument -> Text
-argument (Argument name v) = name <> ":" <> value v
+argument :: Formatter -> Argument -> Text
+argument formatter (Argument name v)
+    = name
+    <> eitherFormat formatter ": " ":"
+    <> value formatter v
 
 -- * Fragments
 
-fragmentSpread :: FragmentSpread -> Text
-fragmentSpread (FragmentSpread name ds) =
-    "..." <> name <> optempty directives ds
+fragmentSpread :: Formatter -> FragmentSpread -> Text
+fragmentSpread formatter (FragmentSpread name ds) =
+    "..." <> name <> optempty (directives formatter) ds
 
 inlineFragment :: Formatter -> InlineFragment -> Text
-inlineFragment formatter (InlineFragment tc dirs sels) =
-    "... on " <> fold tc
-              <> directives dirs
-              <> selectionSet formatter sels
+inlineFragment formatter (InlineFragment tc dirs sels)
+    = "... on " <> fold tc
+    <> directives formatter dirs
+    <> eitherFormat formatter " " mempty
+    <> selectionSet formatter sels
 
 fragmentDefinition :: Formatter -> FragmentDefinition -> Text
-fragmentDefinition formatter (FragmentDefinition name tc dirs sels) =
-    "fragment " <> name <> " on " <> tc
-                <> optempty directives dirs
-                <> selectionSet formatter sels
+fragmentDefinition formatter (FragmentDefinition name tc dirs sels)
+    = "fragment " <> name <> " on " <> tc
+    <> optempty (directives formatter) dirs
+    <> eitherFormat formatter " " mempty
+    <> selectionSet formatter sels
 
 -- * Values
 
-value :: Value -> Text
-value (ValueVariable x) = variable x
+value :: Formatter -> Value -> Text
+value _ (ValueVariable x) = variable x
 -- TODO: This will be replaced with `decimal` Builder
-value (ValueInt      x) = pack $ show x
+value _ (ValueInt      x) = pack $ show x
 -- TODO: This will be replaced with `decimal` Builder
-value (ValueFloat    x) = pack $ show x
-value (ValueBoolean  x) = booleanValue x
-value ValueNull         = mempty
-value (ValueString   x) = stringValue x
-value (ValueEnum     x) = x
-value (ValueList     x) = listValue x
-value (ValueObject   x) = objectValue x
+value _ (ValueFloat    x) = pack $ show x
+value _ (ValueBoolean  x) = booleanValue x
+value _ ValueNull         = mempty
+value _ (ValueString   x) = stringValue x
+value _ (ValueEnum     x) = x
+value formatter (ValueList     x) = listValue formatter x
+value formatter (ValueObject   x) = objectValue formatter x
 
 booleanValue :: Bool -> Text
 booleanValue True  = "true"
@@ -139,22 +158,28 @@ booleanValue False = "false"
 stringValue :: Text -> Text
 stringValue = quotes
 
-listValue :: [Value] -> Text
-listValue = bracketsCommas value
+listValue :: Formatter -> [Value] -> Text
+listValue formatter = bracketsCommas formatter $ value formatter
 
-objectValue :: [ObjectField] -> Text
-objectValue = bracesCommas objectField
+objectValue :: Formatter -> [ObjectField] -> Text
+objectValue formatter = bracesCommas $ objectField formatter
 
-objectField :: ObjectField -> Text
-objectField (ObjectField name v) = name <> ":" <> value v
+objectField :: Formatter -> ObjectField -> Text
+objectField formatter (ObjectField name v) = name <> colon <> value formatter v
+  where
+    colon
+      | Pretty _ <- formatter = ": "
+      | Minified <- formatter = ":"
 
 -- * Directives
 
-directives :: [Directive] -> Text
-directives = spaces directive
+directives :: Formatter -> [Directive] -> Text
+directives formatter@(Pretty _) = Text.cons ' ' . spaces (directive formatter)
+directives Minified = spaces (directive Minified)
 
-directive :: Directive -> Text
-directive (Directive name args) = "@" <> name <> optempty arguments args
+directive :: Formatter -> Directive -> Text
+directive formatter (Directive name args)
+    = "@" <> name <> optempty (arguments formatter) args
 
 -- * Type Reference
 
@@ -187,20 +212,30 @@ braces = between '{' '}'
 quotes :: Text -> Text
 quotes = between '"' '"'
 
-spaces :: (a -> Text) -> [a] -> Text
+spaces :: forall a. (a -> Text) -> [a] -> Text
 spaces f = Text.intercalate "\SP" . fmap f
 
-parensCommas :: (a -> Text) -> [a] -> Text
-parensCommas f = parens . Text.intercalate "," . fmap f
+parensCommas :: forall a. Formatter -> (a -> Text) -> [a] -> Text
+parensCommas formatter f
+    = parens
+    . Text.intercalate (eitherFormat formatter ", " ",")
+    . fmap f
 
-bracketsCommas :: (a -> Text) -> [a] -> Text
-bracketsCommas f = brackets . Text.intercalate "," . fmap f
+bracketsCommas :: Formatter -> (a -> Text) -> [a] -> Text
+bracketsCommas formatter f
+    = brackets
+    . Text.intercalate (eitherFormat formatter ", " ",")
+    . fmap f
 
-bracesCommas :: (a -> Text) -> [a] -> Text
+bracesCommas :: forall a. (a -> Text) -> [a] -> Text
 bracesCommas f = braces . Text.intercalate "," . fmap f
 
-bracesNewLines :: (a -> Text) -> [a] -> Text
+bracesNewLines :: forall a. (a -> Text) -> [a] -> Text
 bracesNewLines f xs = Text.append (Text.intercalate "\n" $ "{" : fmap f xs) "\n}"
 
 optempty :: (Eq a, Monoid a, Monoid b) => (a -> b) -> a -> b
 optempty f xs = if xs == mempty then mempty else f xs
+
+eitherFormat :: forall a. Formatter -> a -> a -> a
+eitherFormat (Pretty _) pretty _ = pretty
+eitherFormat Minified _ minified = minified

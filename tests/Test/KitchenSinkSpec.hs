@@ -36,13 +36,13 @@ spec = describe "Kitchen Sink" $ do
     it "pretty prints the query" $ do
         dataFileName <- getDataFileName "tests/data/kitchen-sink.graphql"
         actual <- Text.IO.readFile dataFileName
-        let expected = [r|query queryName($foo:ComplexType,$site:Site=MOBILE){
-whoever123is:node(id:[123,456]){
+        let expected = [r|query queryName($foo: ComplexType, $site: Site = MOBILE) {
+whoever123is: node(id: [123, 456]) {
 id
-... on User@defer{
-field2{
+... on User @defer {
+field2 {
 id
-alias:field1(first:10,after:$foo)@include(if:$foo){
+alias: field1(first: 10, after: $foo) @include(if: $foo) {
 id
 ...frag
 }
@@ -51,20 +51,20 @@ id
 }
 }
 
-mutation likeStory{
-like(story:123)@defer{
-story{
+mutation likeStory {
+like(story: 123) @defer {
+story {
 id
 }
 }
 }
 
-fragment frag on Friend{
-foo(size:$size,bar:$b,obj:{key:"value"})
+fragment frag on Friend {
+foo(size: $size, bar: $b, obj: {key: "value"})
 }
 
 {
-unnamed(truthy:true,falsey:false)
+unnamed(truthy: true, falsey: false)
 query
 }
 |]
