@@ -3,9 +3,11 @@
 
 -- | This module defines a printer for the @GraphQL@ language.
 module Language.GraphQL.Encoder
-    ( Formatter(..)
+    ( Formatter
     , definition
     , document
+    , minified
+    , pretty
     ) where
 
 import Data.Foldable (fold)
@@ -17,9 +19,19 @@ import Language.GraphQL.AST
 
 -- | Instructs the encoder whether a GraphQL should be minified or pretty
 --   printed.
+--   
+--   Use 'pretty' and 'minified' to construct the formatter.
 data Formatter
     = Minified
-    | Pretty Int
+    | Pretty Word
+
+-- Constructs a formatter for pretty printing.
+pretty :: Formatter
+pretty = Pretty 0
+
+-- Constructs a formatter for minifying.
+minified :: Formatter
+minified = Minified
 
 -- | Converts a 'Document' into a string.
 document :: Formatter -> Document -> Text
@@ -81,17 +93,25 @@ variable :: Name -> Text
 variable var = "$" <> var
 
 selectionSet :: Formatter -> SelectionSet -> Text
-selectionSet formatter@(Pretty _) = bracesNewLines (selection formatter) . NonEmpty.toList
-selectionSet Minified = bracesCommas (selection Minified) . NonEmpty.toList
+selectionSet formatter
+    = bracesList formatter (selection formatter)
+    . NonEmpty.toList
 
 selectionSetOpt :: Formatter -> SelectionSetOpt -> Text
-selectionSetOpt formatter@(Pretty _) = bracesNewLines $ selection formatter
-selectionSetOpt Minified = bracesCommas $ selection Minified
+selectionSetOpt formatter = bracesList formatter $ selection formatter
 
 selection :: Formatter -> Selection -> Text
-selection formatter (SelectionField          x) = field formatter x
-selection formatter (SelectionInlineFragment x) = inlineFragment formatter x
-selection formatter (SelectionFragmentSpread x) = fragmentSpread formatter x
+selection formatter = Text.append indent . f
+  where
+    f (SelectionField x) = field incrementIndent x
+    f (SelectionInlineFragment x) = inlineFragment incrementIndent x
+    f (SelectionFragmentSpread x) = fragmentSpread incrementIndent x
+    incrementIndent
+        | Pretty n <- formatter = Pretty $ n + 1
+        | otherwise = Minified
+    indent
+        | Pretty n <- formatter = Text.replicate (fromIntegral $ n + 1) "  "
+        | otherwise = mempty
 
 field :: Formatter -> Field -> Text
 field formatter (Field alias name args dirs selso)
@@ -118,8 +138,8 @@ argument formatter (Argument name v)
 -- * Fragments
 
 fragmentSpread :: Formatter -> FragmentSpread -> Text
-fragmentSpread formatter (FragmentSpread name ds) =
-    "..." <> name <> optempty (directives formatter) ds
+fragmentSpread formatter (FragmentSpread name ds)
+    = "..." <> name <> optempty (directives formatter) ds
 
 inlineFragment :: Formatter -> InlineFragment -> Text
 inlineFragment formatter (InlineFragment tc dirs sels)
@@ -162,7 +182,13 @@ listValue :: Formatter -> [Value] -> Text
 listValue formatter = bracketsCommas formatter $ value formatter
 
 objectValue :: Formatter -> [ObjectField] -> Text
-objectValue formatter = bracesCommas $ objectField formatter
+objectValue formatter = intercalate $ objectField formatter
+  where
+    intercalate f
+        = braces
+        . Text.intercalate (eitherFormat formatter ", " ",")
+        . fmap f
+
 
 objectField :: Formatter -> ObjectField -> Text
 objectField formatter (ObjectField name v) = name <> colon <> value formatter v
@@ -227,15 +253,17 @@ bracketsCommas formatter f
     . Text.intercalate (eitherFormat formatter ", " ",")
     . fmap f
 
-bracesCommas :: forall a. (a -> Text) -> [a] -> Text
-bracesCommas f = braces . Text.intercalate "," . fmap f
-
-bracesNewLines :: forall a. (a -> Text) -> [a] -> Text
-bracesNewLines f xs = Text.append (Text.intercalate "\n" $ "{" : fmap f xs) "\n}"
+bracesList :: forall a. Formatter -> (a -> Text) -> [a] -> Text
+bracesList (Pretty intendation) f xs
+    = Text.snoc (Text.intercalate "\n" content) '\n'
+    <> (Text.snoc $ Text.replicate (fromIntegral intendation) "  ") '}'
+  where
+    content = "{" : fmap f xs
+bracesList Minified f xs = braces $ Text.intercalate "," $ fmap f xs
 
 optempty :: (Eq a, Monoid a, Monoid b) => (a -> b) -> a -> b
 optempty f xs = if xs == mempty then mempty else f xs
 
 eitherFormat :: forall a. Formatter -> a -> a -> a
-eitherFormat (Pretty _) pretty _ = pretty
-eitherFormat Minified _ minified = minified
+eitherFormat (Pretty _) x _ = x
+eitherFormat Minified _ x = x
