@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
   documents with multiple operations.
 - `Language.GraphQL.Encoder.document` and other encoding functions take a
   `Formatter` as argument to distinguish between minified and pretty printing.
+- All encoder functions return `Data.Text.Lazy`.
 
 ### Removed
 - Unused `Language.GraphQL.Encoder.spaced`.

@@ -5,6 +5,7 @@ module Test.KitchenSinkSpec
     ) where
 
 import qualified Data.Text.IO as Text.IO
+import qualified Data.Text.Lazy.IO as Text.Lazy.IO
 import qualified Language.GraphQL.Encoder as Encoder
 import qualified Language.GraphQL.Parser as Parser
 import Paths_graphql (getDataFileName)
@@ -26,7 +27,7 @@ spec = describe "Kitchen Sink" $ do
         dataFileName <- getDataFileName "tests/data/kitchen-sink.graphql"
         minFileName <- getDataFileName "tests/data/kitchen-sink.min.graphql"
         actual <- Text.IO.readFile dataFileName
-        expected <- Text.IO.readFile minFileName
+        expected <- Text.Lazy.IO.readFile minFileName
 
         either
             (expectationFailure . errorBundlePretty)
