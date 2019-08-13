@@ -8,6 +8,8 @@ module Language.GraphQL.Encoder
     , document
     , minified
     , pretty
+    , type'
+    , value
     ) where
 
 import Data.Foldable (fold)
@@ -84,7 +86,7 @@ variableDefinition :: Formatter -> VariableDefinition -> Text
 variableDefinition formatter (VariableDefinition var ty dv)
     = variable var
     <> eitherFormat formatter ": " ":"
-    <> type_ ty
+    <> type' ty
     <> maybe mempty (defaultValue formatter) dv
 
 defaultValue :: Formatter -> Value -> Text
@@ -160,8 +162,19 @@ fragmentDefinition formatter (FragmentDefinition name tc dirs sels)
     <> eitherFormat formatter " " mempty
     <> selectionSet formatter sels
 
--- * Values
+-- * Directives
 
+directives :: Formatter -> Directives -> Text
+directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
+directives Minified = spaces (directive Minified)
+
+directive :: Formatter -> Directive -> Text
+directive formatter (Directive name args)
+    = "@" <> Text.Lazy.fromStrict name <> optempty (arguments formatter) args
+
+-- * Miscellaneous
+
+-- | Converts a 'Value' into a string.
 value :: Formatter -> Value -> Text
 value _ (ValueVariable x) = variable x
 value _ (ValueInt x) = toLazyText $ decimal x
@@ -177,9 +190,11 @@ booleanValue :: Bool -> Text
 booleanValue True  = "true"
 booleanValue False = "false"
 
--- TODO: Escape characters
 stringValue :: Text -> Text
-stringValue = quotes
+stringValue
+    = quotes
+    . Text.Lazy.replace "\"" "\\\""
+    . Text.Lazy.replace "\\" "\\\\"
 
 listValue :: Formatter -> [Value] -> Text
 listValue formatter = bracketsCommas formatter $ value formatter
@@ -201,25 +216,14 @@ objectField formatter (ObjectField name v)
       | Pretty _ <- formatter = ": "
       | Minified <- formatter = ":"
 
--- * Directives
-
-directives :: Formatter -> [Directive] -> Text
-directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
-directives Minified = spaces (directive Minified)
-
-directive :: Formatter -> Directive -> Text
-directive formatter (Directive name args)
-    = "@" <> Text.Lazy.fromStrict name <> optempty (arguments formatter) args
-
--- * Type Reference
-
-type_ :: Type -> Text
-type_ (TypeNamed   x) = Text.Lazy.fromStrict x
-type_ (TypeList    x) = listType x
-type_ (TypeNonNull x) = nonNullType x
+-- | Converts a 'Type' a type into a string.
+type' :: Type -> Text
+type' (TypeNamed   x) = Text.Lazy.fromStrict x
+type' (TypeList    x) = listType x
+type' (TypeNonNull x) = nonNullType x
 
 listType :: Type -> Text
-listType x = brackets (type_ x)
+listType x = brackets (type' x)
 
 nonNullType :: NonNullType -> Text
 nonNullType (NonNullTypeNamed x) = Text.Lazy.fromStrict x <> "!"

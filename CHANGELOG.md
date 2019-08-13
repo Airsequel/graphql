@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 - `executeWithName` executes an operation with the given name.
 - Export `Language.GraphQL.Encoder.definition`.
+- Export `Language.GraphQL.Encoder.value`. Escapes \ and " in strings now.
+- Export `Language.GraphQL.Encoder.type'`.
 
 ### Changed
 - `Operation` includes now possible operation name which allows to support

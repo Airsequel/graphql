@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: dca80d6bcaa432cabc2499efc9f047c6f59546bc2ba75b35fed6efd694895598
+-- hash: cb68243309f47fc44768d14981c4f6f8b3f1bb9dc37dd17a63996418d6aac375
 
 name:           graphql
 version:        0.4.0.0
@@ -66,6 +66,7 @@ test-suite tasty
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Language.GraphQL.EncoderSpec
       Language.GraphQL.ErrorSpec
       Language.GraphQL.LexerSpec
       Language.GraphQL.ParserSpec
