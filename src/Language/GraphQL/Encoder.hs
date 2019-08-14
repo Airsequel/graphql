@@ -5,6 +5,7 @@
 module Language.GraphQL.Encoder
     ( Formatter
     , definition
+    , directive
     , document
     , minified
     , pretty
@@ -162,17 +163,16 @@ fragmentDefinition formatter (FragmentDefinition name tc dirs sels)
     <> eitherFormat formatter " " mempty
     <> selectionSet formatter sels
 
--- * Directives
+-- * Miscellaneous
 
-directives :: Formatter -> Directives -> Text
-directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
-directives Minified = spaces (directive Minified)
-
+-- | Converts a 'Directive' into a string.
 directive :: Formatter -> Directive -> Text
 directive formatter (Directive name args)
     = "@" <> Text.Lazy.fromStrict name <> optempty (arguments formatter) args
 
--- * Miscellaneous
+directives :: Formatter -> Directives -> Text
+directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
+directives Minified = spaces (directive Minified)
 
 -- | Converts a 'Value' into a string.
 value :: Formatter -> Value -> Text

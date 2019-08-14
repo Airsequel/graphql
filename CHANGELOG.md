@@ -1,12 +1,12 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.5.0.0] - 2019-08-14
 ### Added
 - `executeWithName` executes an operation with the given name.
-- Export `Language.GraphQL.Encoder.definition`.
+- Export `Language.GraphQL.Encoder.definition`,
+  `Language.GraphQL.Encoder.type'` and `Language.GraphQL.Encoder.directive`.
 - Export `Language.GraphQL.Encoder.value`. Escapes \ and " in strings now.
-- Export `Language.GraphQL.Encoder.type'`.
 
 ### Changed
 - `Operation` includes now possible operation name which allows to support
@@ -70,6 +70,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Data types for the GraphQL language.
 
+[0.5.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.4.0.0...v0.5.0.0
 [0.4.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.3...v0.4.0.0
 [0.3]: https://github.com/caraus-ecms/graphql/compare/v0.2.1...v0.3
 [0.2.1]: https://github.com/caraus-ecms/graphql/compare/v0.2...v0.2.1
