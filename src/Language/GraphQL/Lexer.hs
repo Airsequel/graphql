@@ -71,6 +71,8 @@ type Parser = Parsec Void T.Text
 ignoredCharacters :: Parser ()
 ignoredCharacters = space1 <|> skipSome (char ',')
 
+-- | Parser that skips comments and meaningless characters, whitespaces and
+-- commas.
 spaceConsumer :: Parser ()
 spaceConsumer = Lexer.space ignoredCharacters comment empty
 

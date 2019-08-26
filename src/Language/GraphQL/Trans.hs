@@ -9,6 +9,7 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Except (ExceptT)
 import Data.Text (Text)
 
+-- | Monad transformer stack used by the resolvers to provide error handling.
 newtype ActionT m a = ActionT { runActionT :: ExceptT Text m a }
 
 instance Functor m => Functor (ActionT m) where

@@ -16,6 +16,7 @@ import Text.Megaparsec ( lookAhead
                        , (<?>)
                        )
 
+-- | Parser for the GraphQL documents.
 document :: Parser Document
 document = unicodeBOM >> spaceConsumer >> lexeme (manyNE definition)
 

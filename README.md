@@ -8,8 +8,8 @@ GraphQL implementation in Haskell.
 
 This implementation is relatively low-level by design, it doesn't provide any
 mappings between the GraphQL types and Haskell's type system and avoids
-compile-time magic. It focuses on flexibility instead instead, so other
-solutions can be built on top of it.
+compile-time magic. It focuses on flexibility instead, so other solutions can
+be built on top of it.
 
 ## State of the work
 

@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Added
+- Minimal documentation for all public symbols.
+
 ## [0.5.0.0] - 2019-08-14
 ### Added
 - `executeWithName` executes an operation with the given name.
