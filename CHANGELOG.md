@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Minimal documentation for all public symbols.
 
+### Deprecated
+- Language.GraphQL.AST.FragmentName. Replaced with Language.GraphQL.AST.Name.
+
 ## [0.5.0.0] - 2019-08-14
 ### Added
 - `executeWithName` executes an operation with the given name.

@@ -94,7 +94,7 @@ fragmentDefinition = FragmentDefinition
                  <*> opt directives
                  <*> selectionSet
 
-fragmentName :: Parser FragmentName
+fragmentName :: Parser Name
 fragmentName = but (symbol "on") *> name
 
 typeCondition :: Parser TypeCondition

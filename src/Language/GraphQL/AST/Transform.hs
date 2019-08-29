@@ -18,7 +18,8 @@ import qualified Language.GraphQL.Schema as Schema
 --   empty list is returned.
 type Fragmenter = Core.Name -> [Core.Field]
 
--- TODO: Replace Maybe by MonadThrow with CustomError
+-- | Rewrites the original syntax tree into an intermediate representation used
+-- for query execution.
 document :: Schema.Subs -> Full.Document -> Maybe Core.Document
 document subs doc = operations subs fr ops
   where
