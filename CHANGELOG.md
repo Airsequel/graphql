@@ -6,7 +6,12 @@ All notable changes to this project will be documented in this file.
 - Minimal documentation for all public symbols.
 
 ### Deprecated
-- Language.GraphQL.AST.FragmentName. Replaced with Language.GraphQL.AST.Name.
+- `Language.GraphQL.AST.FragmentName`. Replaced with Language.GraphQL.AST.Name.
+- `Language.GraphQL.Execute.Schema` - It is not a schema (at least not a
+  complete one), but a resolver list, and the resolvers should be provided by
+  the user separately, because the schema can originate from a GraphQL
+  document. `Schema` name should be free to provide a data type for the real
+  schema later.
 
 ## [0.5.0.0] - 2019-08-14
 ### Added

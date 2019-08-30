@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
---   functions for defining and manipulating Schemas.
+-- functions for defining and manipulating schemas.
 module Language.GraphQL.Schema
     ( Resolver
     , Schema
@@ -43,6 +43,7 @@ import Language.GraphQL.Trans
 import Language.GraphQL.Type
 import Language.GraphQL.AST.Core
 
+{-# DEPRECATED Schema "Use NonEmpty (Resolver m) instead" #-}
 -- | A GraphQL schema.
 --   @m@ is usually expected to be an instance of 'MonadIO'.
 type Schema m = NonEmpty (Resolver m)
