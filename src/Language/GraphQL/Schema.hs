@@ -111,18 +111,17 @@ wrappedScalar :: (MonadIO m, Aeson.ToJSON a)
     => Name -> ActionT m (Wrapping a) -> Resolver m
 wrappedScalar name = wrappedScalarA name . const
 
--- | Represents one of a finite set of possible values.
---   Used in place of a 'scalar' when the possible responses are easily enumerable.
+{-# DEPRECATED enum "Use scalar instead" #-}
 enum :: MonadIO m => Name -> ActionT m [Text] -> Resolver m
 enum name = enumA name . const
 
--- | Like 'enum' but also taking 'Argument's.
+{-# DEPRECATED enumA "Use scalarA instead" #-}
 enumA :: MonadIO m => Name -> (Arguments -> ActionT m [Text]) -> Resolver m
 enumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld resolver = withField (return resolver) fld
 
--- | Like 'enum' but also taking 'Argument's and can be null or a list of enums.
+{-# DEPRECATED wrappedEnumA "Use wrappedScalarA instead" #-}
 wrappedEnumA :: MonadIO m
     => Name -> (Arguments -> ActionT m (Wrapping [Text])) -> Resolver m
 wrappedEnumA name f = Resolver name $ resolveFieldValue f resolveRight
@@ -132,7 +131,7 @@ wrappedEnumA name f = Resolver name $ resolveFieldValue f resolveRight
         = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
     resolveRight fld (List resolver) = withField (return resolver) fld
 
--- | Like 'enum' but can be null or a list of enums.
+{-# DEPRECATED wrappedEnum "Use wrappedScalar instead" #-}
 wrappedEnum :: MonadIO m => Name -> ActionT m (Wrapping [Text]) -> Resolver m
 wrappedEnum name = wrappedEnumA name . const
 

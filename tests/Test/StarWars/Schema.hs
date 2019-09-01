@@ -12,6 +12,7 @@ import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Maybe (catMaybes)
 import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
 import Language.GraphQL.Type
@@ -50,7 +51,8 @@ character char = return
     , Schema.scalar "name" $ return $ name char
     , Schema.wrappedObject "friends"
         $ traverse character $ List $ Named <$> getFriends char
-    , Schema.enum "appearsIn" $ return $ foldMap getEpisode $ appearsIn char
+    , Schema.wrappedScalar "appearsIn" $ return . List
+        $ catMaybes (getEpisode <$> appearsIn char)
     , Schema.scalar "secretBackstory" $ secretBackstory char
     , Schema.scalar "homePlanet" $ return $ either mempty homePlanet char
     , Schema.scalar "__typename" $ return $ typeName char

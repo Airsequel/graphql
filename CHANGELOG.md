@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
   the user separately, because the schema can originate from a GraphQL
   document. `Schema` name should be free to provide a data type for the real
   schema later.
+- `Language.GraphQL.Schema`: `enum`, `enumA`, `wrappedEnum` and `wrappedEnumA`.
+  There are actually only two generic types in GraphQL: Scalars and objects.
+  Enum is a scalar value.
 
 ## [0.5.0.0] - 2019-08-14
 ### Added
