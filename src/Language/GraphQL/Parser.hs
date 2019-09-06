@@ -108,8 +108,8 @@ value = ValueVariable <$> variable
     <|> ValueInt      <$> integer
     <|> ValueBoolean  <$> booleanValue
     <|> ValueNull     <$  symbol "null"
-    <|> ValueString   <$> string
     <|> ValueString   <$> blockString
+    <|> ValueString   <$> string
     <|> ValueEnum     <$> try enumValue
     <|> ValueList     <$> listValue
     <|> ValueObject   <$> objectValue

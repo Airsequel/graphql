@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
   There are actually only two generic types in GraphQL: Scalars and objects.
   Enum is a scalar value.
 
+### Fixed
+- Parsing block string values.
+
 ## [0.5.0.0] - 2019-08-14
 ### Added
 - `executeWithName` executes an operation with the given name.
