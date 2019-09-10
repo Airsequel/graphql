@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6598c2424405b7a92a4672ad7d1a4e8ad768ea47bf3ed0c3c5ae51bac8730301
+-- hash: 0b3b2cb6ec02a4eeaee98d4c003d4cbe68ab81fde1810b06b0b6eeb61010298c
 
 name:           graphql
-version:        0.5.0.0
+version:        0.5.0.1
 synopsis:       Haskell GraphQL implementation
 description:    This package provides a rudimentary parser for the <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
 category:       Language

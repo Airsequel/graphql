@@ -19,7 +19,7 @@ test() {
 }
 
 test_docs() {
-	$STACK --no-terminal ghc -- -Wall -fno-code docs/tutorial/tutorial.lhs
+	$STACK --no-terminal ghc -- -Wall -Werror -fno-code docs/tutorial/tutorial.lhs
         $STACK --no-terminal haddock --no-haddock-deps
 }
 

@@ -24,7 +24,6 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > import Data.Time (getCurrentTime)
 >
 > import Language.GraphQL
-> import Language.GraphQL.Schema (Schema)
 > import qualified Language.GraphQL.Schema as Schema
 > import Language.GraphQL.Trans (ActionT(..))
 >
@@ -37,7 +36,7 @@ example from [graphql.js](https://github.com/graphql/graphql-js).
 
 First we build a GraphQL schema.
 
-> schema1 :: Schema IO
+> schema1 :: NonEmpty (Schema.Resolver IO)
 > schema1 = hello :| []
 >
 > hello :: Schema.Resolver IO
@@ -67,7 +66,7 @@ returning
 
 For this example, we're going to be using time.
 
-> schema2 :: Schema IO
+> schema2 :: NonEmpty (Schema.Resolver IO)
 > schema2 = time :| []
 >
 > time :: Schema.Resolver IO
@@ -127,7 +126,7 @@ This will fail
 
 Now that we have two resolvers, we can define a schema which uses them both.
 
-> schema3 :: Schema IO
+> schema3 :: NonEmpty (Schema.Resolver IO)
 > schema3 = hello :| [time]
 >
 > query3 :: Text
