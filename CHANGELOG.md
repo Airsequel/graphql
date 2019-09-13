@@ -1,6 +1,8 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
 ## [0.5.0.1] - 2019-09-10
 ### Added
 - Minimal documentation for all public symbols.

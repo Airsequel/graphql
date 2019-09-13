@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0b3b2cb6ec02a4eeaee98d4c003d4cbe68ab81fde1810b06b0b6eeb61010298c
+-- hash: ff53309ec0180b799fcc69ff3a53a6c9411940332e75ebc8097a83d40c085d98
 
 name:           graphql
 version:        0.5.0.1
@@ -70,6 +70,7 @@ test-suite tasty
       Language.GraphQL.ErrorSpec
       Language.GraphQL.LexerSpec
       Language.GraphQL.ParserSpec
+      Test.FragmentSpec
       Test.KitchenSinkSpec
       Test.StarWars.Data
       Test.StarWars.QuerySpec
