@@ -14,8 +14,8 @@ import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
 
--- | Replaces a fragment name by a list of 'Field'. If the name doesn't match an
---   empty list is returned.
+-- | Replaces a fragment name by a list of 'Core.Field'. If the name doesn't
+--   match an empty list is returned.
 type Fragmenter = Core.Name -> [Core.Field]
 
 -- | Rewrites the original syntax tree into an intermediate representation used

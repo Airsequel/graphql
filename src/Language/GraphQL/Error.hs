@@ -1,5 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+
+-- | Error handling.
 module Language.GraphQL.Error
     ( parseError
     , CollectErrsT

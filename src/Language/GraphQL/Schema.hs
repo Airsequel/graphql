@@ -28,9 +28,7 @@ module Language.GraphQL.Schema
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
-import Data.Foldable ( find
-                     , fold
-                     )
+import Data.Foldable (find, fold)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
@@ -48,15 +46,12 @@ import Language.GraphQL.AST.Core
 --   @m@ is usually expected to be an instance of 'MonadIO'.
 type Schema m = NonEmpty (Resolver m)
 
--- | Resolves a 'Field' into an @Aeson.@'Aeson.Object' with error information
---   (or 'empty'). @m@ is usually expected to be an instance of 'MonadIO.
+-- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
+--   information (if an error has occurred). @m@ is usually expected to be an
+--   instance of 'MonadIO'.
 data Resolver m = Resolver
     Text -- ^ Name
     (Field -> CollectErrsT m Aeson.Object) -- ^ Resolver
-
-type Fields = [Field]
-
-type Arguments = [Argument]
 
 -- | Variable substitution function.
 type Subs = Name -> Maybe Value
@@ -67,14 +62,14 @@ object name = objectA name . const
 
 -- | Like 'object' but also taking 'Argument's.
 objectA :: MonadIO m
-    => Name -> (Arguments -> ActionT m [Resolver m]) -> Resolver m
+    => Name -> ([Argument] -> ActionT m [Resolver m]) -> Resolver m
 objectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
 
 -- | Like 'object' but also taking 'Argument's and can be null or a list of objects.
 wrappedObjectA :: MonadIO m
-    => Name -> (Arguments -> ActionT m (Wrapping [Resolver m])) -> Resolver m
+    => Name -> ([Argument] -> ActionT m (Wrapping [Resolver m])) -> Resolver m
 wrappedObjectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ sels) resolver
@@ -91,14 +86,14 @@ scalar name = scalarA name . const
 
 -- | Like 'scalar' but also taking 'Argument's.
 scalarA :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> (Arguments -> ActionT m a) -> Resolver m
+    => Name -> ([Argument] -> ActionT m a) -> Resolver m
 scalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld result = withField (return result) fld
 
 -- | Lika 'scalar' but also taking 'Argument's and can be null or a list of scalars.
 wrappedScalarA :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> (Arguments -> ActionT m (Wrapping a)) -> Resolver m
+    => Name -> ([Argument] -> ActionT m (Wrapping a)) -> Resolver m
 wrappedScalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld (Named result) = withField (return result) fld
@@ -116,14 +111,14 @@ enum :: MonadIO m => Name -> ActionT m [Text] -> Resolver m
 enum name = enumA name . const
 
 {-# DEPRECATED enumA "Use scalarA instead" #-}
-enumA :: MonadIO m => Name -> (Arguments -> ActionT m [Text]) -> Resolver m
+enumA :: MonadIO m => Name -> ([Argument] -> ActionT m [Text]) -> Resolver m
 enumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld resolver = withField (return resolver) fld
 
 {-# DEPRECATED wrappedEnumA "Use wrappedScalarA instead" #-}
 wrappedEnumA :: MonadIO m
-    => Name -> (Arguments -> ActionT m (Wrapping [Text])) -> Resolver m
+    => Name -> ([Argument] -> ActionT m (Wrapping [Text])) -> Resolver m
 wrappedEnumA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld (Named resolver) = withField (return resolver) fld
@@ -158,7 +153,7 @@ withField v fld
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
 resolve :: MonadIO m
-    => [Resolver m] -> Fields -> CollectErrsT m Aeson.Value
+    => [Resolver m] -> [Field] -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where
     tryResolvers fld = maybe (errmsg fld) (tryResolver fld) $ find (compareResolvers fld) resolvers
