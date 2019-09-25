@@ -31,11 +31,11 @@ data Formatter
     = Minified
     | Pretty Word
 
--- Constructs a formatter for pretty printing.
+-- | Constructs a formatter for pretty printing.
 pretty :: Formatter
 pretty = Pretty 0
 
--- Constructs a formatter for minifying.
+-- | Constructs a formatter for minifying.
 minified :: Formatter
 minified = Minified
 

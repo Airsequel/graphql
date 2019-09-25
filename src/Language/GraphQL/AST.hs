@@ -68,6 +68,7 @@ data OperationType = Query | Mutation deriving (Eq, Show)
 -- | "Top-level" selection, selection on a operation.
 type SelectionSet = NonEmpty Selection
 
+-- | Field selection.
 type SelectionSetOpt = [Selection]
 
 -- | Single selection element.

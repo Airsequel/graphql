@@ -1,5 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+-- | @GraphQL@ document parser.
 module Language.GraphQL.Parser
     ( document
     ) where

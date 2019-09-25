@@ -1,3 +1,4 @@
+-- | Monad transformer stack used by the @GraphQL@ resolvers.
 module Language.GraphQL.Trans
     ( ActionT(..)
     ) where

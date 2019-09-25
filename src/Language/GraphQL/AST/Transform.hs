@@ -1,4 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
+
+-- | After the document is parsed, before getting executed the AST is
+--   transformed into a similar, simpler AST. This module is responsible for
+--   this transformation.
 module Language.GraphQL.AST.Transform
     ( document
     ) where
