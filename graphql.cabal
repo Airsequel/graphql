@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ff53309ec0180b799fcc69ff3a53a6c9411940332e75ebc8097a83d40c085d98
+-- hash: 7396988b6b8e966751eaf92b5a8c1cb820f7a3dbbf60736ea46faab4653fb40c
 
 name:           graphql
 version:        0.5.0.1
@@ -85,6 +85,7 @@ test-suite tasty
     , graphql
     , hspec
     , hspec-expectations
+    , hspec-megaparsec
     , megaparsec
     , raw-strings-qq
     , text

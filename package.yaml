@@ -49,4 +49,5 @@ tests:
     - graphql
     - hspec
     - hspec-expectations
+    - hspec-megaparsec
     - raw-strings-qq
