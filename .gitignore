@@ -8,3 +8,4 @@
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.project.local
+/graphql.cabal
