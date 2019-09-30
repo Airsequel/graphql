@@ -1,6 +1,7 @@
 #!/bin/bash
 
 STACK=$SEMAPHORE_CACHE_DIR/stack
+export STACK_ROOT=$SEMAPHORE_CACHE_DIR/.stack
 
 setup() {
 	if [ ! -e "$STACK" ]
