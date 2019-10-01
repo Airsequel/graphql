@@ -45,18 +45,20 @@ type Document = NonEmpty Definition
 -- * Operations
 
 -- | Top-level definition of a document, either an operation or a fragment.
-data Definition = DefinitionOperation OperationDefinition
-                | DefinitionFragment  FragmentDefinition
-                  deriving (Eq, Show)
+data Definition
+    = DefinitionOperation OperationDefinition
+    | DefinitionFragment FragmentDefinition
+    deriving (Eq, Show)
 
 -- | Operation definition.
-data OperationDefinition = OperationSelectionSet SelectionSet
-                         | OperationDefinition   OperationType
-                                                 (Maybe Name)
-                                                 VariableDefinitions
-                                                 Directives
-                                                 SelectionSet
-                           deriving (Eq, Show)
+data OperationDefinition
+    = OperationSelectionSet SelectionSet
+    | OperationDefinition OperationType
+                          (Maybe Name)
+                          [VariableDefinition]
+                          [Directive]
+                          SelectionSet
+    deriving (Eq, Show)
 
 -- | GraphQL has 3 operation types: queries, mutations and subscribtions.
 --
@@ -73,7 +75,7 @@ type SelectionSetOpt = [Selection]
 
 -- | Single selection element.
 data Selection
-    = SelectionField          Field
+    = SelectionField Field
     | SelectionFragmentSpread FragmentSpread
     | SelectionInlineFragment InlineFragment
     deriving (Eq, Show)
@@ -82,12 +84,13 @@ data Selection
 
 -- | GraphQL field.
 data Field
-    = Field (Maybe Alias) Name Arguments Directives SelectionSetOpt
+    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt
     deriving (Eq, Show)
 
 -- * Arguments
 
 -- | Argument list.
+{-# DEPRECATED Arguments "Use [Argument] instead" #-}
 type Arguments = [Argument]
 
 -- | Argument.
@@ -96,15 +99,15 @@ data Argument = Argument Name Value deriving (Eq,Show)
 -- * Fragments
 
 -- | Fragment spread.
-data FragmentSpread = FragmentSpread Name Directives deriving (Eq, Show)
+data FragmentSpread = FragmentSpread Name [Directive] deriving (Eq, Show)
 
 -- | Inline fragment.
-data InlineFragment = InlineFragment (Maybe TypeCondition) Directives SelectionSet
+data InlineFragment = InlineFragment (Maybe TypeCondition) [Directive] SelectionSet
                       deriving (Eq, Show)
 
 -- | Fragment definition.
 data FragmentDefinition
-    = FragmentDefinition Name TypeCondition Directives SelectionSet
+    = FragmentDefinition Name TypeCondition [Directive] SelectionSet
     deriving (Eq, Show)
 
 {-# DEPRECATED FragmentName "Use Name instead" #-}
@@ -135,6 +138,7 @@ data ObjectField = ObjectField Name Value deriving (Eq, Show)
 -- * Variables
 
 -- | Variable definition list.
+{-# DEPRECATED VariableDefinitions "Use [VariableDefinition] instead" #-}
 type VariableDefinitions = [VariableDefinition]
 
 -- | Variable definition.
@@ -158,6 +162,7 @@ data NonNullType = NonNullTypeNamed Name
 -- * Directives
 
 -- | Directive list.
+{-# DEPRECATED Directives "Use [Directive] instead" #-}
 type Directives = [Directive]
 
 -- | Directive.

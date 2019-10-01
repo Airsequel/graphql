@@ -2,6 +2,16 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+### Deprecated
+- `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`
+  instead.
+- `Language.GraphQL.AST.Directives`. Use `[Language.GraphQL.AST.Directives]`
+  instead.
+- `Language.GraphQL.AST.VariableDefinitions`. Use
+  `[Language.GraphQL.AST.VariableDefinition]` instead.
+
+### Added
+- Module documentation.
 
 ## [0.5.0.1] - 2019-09-10
 ### Added

@@ -69,7 +69,7 @@ alias = try $ name <* colon
 
 -- * Arguments
 
-arguments :: Parser Arguments
+arguments :: Parser [Argument]
 arguments = parens $ some argument
 
 argument :: Parser Argument
@@ -135,7 +135,7 @@ objectField = ObjectField <$> name <* symbol ":" <*> value
 
 -- * Variables
 
-variableDefinitions :: Parser VariableDefinitions
+variableDefinitions :: Parser [VariableDefinition]
 variableDefinitions = parens $ some variableDefinition
 
 variableDefinition :: Parser VariableDefinition
@@ -164,7 +164,7 @@ nonNullType = NonNullTypeNamed <$> name <* bang
 
 -- * Directives
 
-directives :: Parser Directives
+directives :: Parser [Directive]
 directives = some directive
 
 directive :: Parser Directive

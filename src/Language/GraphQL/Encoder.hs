@@ -67,11 +67,11 @@ operationDefinition formatter (OperationDefinition Mutation name vars dirs sels)
     = "mutation " <> node formatter name vars dirs sels
 
 node :: Formatter
-     -> Maybe Name
-     -> VariableDefinitions
-     -> Directives
-     -> SelectionSet
-     -> Text
+    -> Maybe Name
+    -> [VariableDefinition]
+    -> [Directive]
+    -> SelectionSet
+    -> Text
 node formatter name vars dirs sels
     = Text.Lazy.fromStrict (fold name)
     <> optempty (variableDefinitions formatter) vars
@@ -170,7 +170,7 @@ directive :: Formatter -> Directive -> Text
 directive formatter (Directive name args)
     = "@" <> Text.Lazy.fromStrict name <> optempty (arguments formatter) args
 
-directives :: Formatter -> Directives -> Text
+directives :: Formatter -> [Directive] -> Text
 directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
 directives Minified = spaces (directive Minified)
 
