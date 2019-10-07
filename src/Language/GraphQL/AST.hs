@@ -35,6 +35,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Language.GraphQL.AST.Core ( Alias
                                  , Name
+                                 , TypeCondition
                                  )
 
 -- * Document
@@ -112,9 +113,6 @@ data FragmentDefinition
 
 {-# DEPRECATED FragmentName "Use Name instead" #-}
 type FragmentName = Name
-
--- | Type condition.
-type TypeCondition = Name
 
 -- * Input values
 

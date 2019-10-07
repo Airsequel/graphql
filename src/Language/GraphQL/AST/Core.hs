@@ -4,16 +4,18 @@ module Language.GraphQL.AST.Core
     , Argument(..)
     , Document
     , Field(..)
+    , Fragment(..)
     , Name
     , ObjectField(..)
     , Operation(..)
+    , Selection(..)
+    , TypeCondition
     , Value(..)
     ) where
 
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.String
-
 import Data.Text (Text)
 
 -- | Name
@@ -26,8 +28,8 @@ type Document = NonEmpty Operation
 --
 -- Currently only queries and mutations are supported.
 data Operation
-    = Query (Maybe Text) (NonEmpty Field)
-    | Mutation (Maybe Text) (NonEmpty Field)
+    = Query (Maybe Text) (NonEmpty Selection)
+    | Mutation (Maybe Text) (NonEmpty Selection)
     deriving (Eq, Show)
 
 -- | A single GraphQL field.
@@ -51,7 +53,7 @@ data Operation
 -- * "zuck" is an alias for "user". "id" and "name" have no aliases.
 -- * "id: 4" is an argument for "name". "id" and "name don't have any
 -- arguments.
-data Field = Field (Maybe Alias) Name [Argument] [Field] deriving (Eq, Show)
+data Field = Field (Maybe Alias) Name [Argument] [Selection] deriving (Eq, Show)
 
 -- | Alternative field name.
 --
@@ -100,3 +102,17 @@ instance IsString Value where
 --
 -- A list of 'ObjectField's represents a GraphQL object type.
 data ObjectField = ObjectField Name Value deriving (Eq, Show)
+
+-- | Type condition.
+type TypeCondition = Name
+
+-- | Represents fragments and inline fragments.
+data Fragment
+    = Fragment TypeCondition (NonEmpty Selection)
+    deriving (Eq, Show)
+
+-- | Single selection element.
+data Selection
+    = SelectionFragment Fragment
+    | SelectionField Field
+    deriving (Eq, Show)

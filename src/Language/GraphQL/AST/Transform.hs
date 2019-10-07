@@ -65,13 +65,21 @@ selection
   :: Schema.Subs
   -> Fragmenter
   -> Full.Selection
-  -> Either [Core.Field] Core.Field
+  -> Either [Core.Selection] Core.Selection
 selection subs fr (Full.SelectionField fld) =
-  Right $ field subs fr fld
+  Right $ Core.SelectionField $ field subs fr fld
 selection _    fr (Full.SelectionFragmentSpread (Full.FragmentSpread n _dirs)) =
-  Left $ fr n
-selection _ _  (Full.SelectionInlineFragment _)  =
-  error "Inline fragments not supported yet"
+  Left $ Core.SelectionField <$> fr n
+selection subs fr  (Full.SelectionInlineFragment fragment)
+    | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
+    = Right $ Core.SelectionFragment $ Core.Fragment typeCondition $ node selectionSet
+    | otherwise = error "Inline fragments not supported yet"
+  where
+    node selections
+        = NonEmpty.fromList
+        $ foldr (appendSelection . selection subs fr) [] selections
+    appendSelection (Left x) acc = x ++ acc
+    appendSelection (Right x) acc = x : acc
 
 -- * Fragment replacement
 
@@ -87,19 +95,23 @@ defrag subs (Full.DefinitionFragment fragDef) =
   Left $ fragmentDefinition subs fragDef
 
 fragmentDefinition :: Schema.Subs -> Full.FragmentDefinition -> Fragmenter
-fragmentDefinition subs (Full.FragmentDefinition name _tc _dirs sels) name' =
-  -- TODO: Support fragments within fragments. Fold instead of map.
-  if name == name'
-  then either id pure =<< NonEmpty.toList (selection subs mempty <$> sels)
-  else empty
+fragmentDefinition subs (Full.FragmentDefinition name _tc _dirs sels) name'
+    -- TODO: Support fragments within fragments. Fold instead of map.
+    | name == name' = selection' <$> do
+        selections <- NonEmpty.toList $ selection subs mempty <$> sels
+        either id pure selections
+    | otherwise = empty
+  where
+    selection' (Core.SelectionField field') = field'
+    selection' _ = error "Inline fragments not supported yet"
 
 field :: Schema.Subs -> Fragmenter -> Full.Field -> Core.Field
 field subs fr (Full.Field a n args _dirs sels) =
     Core.Field a n (fold $ argument subs `traverse` args) (foldr go empty sels)
   where
-    go :: Full.Selection -> [Core.Field] -> [Core.Field]
-    go (Full.SelectionFragmentSpread (Full.FragmentSpread name _dirs)) = (fr name <>)
-    go sel =  (either id pure (selection subs fr sel) <>)
+    go :: Full.Selection -> [Core.Selection] -> [Core.Selection]
+    go (Full.SelectionFragmentSpread (Full.FragmentSpread name _dirs)) = ((Core.SelectionField <$> fr name) <>)
+    go sel = (either id pure (selection subs fr sel) <>)
 
 argument :: Schema.Subs -> Full.Argument -> Maybe Core.Argument
 argument subs (Full.Argument n v) = Core.Argument n <$> value subs v

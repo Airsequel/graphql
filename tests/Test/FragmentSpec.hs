@@ -9,7 +9,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
-import Test.Hspec (Spec, it, shouldBe, xdescribe)
+import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
@@ -37,12 +37,14 @@ inlineQuery = [r|{
 }|]
 
 spec :: Spec
-spec = xdescribe "Inline fragment executor" $ do
+spec = describe "Inline fragment executor" $ do
     it "chooses the first selection if the type matches" $ do
         actual <- graphql (garment "Hat" :| []) inlineQuery
         let expected = object
-                [ "garment" .= object
-                    [ "circumference" .= (60 :: Int)
+                [ "data" .= object
+                    [ "garment" .= object
+                        [ "circumference" .= (60 :: Int)
+                        ]
                     ]
                 ]
          in actual `shouldBe` expected
@@ -50,8 +52,10 @@ spec = xdescribe "Inline fragment executor" $ do
     it "chooses the last selection if the type matches" $ do
         actual <- graphql (garment "Shirt" :| []) inlineQuery
         let expected = object
-                [ "garment" .= object
-                    [ "size" .= ("L" :: Text)
+                [ "data" .= object
+                    [ "garment" .= object
+                        [ "size" .= ("L" :: Text)
+                        ]
                     ]
                 ]
          in actual `shouldBe` expected

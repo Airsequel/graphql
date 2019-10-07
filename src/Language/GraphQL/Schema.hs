@@ -153,11 +153,21 @@ withField v fld
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
 resolve :: MonadIO m
-    => [Resolver m] -> [Field] -> CollectErrsT m Aeson.Value
+    => [Resolver m] -> [Selection] -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where
-    tryResolvers fld = maybe (errmsg fld) (tryResolver fld) $ find (compareResolvers fld) resolvers
-    compareResolvers (Field _ name _ _) (Resolver name' _) = name == name'
+    resolveTypeName (Resolver "__typename" f) = do
+        value <- f $ Field Nothing "__typename" mempty mempty
+        return $ HashMap.lookupDefault "" "__typename" value
+    resolveTypeName _ = return ""
+    tryResolvers (SelectionField fld@(Field _ name _ _))
+        = maybe (errmsg fld) (tryResolver fld) $ find (compareResolvers name) resolvers
+    tryResolvers (SelectionFragment (Fragment typeCondition selections')) = do
+        that <-  maybe (return "") resolveTypeName (find (compareResolvers "__typename") resolvers)
+        if Aeson.String typeCondition == that
+            then fmap fold . traverse tryResolvers $ selections'
+            else return mempty
+    compareResolvers name (Resolver name' _) = name == name'
     tryResolver fld (Resolver _ resolver)  = resolver fld
     errmsg fld@(Field _ name _ _) = do
         addErrMsg $ T.unwords ["field", name, "not resolved."]
