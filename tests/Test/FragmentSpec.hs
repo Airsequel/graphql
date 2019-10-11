@@ -59,3 +59,25 @@ spec = describe "Inline fragment executor" $ do
                     ]
                 ]
          in actual `shouldBe` expected
+
+    it "embeds inline fragments without type" $ do
+        let query = [r|{
+          garment {
+            circumference
+            ... {
+              size
+            }
+          }
+        }|]
+            resolvers = Schema.object "garment" $ return [circumference,  size]
+
+        actual <- graphql (resolvers :| []) query
+        let expected = object
+                [ "data" .= object
+                    [ "garment" .= object
+                        [ "circumference" .= (60 :: Int)
+                        , "size" .= ("L" :: Text)
+                        ]
+                    ]
+                ]
+         in actual `shouldBe` expected

@@ -66,20 +66,21 @@ selection
   -> Fragmenter
   -> Full.Selection
   -> Either [Core.Selection] Core.Selection
-selection subs fr (Full.SelectionField fld) =
-  Right $ Core.SelectionField $ field subs fr fld
-selection _    fr (Full.SelectionFragmentSpread (Full.FragmentSpread n _dirs)) =
-  Left $ Core.SelectionField <$> fr n
+selection subs fr (Full.SelectionField fld)
+    = Right $ Core.SelectionField $ field subs fr fld
+selection _ fr (Full.SelectionFragmentSpread (Full.FragmentSpread name _))
+    = Left $ Core.SelectionField <$> fr name
 selection subs fr  (Full.SelectionInlineFragment fragment)
     | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
-    = Right $ Core.SelectionFragment $ Core.Fragment typeCondition $ node selectionSet
-    | otherwise = error "Inline fragments not supported yet"
+        = Right
+        $ Core.SelectionFragment
+        $ Core.Fragment typeCondition
+        $ NonEmpty.fromList
+        $ appendSelection selectionSet
+    | (Full.InlineFragment Nothing _ selectionSet) <- fragment
+        = Left $ appendSelection selectionSet
   where
-    node selections
-        = NonEmpty.fromList
-        $ foldr (appendSelection . selection subs fr) [] selections
-    appendSelection (Left x) acc = x ++ acc
-    appendSelection (Right x) acc = x : acc
+    appendSelection = foldr (either (++) (:) . selection subs fr) []
 
 -- * Fragment replacement
 
@@ -96,14 +97,13 @@ defrag subs (Full.DefinitionFragment fragDef) =
 
 fragmentDefinition :: Schema.Subs -> Full.FragmentDefinition -> Fragmenter
 fragmentDefinition subs (Full.FragmentDefinition name _tc _dirs sels) name'
-    -- TODO: Support fragments within fragments. Fold instead of map.
     | name == name' = selection' <$> do
         selections <- NonEmpty.toList $ selection subs mempty <$> sels
         either id pure selections
     | otherwise = empty
   where
     selection' (Core.SelectionField field') = field'
-    selection' _ = error "Inline fragments not supported yet"
+    selection' _ = error "Fragments within fragments are not supported yet"
 
 field :: Schema.Subs -> Fragmenter -> Full.Field -> Core.Field
 field subs fr (Full.Field a n args _dirs sels) =
