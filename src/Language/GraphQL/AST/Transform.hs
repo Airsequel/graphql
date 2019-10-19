@@ -8,10 +8,10 @@ module Language.GraphQL.AST.Transform
     ) where
 
 import Control.Applicative (empty)
-import Control.Monad ((<=<))
 import Data.Bifunctor (first)
 import Data.Either (partitionEithers)
 import Data.Foldable (fold, foldMap)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Monoid (Alt(Alt,getAlt), (<>))
 import qualified Language.GraphQL.AST as Full
@@ -44,22 +44,20 @@ operations
   -> Fragmenter
   -> [Full.OperationDefinition]
   -> Maybe Core.Document
-operations subs fr = NonEmpty.nonEmpty <=< traverse (operation subs fr)
+operations subs fr = NonEmpty.nonEmpty . fmap (operation subs fr)
 
 operation
   :: Schema.Subs
   -> Fragmenter
   -> Full.OperationDefinition
-  -> Maybe Core.Operation
+  -> Core.Operation
 operation subs fr (Full.OperationSelectionSet sels) =
   operation subs fr $ Full.OperationDefinition Full.Query empty empty empty sels
 -- TODO: Validate Variable definitions with substituter
-operation subs fr (Full.OperationDefinition operationType name _vars _dirs sels)
-    = case operationType of
-        Full.Query -> Core.Query name <$> node
-        Full.Mutation -> Core.Mutation name <$> node
-  where
-    node = traverse (hush . selection subs fr) sels
+operation subs fr (Full.OperationDefinition Full.Query name _vars _dirs sels) =
+    Core.Query name $ appendSelection subs fr sels
+operation subs fr (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
+    Core.Mutation name $ appendSelection subs fr sels
 
 selection
   :: Schema.Subs
@@ -75,12 +73,9 @@ selection subs fr  (Full.SelectionInlineFragment fragment)
         = Right
         $ Core.SelectionFragment
         $ Core.Fragment typeCondition
-        $ NonEmpty.fromList
-        $ appendSelection selectionSet
+        $ appendSelection subs fr selectionSet
     | (Full.InlineFragment Nothing _ selectionSet) <- fragment
-        = Left $ appendSelection selectionSet
-  where
-    appendSelection = foldr (either (++) (:) . selection subs fr) []
+        = Left $ NonEmpty.toList $ appendSelection subs fr selectionSet
 
 -- * Fragment replacement
 
@@ -132,5 +127,10 @@ value subs (Full.ValueObject   o) =
 objectField :: Schema.Subs -> Full.ObjectField -> Maybe Core.ObjectField
 objectField subs (Full.ObjectField n v) = Core.ObjectField n <$> value subs v
 
-hush :: Either a b -> Maybe b
-hush = either (const Nothing) Just
+appendSelection ::
+    Schema.Subs ->
+    Fragmenter ->
+    NonEmpty Full.Selection ->
+    NonEmpty Core.Selection
+appendSelection subs fr = NonEmpty.fromList
+    . foldr (either (++) (:) . selection subs fr) []

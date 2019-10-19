@@ -31,11 +31,10 @@ dependencies:
 - megaparsec
 - text
 - transformers
+- unordered-containers
 
 library:
   source-dirs: src
-  dependencies:
-  - unordered-containers
 
 tests:
   tasty:

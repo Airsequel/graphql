@@ -4,12 +4,13 @@ module Test.FragmentSpec
     ( spec
     ) where
 
-import Data.Aeson (object, (.=))
+import Data.Aeson (Value(..), object, (.=))
+import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldNotSatisfy)
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
@@ -81,3 +82,16 @@ spec = describe "Inline fragment executor" $ do
                     ]
                 ]
          in actual `shouldBe` expected
+
+    it "evaluates fragments on Query" $ do
+        let query = [r|{
+          ... {
+            size
+          }
+        }|]
+
+        actual <- graphql (size :| []) query
+        actual `shouldNotSatisfy` hasErrors
+      where
+        hasErrors (Object object') = HashMap.member "errors" object'
+        hasErrors _ = True
