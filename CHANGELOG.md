@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.5.1.0] - 2019-10-22
 ### Deprecated
 - `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`
   instead.
@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Module documentation.
 - Inline fragment support.
+
+### Fixed
+- Top-level fragments.
+- Fragment for execution is chosen based on the type.
 
 ## [0.5.0.1] - 2019-09-10
 ### Added
@@ -101,6 +105,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Data types for the GraphQL language.
 
+[0.5.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.1...v0.5.1.0
 [0.5.0.1]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.0...v0.5.0.1
 [0.5.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.4.0.0...v0.5.0.0
 [0.4.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.3...v0.4.0.0
