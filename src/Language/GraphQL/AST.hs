@@ -5,14 +5,11 @@
 module Language.GraphQL.AST
     ( Alias
     , Argument(..)
-    , Arguments
     , Definition(..)
     , Directive(..)
-    , Directives
     , Document
     , Field(..)
     , FragmentDefinition(..)
-    , FragmentName
     , FragmentSpread(..)
     , InlineFragment(..)
     , Name
@@ -27,7 +24,6 @@ module Language.GraphQL.AST
     , TypeCondition
     , Value(..)
     , VariableDefinition(..)
-    , VariableDefinitions
     ) where
 
 import Data.Int (Int32)
@@ -42,6 +38,9 @@ import Language.GraphQL.AST.Core ( Alias
 
 -- | GraphQL document.
 type Document = NonEmpty Definition
+
+-- | Directive.
+data Directive = Directive Name [Argument] deriving (Eq, Show)
 
 -- * Operations
 
@@ -88,12 +87,6 @@ data Field
     = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt
     deriving (Eq, Show)
 
--- * Arguments
-
--- | Argument list.
-{-# DEPRECATED Arguments "Use [Argument] instead" #-}
-type Arguments = [Argument]
-
 -- | Argument.
 data Argument = Argument Name Value deriving (Eq,Show)
 
@@ -111,10 +104,7 @@ data FragmentDefinition
     = FragmentDefinition Name TypeCondition [Directive] SelectionSet
     deriving (Eq, Show)
 
-{-# DEPRECATED FragmentName "Use Name instead" #-}
-type FragmentName = Name
-
--- * Input values
+-- * Inputs
 
 -- | Input value.
 data Value = ValueVariable Name
@@ -133,17 +123,9 @@ data Value = ValueVariable Name
 -- A list of 'ObjectField's represents a GraphQL object type.
 data ObjectField = ObjectField Name Value deriving (Eq, Show)
 
--- * Variables
-
--- | Variable definition list.
-{-# DEPRECATED VariableDefinitions "Use [VariableDefinition] instead" #-}
-type VariableDefinitions = [VariableDefinition]
-
 -- | Variable definition.
 data VariableDefinition = VariableDefinition Name Type (Maybe Value)
                           deriving (Eq, Show)
-
--- * Input types
 
 -- | Type representation.
 data Type = TypeNamed   Name
@@ -156,12 +138,3 @@ data Type = TypeNamed   Name
 data NonNullType = NonNullTypeNamed Name
                  | NonNullTypeList  Type
                    deriving (Eq, Show)
-
--- * Directives
-
--- | Directive list.
-{-# DEPRECATED Directives "Use [Directive] instead" #-}
-type Directives = [Directive]
-
--- | Directive.
-data Directive = Directive Name [Argument] deriving (Eq, Show)

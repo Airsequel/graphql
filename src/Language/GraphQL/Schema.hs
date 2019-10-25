@@ -4,17 +4,12 @@
 -- functions for defining and manipulating schemas.
 module Language.GraphQL.Schema
     ( Resolver
-    , Schema
     , Subs
     , object
     , objectA
     , scalar
     , scalarA
-    , enum
-    , enumA
     , resolve
-    , wrappedEnum
-    , wrappedEnumA
     , wrappedObject
     , wrappedObjectA
     , wrappedScalar
@@ -29,7 +24,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Data.Foldable (find, fold)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
 import Data.HashMap.Strict (HashMap)
@@ -40,11 +34,6 @@ import Language.GraphQL.Error
 import Language.GraphQL.Trans
 import Language.GraphQL.Type
 import Language.GraphQL.AST.Core
-
-{-# DEPRECATED Schema "Use NonEmpty (Resolver m) instead" #-}
--- | A GraphQL schema.
---   @m@ is usually expected to be an instance of 'MonadIO'.
-type Schema m = NonEmpty (Resolver m)
 
 -- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
 --   information (if an error has occurred). @m@ is usually expected to be an
@@ -105,30 +94,6 @@ wrappedScalarA name f = Resolver name $ resolveFieldValue f resolveRight
 wrappedScalar :: (MonadIO m, Aeson.ToJSON a)
     => Name -> ActionT m (Wrapping a) -> Resolver m
 wrappedScalar name = wrappedScalarA name . const
-
-{-# DEPRECATED enum "Use scalar instead" #-}
-enum :: MonadIO m => Name -> ActionT m [Text] -> Resolver m
-enum name = enumA name . const
-
-{-# DEPRECATED enumA "Use scalarA instead" #-}
-enumA :: MonadIO m => Name -> ([Argument] -> ActionT m [Text]) -> Resolver m
-enumA name f = Resolver name $ resolveFieldValue f resolveRight
-  where
-    resolveRight fld resolver = withField (return resolver) fld
-
-{-# DEPRECATED wrappedEnumA "Use wrappedScalarA instead" #-}
-wrappedEnumA :: MonadIO m
-    => Name -> ([Argument] -> ActionT m (Wrapping [Text])) -> Resolver m
-wrappedEnumA name f = Resolver name $ resolveFieldValue f resolveRight
-  where
-    resolveRight fld (Named resolver) = withField (return resolver) fld
-    resolveRight fld Null
-        = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
-    resolveRight fld (List resolver) = withField (return resolver) fld
-
-{-# DEPRECATED wrappedEnum "Use wrappedScalar instead" #-}
-wrappedEnum :: MonadIO m => Name -> ActionT m (Wrapping [Text]) -> Resolver m
-wrappedEnum name = wrappedEnumA name . const
 
 resolveFieldValue :: MonadIO m
     => ([Argument] -> ActionT m a)
