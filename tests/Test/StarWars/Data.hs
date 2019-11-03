@@ -26,7 +26,7 @@ import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Language.GraphQL.Trans
-import Language.GraphQL.Type
+import qualified Language.GraphQL.Type as Type
 
 -- * Data
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsData.js
@@ -191,8 +191,8 @@ getDroid' _      = empty
 getFriends :: Character -> [Character]
 getFriends char = catMaybes $ liftA2 (<|>) getDroid getHuman <$> friends char
 
-getEpisode :: Int -> Maybe (Wrapping Text)
-getEpisode 4 = pure $ Named "NEWHOPE"
-getEpisode 5 = pure $ Named "EMPIRE"
-getEpisode 6 = pure $ Named "JEDI"
+getEpisode :: Int -> Maybe (Type.Wrapping Text)
+getEpisode 4 = pure $ Type.Named "NEWHOPE"
+getEpisode 5 = pure $ Type.Named "EMPIRE"
+getEpisode 6 = pure $ Type.Named "JEDI"
 getEpisode _ = empty

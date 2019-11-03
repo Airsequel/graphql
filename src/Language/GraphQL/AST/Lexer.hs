@@ -3,7 +3,7 @@
 
 -- | This module defines a bunch of small parsers used to parse individual
 --   lexemes.
-module Language.GraphQL.Lexer 
+module Language.GraphQL.AST.Lexer 
     ( Parser
     , amp
     , at

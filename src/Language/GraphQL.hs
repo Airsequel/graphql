@@ -10,7 +10,7 @@ import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Text as T
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
-import Language.GraphQL.Parser
+import Language.GraphQL.AST.Parser
 import qualified Language.GraphQL.Schema as Schema
 import Text.Megaparsec (parse)
 

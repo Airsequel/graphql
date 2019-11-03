@@ -30,10 +30,10 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Data.Text as T
+import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Trans
-import Language.GraphQL.Type
-import Language.GraphQL.AST.Core
+import qualified Language.GraphQL.Type as Type
 
 -- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
 --   information (if an error has occurred). @m@ is usually expected to be an
@@ -58,7 +58,7 @@ objectA name f = Resolver name $ resolveFieldValue f resolveRight
 
 -- | Like 'object' but also taking 'Argument's and can be null or a list of objects.
 wrappedObjectA :: MonadIO m
-    => Name -> ([Argument] -> ActionT m (Wrapping [Resolver m])) -> Resolver m
+    => Name -> ([Argument] -> ActionT m (Type.Wrapping [Resolver m])) -> Resolver m
 wrappedObjectA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ sels) resolver
@@ -66,7 +66,7 @@ wrappedObjectA name f = Resolver name $ resolveFieldValue f resolveRight
 
 -- | Like 'object' but can be null or a list of objects.
 wrappedObject :: MonadIO m
-    => Name -> ActionT m (Wrapping [Resolver m]) -> Resolver m
+    => Name -> ActionT m (Type.Wrapping [Resolver m]) -> Resolver m
 wrappedObject name = wrappedObjectA name . const
 
 -- | A scalar represents a primitive value, like a string or an integer.
@@ -80,19 +80,19 @@ scalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld result = withField (return result) fld
 
--- | Lika 'scalar' but also taking 'Argument's and can be null or a list of scalars.
+-- | Like 'scalar' but also taking 'Argument's and can be null or a list of scalars.
 wrappedScalarA :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> ([Argument] -> ActionT m (Wrapping a)) -> Resolver m
+    => Name -> ([Argument] -> ActionT m (Type.Wrapping a)) -> Resolver m
 wrappedScalarA name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld (Named result) = withField (return result) fld
-    resolveRight fld Null
+    resolveRight fld (Type.Named result) = withField (return result) fld
+    resolveRight fld Type.Null
         = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
-    resolveRight fld (List result) = withField (return result) fld
+    resolveRight fld (Type.List result) = withField (return result) fld
 
 -- | Like 'scalar' but can be null or a list of scalars.
 wrappedScalar :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> ActionT m (Wrapping a) -> Resolver m
+    => Name -> ActionT m (Type.Wrapping a) -> Resolver m
 wrappedScalar name = wrappedScalarA name . const
 
 resolveFieldValue :: MonadIO m

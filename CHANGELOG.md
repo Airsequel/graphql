@@ -1,6 +1,22 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+### Changed
+- `Language.GraphQL.Encoder` moved to `Language.GraphQL.AST.Encoder`.
+- `Language.GraphQL.Parser` moved to `Language.GraphQL.AST.Parser`.
+- `Language.GraphQL.Lexer` moved to `Language.GraphQL.AST.Lexer`.
+- All `Language.GraphQL.AST.Value` data constructor prefixes were removed. The
+  module should be imported qualified.
+- All `Language.GraphQL.AST.Core.Value` data constructor prefixes were removed.
+  The module should be imported qualified.
+- Make `Language.GraphQL.AST.Core.Object` is now just a HashMap.
+- `Language.GraphQL.AST.Transform` is now isn't exposed publically anymore.
+
+### Fixed
+- (Unsupported) nested fragments doesn't throw a runtime error but return a
+  transformation error.
+
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated
 - `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`

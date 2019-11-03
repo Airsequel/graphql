@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 -- | After the document is parsed, before getting executed the AST is
 --   transformed into a similar, simpler AST. This module is responsible for
 --   this transformation.
@@ -113,20 +115,20 @@ argument :: Schema.Subs -> Full.Argument -> Maybe Core.Argument
 argument subs (Full.Argument n v) = Core.Argument n <$> value subs v
 
 value :: Schema.Subs -> Full.Value -> Maybe Core.Value
-value subs (Full.ValueVariable n) = subs n
-value _    (Full.ValueInt      i) = pure $ Core.ValueInt i
-value _    (Full.ValueFloat    f) = pure $ Core.ValueFloat f
-value _    (Full.ValueString   x) = pure $ Core.ValueString x
-value _    (Full.ValueBoolean  b) = pure $ Core.ValueBoolean b
-value _     Full.ValueNull        = pure   Core.ValueNull
-value _    (Full.ValueEnum     e) = pure $ Core.ValueEnum e
-value subs (Full.ValueList     l) =
-  Core.ValueList   <$> traverse (value subs) l
-value subs (Full.ValueObject   o) =
-  Core.ValueObject <$> traverse (objectField subs) o
+value subs (Full.Variable n) = subs n
+value _    (Full.Int      i) = pure $ Core.Int i
+value _    (Full.Float    f) = pure $ Core.Float f
+value _    (Full.String   x) = pure $ Core.String x
+value _    (Full.Boolean  b) = pure $ Core.Boolean b
+value _     Full.Null        = pure   Core.Null
+value _    (Full.Enum     e) = pure $ Core.Enum e
+value subs (Full.List     l) =
+    Core.List <$> traverse (value subs) l
+value subs (Full.Object   o) =
+    Core.Object . HashMap.fromList <$> traverse (objectField subs) o
 
-objectField :: Schema.Subs -> Full.ObjectField -> Maybe Core.ObjectField
-objectField subs (Full.ObjectField n v) = Core.ObjectField n <$> value subs v
+objectField :: Schema.Subs -> Full.ObjectField -> Maybe (Core.Name, Core.Value)
+objectField subs (Full.ObjectField n v) = (n,) <$> value subs v
 
 appendSelectionOpt ::
     Traversable t =>

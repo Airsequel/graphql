@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
-module Language.GraphQL.LexerSpec
+module Language.GraphQL.AST.LexerSpec
     ( spec
     ) where
 
 import Data.Text (Text)
 import Data.Void (Void)
-import Language.GraphQL.Lexer
+import Language.GraphQL.AST.Lexer
 import Test.Hspec (Spec, context, describe, it)
 import Test.Hspec.Megaparsec (shouldParse, shouldSucceedOn)
 import Text.Megaparsec (ParseErrorBundle, parse)

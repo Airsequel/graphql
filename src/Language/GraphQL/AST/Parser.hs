@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | @GraphQL@ document parser.
-module Language.GraphQL.Parser
+module Language.GraphQL.AST.Parser
     ( document
     ) where
 
@@ -11,7 +11,7 @@ import Control.Applicative ( Alternative(..)
                            )
 import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST
-import Language.GraphQL.Lexer
+import Language.GraphQL.AST.Lexer
 import Text.Megaparsec ( lookAhead
                        , option
                        , try
@@ -105,16 +105,16 @@ typeCondition = symbol "on" *> name
 -- * Input Values
 
 value :: Parser Value
-value = ValueVariable <$> variable
-    <|> ValueFloat    <$> try float
-    <|> ValueInt      <$> integer
-    <|> ValueBoolean  <$> booleanValue
-    <|> ValueNull     <$  symbol "null"
-    <|> ValueString   <$> blockString
-    <|> ValueString   <$> string
-    <|> ValueEnum     <$> try enumValue
-    <|> ValueList     <$> listValue
-    <|> ValueObject   <$> objectValue
+value = Variable <$> variable
+    <|> Float    <$> try float
+    <|> Int      <$> integer
+    <|> Boolean  <$> booleanValue
+    <|> Null     <$  symbol "null"
+    <|> String   <$> blockString
+    <|> String   <$> string
+    <|> Enum     <$> try enumValue
+    <|> List     <$> listValue
+    <|> Object   <$> objectValue
     <?> "value error!"
   where
     booleanValue :: Parser Bool

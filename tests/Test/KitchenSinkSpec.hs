@@ -7,8 +7,8 @@ module Test.KitchenSinkSpec
 import qualified Data.Text.IO as Text.IO
 import qualified Data.Text.Lazy.IO as Text.Lazy.IO
 import qualified Data.Text.Lazy as Lazy (Text)
-import qualified Language.GraphQL.Encoder as Encoder
-import qualified Language.GraphQL.Parser as Parser
+import qualified Language.GraphQL.AST.Encoder as Encoder
+import qualified Language.GraphQL.AST.Parser as Parser
 import Paths_graphql (getDataFileName)
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Megaparsec (parseSatisfies)

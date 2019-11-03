@@ -1,11 +1,9 @@
--- | Definitions for @GraphQL@ type system.
+-- | Definitions for @GraphQL@ input types.
 module Language.GraphQL.Type
     ( Wrapping(..)
     ) where
 
-import Data.Aeson as Aeson ( ToJSON
-                           , toJSON
-                           )
+import Data.Aeson as Aeson (ToJSON, toJSON)
 import qualified Data.Aeson as Aeson
 
 -- | GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
