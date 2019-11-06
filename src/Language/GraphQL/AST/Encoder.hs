@@ -39,7 +39,7 @@ pretty = Pretty 0
 minified :: Formatter
 minified = Minified
 
--- | Converts a 'Document' into a string.
+-- | Converts a 'Full.Document' into a string.
 document :: Formatter -> Full.Document -> Text
 document formatter defs
     | Pretty _ <- formatter = Text.Lazy.intercalate "\n" encodeDocument
@@ -47,7 +47,7 @@ document formatter defs
   where
     encodeDocument = NonEmpty.toList $ definition formatter <$> defs
 
--- | Converts a 'Definition' into a string.
+-- | Converts a 'Full.Definition' into a string.
 definition :: Formatter -> Full.Definition -> Text
 definition formatter x
     | Pretty _ <- formatter = Text.Lazy.snoc (encodeDefinition x) '\n'
@@ -165,7 +165,7 @@ fragmentDefinition formatter (Full.FragmentDefinition name tc dirs sels)
 
 -- * Miscellaneous
 
--- | Converts a 'Directive' into a string.
+-- | Converts a 'Full.Directive' into a string.
 directive :: Formatter -> Full.Directive -> Text
 directive formatter (Full.Directive name args)
     = "@" <> Text.Lazy.fromStrict name <> optempty (arguments formatter) args
@@ -174,7 +174,7 @@ directives :: Formatter -> [Full.Directive] -> Text
 directives formatter@(Pretty _) = Text.Lazy.cons ' ' . spaces (directive formatter)
 directives Minified = spaces (directive Minified)
 
--- | Converts a 'Value' into a string.
+-- | Converts a 'Full.Value' into a string.
 value :: Formatter -> Full.Value -> Text
 value _ (Full.Variable x) = variable x
 value _ (Full.Int x) = toLazyText $ decimal x
@@ -216,7 +216,7 @@ objectField formatter (Full.ObjectField name v)
       | Pretty _ <- formatter = ": "
       | Minified <- formatter = ":"
 
--- | Converts a 'Type' a type into a string.
+-- | Converts a 'Full.Type' a type into a string.
 type' :: Full.Type -> Text
 type' (Full.TypeNamed   x) = Text.Lazy.fromStrict x
 type' (Full.TypeList    x) = listType x

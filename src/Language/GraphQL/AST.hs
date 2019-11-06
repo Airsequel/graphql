@@ -66,7 +66,7 @@ data OperationType = Query | Mutation deriving (Eq, Show)
 
 -- * Selections
 
--- | "Top-level" selection, selection on a operation.
+-- | "Top-level" selection, selection on an operation or fragment.
 type SelectionSet = NonEmpty Selection
 
 -- | Field selection.
@@ -100,7 +100,7 @@ data Selection
 -- * "user", "id" and "name" are field names.
 -- * "user" has two subfields, "id" and "name".
 -- * "zuck" is an alias for "user". "id" and "name" have no aliases.
--- * "id: 4" is an argument for "name". "id" and "name don't have any
+-- * "id: 4" is an argument for "user". "id" and "name" don't have any
 -- arguments.
 data Field
     = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt

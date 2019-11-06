@@ -7,7 +7,9 @@ module Language.GraphQL.AST.Transform
     ( document
     ) where
 
-import Data.Foldable (fold)
+import Control.Monad (foldM)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty)
@@ -19,59 +21,54 @@ import qualified Language.GraphQL.Schema as Schema
 -- | Associates a fragment name with a list of 'Core.Field's.
 type Fragments = HashMap Core.Name (NonEmpty Core.Field)
 
+data Replacement = Replacement
+    { substitute :: Schema.Subs
+    , fragments :: Fragments
+    }
+
+type TransformT a = ReaderT Replacement Maybe a
+
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
 document :: Schema.Subs -> Full.Document -> Maybe Core.Document
 document subs doc =
-    case fragments of
-      Just fragments' -> operations subs fragments' operations'
-      Nothing -> Nothing
+    (runReaderT (operations operations') . Replacement subs) =<< fragments'
   where
-    (fragments, operations') = foldr (defrag subs) (Just HashMap.empty, [])
+    (fragments', operations') = foldr (defrag subs) (Just HashMap.empty, [])
         $ NonEmpty.toList doc
 
 -- * Operation
 
 -- TODO: Replace Maybe by MonadThrow CustomError
-operations ::
-    Schema.Subs ->
-    Fragments ->
-    [Full.OperationDefinition] ->
-    Maybe Core.Document
-operations subs fragments operations' = do
-    coreOperations <- traverse (operation subs fragments) operations'
-    NonEmpty.nonEmpty coreOperations
+operations :: [Full.OperationDefinition] -> TransformT Core.Document
+operations operations' = do
+    coreOperations <- traverse operation operations'
+    lift $ NonEmpty.nonEmpty coreOperations
 
-operation ::
-    Schema.Subs ->
-    Fragments ->
-    Full.OperationDefinition ->
-    Maybe Core.Operation
-operation subs fragments (Full.OperationSelectionSet sels) =
-  operation subs fragments $ Full.OperationDefinition Full.Query mempty mempty mempty sels
+operation :: Full.OperationDefinition -> TransformT Core.Operation
+operation (Full.OperationSelectionSet sels) =
+    operation $ Full.OperationDefinition Full.Query mempty mempty mempty sels
 -- TODO: Validate Variable definitions with substituter
-operation subs fragments (Full.OperationDefinition Full.Query name _vars _dirs sels) =
-    Core.Query name <$> appendSelection subs fragments sels
-operation subs fragments (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
-    Core.Mutation name <$> appendSelection subs fragments sels
+operation (Full.OperationDefinition Full.Query name _vars _dirs sels) =
+    Core.Query name <$> appendSelection sels
+operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
+    Core.Mutation name <$> appendSelection sels
 
 selection ::
-    Schema.Subs ->
-    Fragments ->
     Full.Selection ->
-    Maybe (Either (NonEmpty Core.Selection) Core.Selection)
-selection subs fragments (Full.SelectionField fld)
-    = Right . Core.SelectionField <$> field subs fragments fld
-selection _ fragments (Full.SelectionFragmentSpread (Full.FragmentSpread name _))
-    = Left . fmap Core.SelectionField <$> HashMap.lookup name fragments
-selection subs fragments (Full.SelectionInlineFragment fragment)
+    TransformT (Either (NonEmpty Core.Selection) Core.Selection)
+selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
+selection (Full.SelectionFragmentSpread (Full.FragmentSpread name _)) = do
+    fragments' <- asks fragments
+    lift $ Left . fmap Core.SelectionField <$> HashMap.lookup name fragments'
+selection (Full.SelectionInlineFragment fragment)
     | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
         = Right
         . Core.SelectionFragment
         . Core.Fragment typeCondition
-        <$> appendSelection subs fragments selectionSet
+        <$> appendSelection selectionSet
     | (Full.InlineFragment Nothing _ selectionSet) <- fragment
-        = Left <$> appendSelection subs fragments selectionSet
+        = Left <$> appendSelection selectionSet
 
 -- * Fragment replacement
 
@@ -81,74 +78,67 @@ defrag ::
     Full.Definition ->
     (Maybe Fragments, [Full.OperationDefinition]) ->
     (Maybe Fragments, [Full.OperationDefinition])
-defrag _ (Full.DefinitionOperation op) (fragments, operations') =
-    (fragments, op : operations')
-defrag subs (Full.DefinitionFragment fragDef) (Just fragments, operations') =
-    (fragmentDefinition subs fragments fragDef, operations')
+defrag _ (Full.DefinitionOperation op) (fragments', operations') =
+    (fragments', op : operations')
+defrag subs (Full.DefinitionFragment fragDef) (Just fragments', operations') =
+    (runReaderT (fragmentDefinition fragDef) (Replacement subs fragments'), operations')
 defrag _ _ (Nothing, operations') =
     (Nothing, operations')
 
-fragmentDefinition ::
-    Schema.Subs ->
-    Fragments ->
-    Full.FragmentDefinition ->
-    Maybe Fragments
-fragmentDefinition subs fragments (Full.FragmentDefinition name _tc _dirs sels) = do
+fragmentDefinition :: Full.FragmentDefinition -> TransformT Fragments
+fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
     emitted <- emitValue
-    newValue <- traverse extractField emitted
-    Just $ HashMap.insert name newValue fragments
+    newValue <- lift $ traverse extractField emitted
+    fragments' <- asks fragments
+    lift . Just $ HashMap.insert name newValue fragments'
   where
-    emitValue :: Maybe (NonEmpty Core.Selection)
     emitValue = do
-        selections <- traverse (selection subs fragments) sels
+        selections <- traverse selection sels
         pure $ selections >>= either id pure
     extractField :: Core.Selection -> Maybe Core.Field
     extractField (Core.SelectionField field') = Just field'
     extractField _ = Nothing -- Fragments within fragments are not supported yet
 
-field :: Schema.Subs -> Fragments -> Full.Field -> Maybe Core.Field
-field subs fragments (Full.Field a n args _dirs sels) =
-    Core.Field a n (fold $ argument subs `traverse` args)
-    <$> appendSelectionOpt subs fragments sels
+field :: Full.Field -> TransformT Core.Field
+field (Full.Field a n args _dirs sels) = do
+    arguments <- traverse argument args
+    selection' <- appendSelectionOpt sels
+    return $ Core.Field a n arguments selection'
 
-argument :: Schema.Subs -> Full.Argument -> Maybe Core.Argument
-argument subs (Full.Argument n v) = Core.Argument n <$> value subs v
+argument :: Full.Argument -> TransformT Core.Argument
+argument (Full.Argument n v) = Core.Argument n <$> value v
 
-value :: Schema.Subs -> Full.Value -> Maybe Core.Value
-value subs (Full.Variable n) = subs n
-value _    (Full.Int      i) = pure $ Core.Int i
-value _    (Full.Float    f) = pure $ Core.Float f
-value _    (Full.String   x) = pure $ Core.String x
-value _    (Full.Boolean  b) = pure $ Core.Boolean b
-value _     Full.Null        = pure   Core.Null
-value _    (Full.Enum     e) = pure $ Core.Enum e
-value subs (Full.List     l) =
-    Core.List <$> traverse (value subs) l
-value subs (Full.Object   o) =
-    Core.Object . HashMap.fromList <$> traverse (objectField subs) o
+value :: Full.Value -> TransformT Core.Value
+value (Full.Variable n) = do
+    substitute' <- asks substitute
+    lift $ substitute' n
+value (Full.Int i) = pure $ Core.Int i
+value (Full.Float f) = pure $ Core.Float f
+value (Full.String x) = pure $ Core.String x
+value (Full.Boolean b) = pure $ Core.Boolean b
+value Full.Null = pure   Core.Null
+value (Full.Enum e) = pure $ Core.Enum e
+value (Full.List l) =
+    Core.List <$> traverse value l
+value (Full.Object o) =
+    Core.Object . HashMap.fromList <$> traverse objectField o
 
-objectField :: Schema.Subs -> Full.ObjectField -> Maybe (Core.Name, Core.Value)
-objectField subs (Full.ObjectField n v) = (n,) <$> value subs v
+objectField :: Full.ObjectField -> TransformT (Core.Name, Core.Value)
+objectField (Full.ObjectField n v) = (n,) <$> value v
 
 appendSelectionOpt ::
     Traversable t =>
-    Schema.Subs ->
-    Fragments ->
     t Full.Selection ->
-    Maybe [Core.Selection]
-appendSelectionOpt subs fragments = foldr go (Just [])
+    TransformT [Core.Selection]
+appendSelectionOpt = foldM go []
   where
-    go :: Full.Selection -> Maybe [Core.Selection] -> Maybe [Core.Selection]
-    go _ Nothing = Nothing
-    go sel (Just acc) = append acc <$> selection subs fragments sel
+    go acc sel = append acc <$> selection sel
     append acc (Left list) = NonEmpty.toList list <> acc
     append acc (Right one) = one : acc
 
 appendSelection ::
-    Schema.Subs ->
-    Fragments ->
     NonEmpty Full.Selection ->
-    Maybe (NonEmpty Core.Selection)
-appendSelection subs fragments fullSelection = do
-    coreSelection <-appendSelectionOpt subs fragments fullSelection
-    NonEmpty.nonEmpty coreSelection
+    TransformT (NonEmpty Core.Selection)
+appendSelection fullSelection = do
+    coreSelection <-appendSelectionOpt fullSelection
+    lift $ NonEmpty.nonEmpty coreSelection
