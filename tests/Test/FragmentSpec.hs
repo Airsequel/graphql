@@ -91,7 +91,29 @@ spec = describe "Inline fragment executor" $ do
         }|]
 
         actual <- graphql (size :| []) query
-        actual `shouldNotSatisfy` hasErrors
-      where
-        hasErrors (Object object') = HashMap.member "errors" object'
-        hasErrors _ = True
+        let hasErrors (Object object') = HashMap.member "errors" object'
+            hasErrors _ = True
+         in actual `shouldNotSatisfy` hasErrors
+
+    it "evaluates nested fragments" $ do
+        let query = [r|
+          {
+            ...hatFragment
+          }
+
+          fragment hatFragment on Hat {
+            ...circumferenceFragment
+          }
+
+          fragment circumferenceFragment on Hat {
+            circumference
+          }
+        |]
+
+        actual <- graphql (circumference :| []) query
+        let expected = object
+                [ "data" .= object
+                    [ "circumference" .= (60 :: Int)
+                    ]
+                ]
+         in actual `shouldBe` expected

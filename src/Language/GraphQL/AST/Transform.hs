@@ -19,7 +19,7 @@ import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
-type Fragments = HashMap Core.Name (NonEmpty Core.Field)
+type Fragments = HashMap Core.Name (NonEmpty Core.Selection)
 
 data Replacement = Replacement
     { substitute :: Schema.Subs
@@ -31,11 +31,14 @@ type TransformT a = ReaderT Replacement Maybe a
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
 document :: Schema.Subs -> Full.Document -> Maybe Core.Document
-document subs doc =
-    (runReaderT (operations operations') . Replacement subs) =<< fragments'
+document subs doc = do
+    fragmentMap <- foldr go (Just HashMap.empty) fragments'
+    runReaderT (operations operations') $ Replacement subs fragmentMap
   where
-    (fragments', operations') = foldr (defrag subs) (Just HashMap.empty, [])
-        $ NonEmpty.toList doc
+    (fragments', operations') = foldr defragment ([], []) doc
+    go fragDef (Just fragmentsMap) =
+        runReaderT (fragmentDefinition fragDef) (Replacement subs fragmentsMap)
+    go _ Nothing = Nothing
 
 -- * Operation
 
@@ -60,7 +63,7 @@ selection ::
 selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
 selection (Full.SelectionFragmentSpread (Full.FragmentSpread name _)) = do
     fragments' <- asks fragments
-    lift $ Left . fmap Core.SelectionField <$> HashMap.lookup name fragments'
+    lift $ Left <$> HashMap.lookup name fragments'
 selection (Full.SelectionInlineFragment fragment)
     | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
         = Right
@@ -73,31 +76,24 @@ selection (Full.SelectionInlineFragment fragment)
 -- * Fragment replacement
 
 -- | Extract fragments into a single 'HashMap' and operation definitions.
-defrag ::
-    Schema.Subs ->
+defragment ::
     Full.Definition ->
-    (Maybe Fragments, [Full.OperationDefinition]) ->
-    (Maybe Fragments, [Full.OperationDefinition])
-defrag _ (Full.DefinitionOperation op) (fragments', operations') =
+    ([Full.FragmentDefinition], [Full.OperationDefinition]) ->
+    ([Full.FragmentDefinition], [Full.OperationDefinition])
+defragment (Full.DefinitionOperation op) (fragments', operations') =
     (fragments', op : operations')
-defrag subs (Full.DefinitionFragment fragDef) (Just fragments', operations') =
-    (runReaderT (fragmentDefinition fragDef) (Replacement subs fragments'), operations')
-defrag _ _ (Nothing, operations') =
-    (Nothing, operations')
+defragment (Full.DefinitionFragment fragDef) (fragments', operations') =
+    (fragDef : fragments', operations')
 
 fragmentDefinition :: Full.FragmentDefinition -> TransformT Fragments
 fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
-    emitted <- emitValue
-    newValue <- lift $ traverse extractField emitted
+    newValue <- emitValue
     fragments' <- asks fragments
     lift . Just $ HashMap.insert name newValue fragments'
   where
     emitValue = do
         selections <- traverse selection sels
         pure $ selections >>= either id pure
-    extractField :: Core.Selection -> Maybe Core.Field
-    extractField (Core.SelectionField field') = Just field'
-    extractField _ = Nothing -- Fragments within fragments are not supported yet
 
 field :: Full.Field -> TransformT Core.Field
 field (Full.Field a n args _dirs sels) = do

@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - (Unsupported) nested fragments doesn't throw a runtime error but return a
   transformation error.
 
+### Added
+  - Nested fragments support without forward lookup.
+
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated
 - `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`
