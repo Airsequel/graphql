@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ExplicitForAll #-}
 
 -- | After the document is parsed, before getting executed the AST is
 --   transformed into a similar, simpler AST. This module is responsible for
@@ -7,9 +8,11 @@ module Language.GraphQL.AST.Transform
     ( document
     ) where
 
-import Control.Monad (foldM)
+import Control.Arrow (first)
+import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
+import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
+import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty)
@@ -19,26 +22,27 @@ import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
-type Fragments = HashMap Core.Name (NonEmpty Core.Selection)
-
 data Replacement = Replacement
-    { substitute :: Schema.Subs
-    , fragments :: Fragments
+    { fragments :: HashMap Core.Name (NonEmpty Core.Selection)
+    , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
     }
 
-type TransformT a = ReaderT Replacement Maybe a
+type TransformT a = StateT Replacement (ReaderT Schema.Subs Maybe) a
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
 document :: Schema.Subs -> Full.Document -> Maybe Core.Document
-document subs doc = do
-    fragmentMap <- foldr go (Just HashMap.empty) fragments'
-    runReaderT (operations operations') $ Replacement subs fragmentMap
+document subs document' =
+    flip runReaderT subs
+        $ evalStateT (collectFragments >> operations operationDefinitions)
+        $ Replacement HashMap.empty fragmentTable
   where
-    (fragments', operations') = foldr defragment ([], []) doc
-    go fragDef (Just fragmentsMap) =
-        runReaderT (fragmentDefinition fragDef) (Replacement subs fragmentsMap)
-    go _ Nothing = Nothing
+    (fragmentTable, operationDefinitions) = foldr defragment mempty document'
+    defragment (Full.DefinitionOperation definition) acc =
+        (definition :) <$> acc
+    defragment (Full.DefinitionFragment definition) acc =
+        let (Full.FragmentDefinition name _ _ _) = definition
+         in first (HashMap.insert name definition) acc
 
 -- * Operation
 
@@ -46,7 +50,7 @@ document subs doc = do
 operations :: [Full.OperationDefinition] -> TransformT Core.Document
 operations operations' = do
     coreOperations <- traverse operation operations'
-    lift $ NonEmpty.nonEmpty coreOperations
+    lift . lift $ NonEmpty.nonEmpty coreOperations
 
 operation :: Full.OperationDefinition -> TransformT Core.Operation
 operation (Full.OperationSelectionSet sels) =
@@ -62,8 +66,14 @@ selection ::
     TransformT (Either (NonEmpty Core.Selection) Core.Selection)
 selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
 selection (Full.SelectionFragmentSpread (Full.FragmentSpread name _)) = do
-    fragments' <- asks fragments
-    lift $ Left <$> HashMap.lookup name fragments'
+    fragments' <- gets fragments
+    Left <$> maybe lookupDefinition liftJust (HashMap.lookup name fragments')
+  where
+    lookupDefinition :: TransformT (NonEmpty Core.Selection)
+    lookupDefinition = do
+        fragmentDefinitions' <- gets fragmentDefinitions
+        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
+        fragmentDefinition found
 selection (Full.SelectionInlineFragment fragment)
     | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
         = Right
@@ -75,25 +85,26 @@ selection (Full.SelectionInlineFragment fragment)
 
 -- * Fragment replacement
 
--- | Extract fragments into a single 'HashMap' and operation definitions.
-defragment ::
-    Full.Definition ->
-    ([Full.FragmentDefinition], [Full.OperationDefinition]) ->
-    ([Full.FragmentDefinition], [Full.OperationDefinition])
-defragment (Full.DefinitionOperation op) (fragments', operations') =
-    (fragments', op : operations')
-defragment (Full.DefinitionFragment fragDef) (fragments', operations') =
-    (fragDef : fragments', operations')
+-- | Extract fragment definitions into a single 'HashMap'.
+collectFragments :: TransformT ()
+collectFragments = do
+    fragDefs <- gets fragmentDefinitions
+    let nextValue = head $ HashMap.elems fragDefs
+    unless (HashMap.null fragDefs) $ do
+        _ <- fragmentDefinition nextValue
+        collectFragments
 
-fragmentDefinition :: Full.FragmentDefinition -> TransformT Fragments
+fragmentDefinition :: Full.FragmentDefinition -> TransformT (NonEmpty Core.Selection)
 fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
-    newValue <- emitValue
-    fragments' <- asks fragments
-    lift . Just $ HashMap.insert name newValue fragments'
+    selections <- traverse selection sels
+    let newValue = either id pure =<< selections
+    modify $ moveFragment newValue
+    liftJust newValue
   where
-    emitValue = do
-        selections <- traverse selection sels
-        pure $ selections >>= either id pure
+    moveFragment newValue (Replacement fullFragments emptyFragDefs) =
+        let newFragments = HashMap.insert name newValue fullFragments
+            newDefinitions = HashMap.delete name emptyFragDefs
+         in Replacement newFragments newDefinitions
 
 field :: Full.Field -> TransformT Core.Field
 field (Full.Field a n args _dirs sels) = do
@@ -106,8 +117,8 @@ argument (Full.Argument n v) = Core.Argument n <$> value v
 
 value :: Full.Value -> TransformT Core.Value
 value (Full.Variable n) = do
-    substitute' <- asks substitute
-    lift $ substitute' n
+    substitute' <- lift ask
+    lift . lift $ substitute' n
 value (Full.Int i) = pure $ Core.Int i
 value (Full.Float f) = pure $ Core.Float f
 value (Full.String x) = pure $ Core.String x
@@ -137,4 +148,7 @@ appendSelection ::
     TransformT (NonEmpty Core.Selection)
 appendSelection fullSelection = do
     coreSelection <-appendSelectionOpt fullSelection
-    lift $ NonEmpty.nonEmpty coreSelection
+    lift . lift $ NonEmpty.nonEmpty coreSelection
+
+liftJust :: forall a. a -> TransformT a
+liftJust = lift . lift . Just

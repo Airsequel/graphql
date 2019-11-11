@@ -98,14 +98,37 @@ spec = describe "Inline fragment executor" $ do
     it "evaluates nested fragments" $ do
         let query = [r|
           {
-            ...hatFragment
+            ...circumferenceFragment
+          }
+
+          fragment circumferenceFragment on Hat {
+            circumference
           }
 
           fragment hatFragment on Hat {
             ...circumferenceFragment
           }
+        |]
+
+        actual <- graphql (circumference :| []) query
+        let expected = object
+                [ "data" .= object
+                    [ "circumference" .= (60 :: Int)
+                    ]
+                ]
+         in actual `shouldBe` expected
+
+    it "evaluates fragments defined in any order" $ do
+        let query = [r|
+          {
+            ...circumferenceFragment
+          }
 
           fragment circumferenceFragment on Hat {
+            ...hatFragment
+          }
+
+          fragment hatFragment on Hat {
             circumference
           }
         |]

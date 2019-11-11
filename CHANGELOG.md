@@ -13,12 +13,8 @@ All notable changes to this project will be documented in this file.
 - Make `Language.GraphQL.AST.Core.Object` is now just a HashMap.
 - `Language.GraphQL.AST.Transform` is now isn't exposed publically anymore.
 
-### Fixed
-- (Unsupported) nested fragments doesn't throw a runtime error but return a
-  transformation error.
-
 ### Added
-  - Nested fragments support without forward lookup.
+  - Nested fragment support.
 
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated
