@@ -10,7 +10,13 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
-import Test.Hspec (Spec, describe, it, shouldBe, shouldNotSatisfy)
+import Test.Hspec ( Spec
+                  , describe
+                  , it
+                  , shouldBe
+                  , shouldSatisfy
+                  , shouldNotSatisfy
+                  )
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
@@ -36,6 +42,10 @@ inlineQuery = [r|{
     }
   }
 }|]
+
+hasErrors :: Value -> Bool
+hasErrors (Object object') = HashMap.member "errors" object'
+hasErrors _ = True
 
 spec :: Spec
 spec = describe "Inline fragment executor" $ do
@@ -91,9 +101,7 @@ spec = describe "Inline fragment executor" $ do
         }|]
 
         actual <- graphql (size :| []) query
-        let hasErrors (Object object') = HashMap.member "errors" object'
-            hasErrors _ = True
-         in actual `shouldNotSatisfy` hasErrors
+        actual `shouldNotSatisfy` hasErrors
 
     it "evaluates nested fragments" $ do
         let query = [r|
@@ -140,3 +148,17 @@ spec = describe "Inline fragment executor" $ do
                     ]
                 ]
          in actual `shouldBe` expected
+
+    it "rejects recursive" $ do
+        let query = [r|
+          {
+            ...circumferenceFragment
+          }
+
+          fragment circumferenceFragment on Hat {
+            ...circumferenceFragment
+          }
+        |]
+
+        actual <- graphql (circumference :| []) query
+        actual `shouldSatisfy` hasErrors

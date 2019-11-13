@@ -94,17 +94,21 @@ collectFragments = do
         _ <- fragmentDefinition nextValue
         collectFragments
 
-fragmentDefinition :: Full.FragmentDefinition -> TransformT (NonEmpty Core.Selection)
+fragmentDefinition ::
+    Full.FragmentDefinition ->
+    TransformT (NonEmpty Core.Selection)
 fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
+    modify deleteFragmentDefinition
     selections <- traverse selection sels
     let newValue = either id pure =<< selections
-    modify $ moveFragment newValue
+    modify $ insertFragment newValue
     liftJust newValue
   where
-    moveFragment newValue (Replacement fullFragments emptyFragDefs) =
-        let newFragments = HashMap.insert name newValue fullFragments
-            newDefinitions = HashMap.delete name emptyFragDefs
-         in Replacement newFragments newDefinitions
+    deleteFragmentDefinition (Replacement fragments' fragmentDefinitions') =
+        Replacement fragments' $ HashMap.delete name fragmentDefinitions'
+    insertFragment newValue (Replacement fragments' fragmentDefinitions') =
+        let newFragments = HashMap.insert name newValue fragments'
+         in Replacement newFragments fragmentDefinitions'
 
 field :: Full.Field -> TransformT Core.Field
 field (Full.Field a n args _dirs sels) = do
