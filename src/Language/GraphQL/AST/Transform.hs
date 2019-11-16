@@ -13,17 +13,19 @@ import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
+import Data.Foldable (toList)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
+import Data.Sequence (Seq, (<|), (><))
+import qualified Data.Sequence as Sequence
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
 data Replacement = Replacement
-    { fragments :: HashMap Core.Name (NonEmpty Core.Selection)
+    { fragments :: HashMap Core.Name (Seq Core.Selection)
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
     }
 
@@ -63,13 +65,13 @@ operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
 
 selection ::
     Full.Selection ->
-    TransformT (Either (NonEmpty Core.Selection) Core.Selection)
+    TransformT (Either (Seq Core.Selection) Core.Selection)
 selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
 selection (Full.SelectionFragmentSpread (Full.FragmentSpread name _)) = do
     fragments' <- gets fragments
     Left <$> maybe lookupDefinition liftJust (HashMap.lookup name fragments')
   where
-    lookupDefinition :: TransformT (NonEmpty Core.Selection)
+    lookupDefinition :: TransformT (Seq Core.Selection)
     lookupDefinition = do
         fragmentDefinitions' <- gets fragmentDefinitions
         found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
@@ -96,11 +98,11 @@ collectFragments = do
 
 fragmentDefinition ::
     Full.FragmentDefinition ->
-    TransformT (NonEmpty Core.Selection)
+    TransformT (Seq Core.Selection)
 fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
     modify deleteFragmentDefinition
     selections <- traverse selection sels
-    let newValue = either id pure =<< selections
+    let newValue = either id pure =<< Sequence.fromList (toList selections)
     modify $ insertFragment newValue
     liftJust newValue
   where
@@ -113,7 +115,7 @@ fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
 field :: Full.Field -> TransformT Core.Field
 field (Full.Field a n args _dirs sels) = do
     arguments <- traverse argument args
-    selection' <- appendSelectionOpt sels
+    selection' <- appendSelection sels
     return $ Core.Field a n arguments selection'
 
 argument :: Full.Argument -> TransformT Core.Argument
@@ -137,22 +139,15 @@ value (Full.Object o) =
 objectField :: Full.ObjectField -> TransformT (Core.Name, Core.Value)
 objectField (Full.ObjectField n v) = (n,) <$> value v
 
-appendSelectionOpt ::
+appendSelection ::
     Traversable t =>
     t Full.Selection ->
-    TransformT [Core.Selection]
-appendSelectionOpt = foldM go []
+    TransformT (Seq Core.Selection)
+appendSelection = foldM go mempty
   where
     go acc sel = append acc <$> selection sel
-    append acc (Left list) = NonEmpty.toList list <> acc
-    append acc (Right one) = one : acc
-
-appendSelection ::
-    NonEmpty Full.Selection ->
-    TransformT (NonEmpty Core.Selection)
-appendSelection fullSelection = do
-    coreSelection <-appendSelectionOpt fullSelection
-    lift . lift $ NonEmpty.nonEmpty coreSelection
+    append acc (Left list) = list >< acc
+    append acc (Right one) = one <| acc
 
 liftJust :: forall a. a -> TransformT a
 liftJust = lift . lift . Just

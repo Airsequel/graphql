@@ -8,6 +8,7 @@ module Language.GraphQL.Execute
 
 import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
+import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
@@ -71,6 +72,6 @@ operation :: MonadIO m
     -> AST.Core.Operation
     -> m Aeson.Value
 operation schema (AST.Core.Query _ flds)
-    = runCollectErrs (Schema.resolve (NE.toList schema) (NE.toList flds))
+    = runCollectErrs (Schema.resolve (toList schema) flds)
 operation schema (AST.Core.Mutation _ flds)
-    = runCollectErrs (Schema.resolve (NE.toList schema) (NE.toList flds))
+    = runCollectErrs (Schema.resolve (toList schema) flds)

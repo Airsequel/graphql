@@ -28,6 +28,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Sequence (Seq)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Language.GraphQL.AST.Core
@@ -118,7 +119,7 @@ withField v fld
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
 resolve :: MonadIO m
-    => [Resolver m] -> [Selection] -> CollectErrsT m Aeson.Value
+    => [Resolver m] -> Seq Selection -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where
     resolveTypeName (Resolver "__typename" f) = do

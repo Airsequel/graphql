@@ -15,6 +15,7 @@ module Language.GraphQL.AST.Core
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import Data.List.NonEmpty (NonEmpty)
+import Data.Sequence (Seq)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST (Alias, Name, TypeCondition)
@@ -26,19 +27,21 @@ type Document = NonEmpty Operation
 --
 -- Currently only queries and mutations are supported.
 data Operation
-    = Query (Maybe Text) (NonEmpty Selection)
-    | Mutation (Maybe Text) (NonEmpty Selection)
+    = Query (Maybe Text) (Seq Selection)
+    | Mutation (Maybe Text) (Seq Selection)
     deriving (Eq, Show)
 
 -- | Single GraphQL field.
-data Field = Field (Maybe Alias) Name [Argument] [Selection] deriving (Eq, Show)
+data Field
+    = Field (Maybe Alias) Name [Argument] (Seq Selection)
+    deriving (Eq, Show)
 
 -- | Single argument.
 data Argument = Argument Name Value deriving (Eq, Show)
 
 -- | Represents fragments and inline fragments.
 data Fragment
-    = Fragment TypeCondition (NonEmpty Selection)
+    = Fragment TypeCondition (Seq Selection)
     deriving (Eq, Show)
 
 -- | Single selection element.
