@@ -89,12 +89,12 @@ symbol :: T.Text -> Parser T.Text
 symbol = Lexer.symbol spaceConsumer
 
 -- | Parser for "!".
-bang :: Parser Char
-bang = char '!'
+bang :: Parser T.Text
+bang = symbol "!"
 
 -- | Parser for "$".
-dollar :: Parser Char
-dollar = char '$'
+dollar :: Parser T.Text
+dollar = symbol "$"
 
 -- | Parser for "@".
 at :: Parser Char

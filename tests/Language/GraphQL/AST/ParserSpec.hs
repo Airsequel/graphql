@@ -24,3 +24,9 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` [r|{
               hello(text: "Argument")
             }|]
+
+    it "accepts two required arguments" $
+        parse document "" `shouldSucceedOn` [r|
+            mutation auth($username: String!, $password: String!){
+                test
+            }|]
