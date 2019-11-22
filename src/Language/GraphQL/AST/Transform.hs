@@ -13,12 +13,10 @@ import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
-import Data.Foldable (toList)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
-import qualified Data.Sequence as Sequence
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
 import qualified Language.GraphQL.Schema as Schema
@@ -99,10 +97,9 @@ collectFragments = do
 fragmentDefinition ::
     Full.FragmentDefinition ->
     TransformT (Seq Core.Selection)
-fragmentDefinition (Full.FragmentDefinition name _tc _dirs sels) = do
+fragmentDefinition (Full.FragmentDefinition name _tc _dirs selections) = do
     modify deleteFragmentDefinition
-    selections <- traverse selection sels
-    let newValue = either id pure =<< Sequence.fromList (toList selections)
+    newValue <- appendSelection selections
     modify $ insertFragment newValue
     liftJust newValue
   where

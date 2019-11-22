@@ -10,11 +10,24 @@ All notable changes to this project will be documented in this file.
   module should be imported qualified.
 - All `Language.GraphQL.AST.Core.Value` data constructor prefixes were removed.
   The module should be imported qualified.
-- Make `Language.GraphQL.AST.Core.Object` is now just a HashMap.
-- `Language.GraphQL.AST.Transform` is now isn't exposed publically anymore.
+- `Language.GraphQL.AST.Core.Object` is now just a HashMap.
+- `Language.GraphQL.AST.Transform` is isn't exposed publically anymore.
+- `Language.GraphQL.Schema.resolve` accepts a selection `Seq` (`Data.Sequence`)
+  instead of a list. Selections are stored as sequences internally as well.
 
 ### Added
-  - Nested fragment support.
+- Nested fragment support.
+
+### Fixed
+- Consume ignored tokens after `$` and `!`. I mistakenly assumed that
+  `$variable` is a single token, same as `Type!` is a single token. This is not
+  the case, for example `Variable` is defined as `$ Name`, so these are two
+  tokens, therefore whitespaces and commas after `$` and `!` should be
+  consumed.
+
+### Improved
+- `Language.GraphQL.AST.Parser.type_`: Try type parsers in a variable
+  definition in a different order to avoid using `but`.
 
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated

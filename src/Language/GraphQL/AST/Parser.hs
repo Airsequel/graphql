@@ -152,9 +152,9 @@ defaultValue = equals *> value
 -- * Input Types
 
 type_ :: Parser Type
-type_ = try (TypeNamed <$> name <* but "!")
-    <|> TypeList       <$> brackets type_
-    <|> TypeNonNull    <$> nonNullType
+type_ = try (TypeNonNull <$> nonNullType)
+    <|> TypeList <$> brackets type_
+    <|> TypeNamed <$> name
     <?> "type_ error!"
 
 nonNullType :: Parser NonNullType
