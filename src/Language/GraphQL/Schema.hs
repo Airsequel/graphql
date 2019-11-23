@@ -23,6 +23,7 @@ module Language.GraphQL.Schema
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.Reader (runReaderT)
 import Data.Foldable (find, fold)
 import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
@@ -102,9 +103,10 @@ resolveFieldValue :: MonadIO m
     -> Field
     -> CollectErrsT m (HashMap Text Aeson.Value)
 resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
-    result <- lift $ runExceptT . runActionT $ f args
+    result <- lift $ reader . runExceptT . runActionT $ f args
     either resolveLeft (resolveRight fld) result
       where
+        reader = flip runReaderT $ Context mempty
         resolveLeft err = do
             _ <- addErrMsg err
             return $ HashMap.singleton (aliasOrName fld) Aeson.Null

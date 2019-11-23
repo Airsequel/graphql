@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - `Language.GraphQL.AST.Transform` is isn't exposed publically anymore.
 - `Language.GraphQL.Schema.resolve` accepts a selection `Seq` (`Data.Sequence`)
   instead of a list. Selections are stored as sequences internally as well.
+- Add a reader instance to the resolver's monad stack. The Reader contains
+  a Name/Value hashmap, which will contain resolver arguments.
 
 ### Added
 - Nested fragment support.
@@ -28,6 +30,19 @@ All notable changes to this project will be documented in this file.
 ### Improved
 - `Language.GraphQL.AST.Parser.type_`: Try type parsers in a variable
   definition in a different order to avoid using `but`.
+
+### Removed
+- `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`
+  instead.
+- `Language.GraphQL.AST.Directives`. Use `[Language.GraphQL.AST.Directives]`
+  instead.
+- `Language.GraphQL.AST.VariableDefinitions`. Use
+  `[Language.GraphQL.AST.VariableDefinition]` instead.
+- `Language.GraphQL.AST.FragmentName`. Use `Language.GraphQL.AST.Name` instead.
+- `Language.GraphQL.Execute.Schema` - It was a resolver list, not a schema.
+- `Language.GraphQL.Schema`: `enum`, `enumA`, `wrappedEnum` and `wrappedEnumA`.
+  Use `scalar`, `scalarA`, `wrappedScalar` and `wrappedScalarA` instead.
+
 
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated

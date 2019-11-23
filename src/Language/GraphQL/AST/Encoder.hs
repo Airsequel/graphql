@@ -23,10 +23,10 @@ import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 import qualified Language.GraphQL.AST as Full
 
--- | Instructs the encoder whether a GraphQL should be minified or pretty
---   printed.
---   
---   Use 'pretty' and 'minified' to construct the formatter.
+-- | Instructs the encoder whether the GraphQL document should be minified or
+--   pretty printed.
+--
+--   Use 'pretty' or 'minified' to construct the formatter.
 data Formatter
     = Minified
     | Pretty Word
