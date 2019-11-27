@@ -30,3 +30,15 @@ spec = describe "Parser" $ do
             mutation auth($username: String!, $password: String!){
                 test
             }|]
+
+    it "accepts two string arguments" $
+        parse document "" `shouldSucceedOn` [r|
+            mutation auth{
+                test(username: "username", password: "password")
+            }|]
+
+    it "accepts two block string arguments" $
+        parse document "" `shouldSucceedOn` [r|
+            mutation auth{
+                test(username: """username""", password: """password""")
+            }|]

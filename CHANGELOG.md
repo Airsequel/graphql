@@ -1,6 +1,12 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+### Fixed
+- Parsing multiple string arguments, such as 
+  `login(username: "username", password: "password")` would fail on the comma
+  due to strings not having a space consumer.
+
 ## [0.6.0.0] - 2019-11-27
 ### Changed
 - `Language.GraphQL.Encoder` moved to `Language.GraphQL.AST.Encoder`.

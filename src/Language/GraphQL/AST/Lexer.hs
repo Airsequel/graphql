@@ -134,7 +134,7 @@ braces = between (symbol "{") (symbol "}")
 
 -- | Parser for strings.
 string :: Parser T.Text
-string = between "\"" "\"" stringValue
+string = between "\"" "\"" stringValue <* spaceConsumer 
   where
     stringValue = T.pack <$> many stringCharacter
     stringCharacter = satisfy isStringCharacter1
@@ -143,7 +143,7 @@ string = between "\"" "\"" stringValue
 
 -- | Parser for block strings.
 blockString :: Parser T.Text
-blockString = between "\"\"\"" "\"\"\"" stringValue
+blockString = between "\"\"\"" "\"\"\"" stringValue <* spaceConsumer 
   where
     stringValue = do
         byLine <- sepBy (many blockStringCharacter) lineTerminator
