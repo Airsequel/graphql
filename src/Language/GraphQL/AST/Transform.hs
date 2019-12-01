@@ -23,7 +23,7 @@ import qualified Language.GraphQL.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
 data Replacement = Replacement
-    { fragments :: HashMap Core.Name (Seq Core.Selection)
+    { fragments :: HashMap Core.Name Core.Fragment
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
     }
 
@@ -65,15 +65,8 @@ selection ::
     Full.Selection ->
     TransformT (Either (Seq Core.Selection) Core.Selection)
 selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
-selection (Full.SelectionFragmentSpread (Full.FragmentSpread name _)) = do
-    fragments' <- gets fragments
-    Left <$> maybe lookupDefinition liftJust (HashMap.lookup name fragments')
-  where
-    lookupDefinition :: TransformT (Seq Core.Selection)
-    lookupDefinition = do
-        fragmentDefinitions' <- gets fragmentDefinitions
-        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
-        fragmentDefinition found
+selection (Full.SelectionFragmentSpread fragment) =
+    Right . Core.SelectionFragment <$> fragmentSpread fragment
 selection (Full.SelectionInlineFragment fragment)
     | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
         = Right
@@ -94,12 +87,23 @@ collectFragments = do
         _ <- fragmentDefinition nextValue
         collectFragments
 
+fragmentSpread :: Full.FragmentSpread -> TransformT Core.Fragment
+fragmentSpread (Full.FragmentSpread name _) = do
+    fragments' <- gets fragments
+    maybe lookupDefinition liftJust (HashMap.lookup name fragments')
+  where
+    lookupDefinition = do
+        fragmentDefinitions' <- gets fragmentDefinitions
+        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
+        fragmentDefinition found
+
 fragmentDefinition ::
     Full.FragmentDefinition ->
-    TransformT (Seq Core.Selection)
-fragmentDefinition (Full.FragmentDefinition name _tc _dirs selections) = do
+    TransformT Core.Fragment
+fragmentDefinition (Full.FragmentDefinition name typeCondition _dirs selections) = do
     modify deleteFragmentDefinition
-    newValue <- appendSelection selections
+    fragmentSelection <- appendSelection selections
+    let newValue = Core.Fragment typeCondition fragmentSelection
     modify $ insertFragment newValue
     liftJust newValue
   where

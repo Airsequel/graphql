@@ -48,117 +48,144 @@ hasErrors (Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
 spec :: Spec
-spec = describe "Inline fragment executor" $ do
-    it "chooses the first selection if the type matches" $ do
-        actual <- graphql (garment "Hat" :| []) inlineQuery
-        let expected = object
-                [ "data" .= object
-                    [ "garment" .= object
+spec = do
+    describe "Inline fragment executor" $ do
+        it "chooses the first selection if the type matches" $ do
+            actual <- graphql (garment "Hat" :| []) inlineQuery
+            let expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "circumference" .= (60 :: Int)
+                            ]
+                        ]
+                    ]
+             in actual `shouldBe` expected
+
+        it "chooses the last selection if the type matches" $ do
+            actual <- graphql (garment "Shirt" :| []) inlineQuery
+            let expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "size" .= ("L" :: Text)
+                            ]
+                        ]
+                    ]
+             in actual `shouldBe` expected
+
+        it "embeds inline fragments without type" $ do
+            let query = [r|{
+              garment {
+                circumference
+                ... {
+                  size
+                }
+              }
+            }|]
+                resolvers = Schema.object "garment" $ return [circumference,  size]
+
+            actual <- graphql (resolvers :| []) query
+            let expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "circumference" .= (60 :: Int)
+                            , "size" .= ("L" :: Text)
+                            ]
+                        ]
+                    ]
+             in actual `shouldBe` expected
+
+        it "evaluates fragments on Query" $ do
+            let query = [r|{
+              ... {
+                size
+              }
+            }|]
+
+            actual <- graphql (size :| []) query
+            actual `shouldNotSatisfy` hasErrors
+
+    describe "Fragment spread executor" $ do
+        it "evaluates fragment spreads" $ do
+            let query = [r|
+              {
+                ...circumferenceFragment
+              }
+
+              fragment circumferenceFragment on Hat {
+                circumference
+              }
+            |]
+
+            actual <- graphql (circumference :| []) query
+            let expected = object
+                    [ "data" .= object
                         [ "circumference" .= (60 :: Int)
                         ]
                     ]
-                ]
-         in actual `shouldBe` expected
+             in actual `shouldBe` expected
 
-    it "chooses the last selection if the type matches" $ do
-        actual <- graphql (garment "Shirt" :| []) inlineQuery
-        let expected = object
-                [ "data" .= object
-                    [ "garment" .= object
-                        [ "size" .= ("L" :: Text)
+        it "evaluates nested fragments" $ do
+            let query = [r|
+              {
+                garment {
+                  ...circumferenceFragment
+                }
+              }
+
+              fragment circumferenceFragment on Hat {
+                ...hatFragment
+              }
+
+              fragment hatFragment on Hat {
+                circumference
+              }
+            |]
+
+            actual <- graphql (garment "Hat" :| []) query
+            let expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "circumference" .= (60 :: Int)
+                            ]
                         ]
                     ]
-                ]
-         in actual `shouldBe` expected
+             in actual `shouldBe` expected
 
-    it "embeds inline fragments without type" $ do
-        let query = [r|{
-          garment {
-            circumference
-            ... {
-              size
-            }
-          }
-        }|]
-            resolvers = Schema.object "garment" $ return [circumference,  size]
+        it "rejects recursive fragments" $ do
+            let query = [r|
+              {
+                ...circumferenceFragment
+              }
 
-        actual <- graphql (resolvers :| []) query
-        let expected = object
-                [ "data" .= object
-                    [ "garment" .= object
-                        [ "circumference" .= (60 :: Int)
-                        , "size" .= ("L" :: Text)
+              fragment circumferenceFragment on Hat {
+                ...circumferenceFragment
+              }
+            |]
+
+            actual <- graphql (circumference :| []) query
+            actual `shouldSatisfy` hasErrors
+
+        it "considers type condition" $ do
+            let query = [r|
+              {
+                garment {
+                  ...circumferenceFragment
+                  ...sizeFragment
+                }
+              }
+              fragment circumferenceFragment on Hat {
+                circumference
+              }
+              fragment sizeFragment on Shirt {
+                size
+              }
+            |]
+                expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "circumference" .= (60 :: Int)
+                            ]
                         ]
                     ]
-                ]
-         in actual `shouldBe` expected
-
-    it "evaluates fragments on Query" $ do
-        let query = [r|{
-          ... {
-            size
-          }
-        }|]
-
-        actual <- graphql (size :| []) query
-        actual `shouldNotSatisfy` hasErrors
-
-    it "evaluates nested fragments" $ do
-        let query = [r|
-          {
-            ...circumferenceFragment
-          }
-
-          fragment circumferenceFragment on Hat {
-            circumference
-          }
-
-          fragment hatFragment on Hat {
-            ...circumferenceFragment
-          }
-        |]
-
-        actual <- graphql (circumference :| []) query
-        let expected = object
-                [ "data" .= object
-                    [ "circumference" .= (60 :: Int)
-                    ]
-                ]
-         in actual `shouldBe` expected
-
-    it "evaluates fragments defined in any order" $ do
-        let query = [r|
-          {
-            ...circumferenceFragment
-          }
-
-          fragment circumferenceFragment on Hat {
-            ...hatFragment
-          }
-
-          fragment hatFragment on Hat {
-            circumference
-          }
-        |]
-
-        actual <- graphql (circumference :| []) query
-        let expected = object
-                [ "data" .= object
-                    [ "circumference" .= (60 :: Int)
-                    ]
-                ]
-         in actual `shouldBe` expected
-
-    it "rejects recursive" $ do
-        let query = [r|
-          {
-            ...circumferenceFragment
-          }
-
-          fragment circumferenceFragment on Hat {
-            ...circumferenceFragment
-          }
-        |]
-
-        actual <- graphql (circumference :| []) query
-        actual `shouldSatisfy` hasErrors
+            actual <- graphql (garment "Hat" :| []) query
+            actual `shouldBe` expected

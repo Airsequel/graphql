@@ -131,8 +131,8 @@ resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
     tryResolvers (SelectionField fld@(Field _ name _ _))
         = maybe (errmsg fld) (tryResolver fld) $ find (compareResolvers name) resolvers
     tryResolvers (SelectionFragment (Fragment typeCondition selections')) = do
-        that <-  maybe (return "") resolveTypeName (find (compareResolvers "__typename") resolvers)
-        if Aeson.String typeCondition == that
+        that <- traverse resolveTypeName (find (compareResolvers "__typename") resolvers)
+        if maybe True (Aeson.String typeCondition ==) that
             then fmap fold . traverse tryResolvers $ selections'
             else return mempty
     compareResolvers name (Resolver name' _) = name == name'

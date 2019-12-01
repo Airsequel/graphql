@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 - Parsing multiple string arguments, such as 
   `login(username: "username", password: "password")` would fail on the comma
   due to strings not having a space consumer.
+- Fragment spread is evaluated based on the `__typename` resolver. If the
+  resolver is missing, it is assumed that the type condition is satisfied (all
+  fragments are included).
 
 ## [0.6.0.0] - 2019-11-27
 ### Changed
