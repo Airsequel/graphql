@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
   resolver is missing, it is assumed that the type condition is satisfied (all
   fragments are included).
 
+### Added
+- Directive support (@skip and @include).
+
 ## [0.6.0.0] - 2019-11-27
 ### Changed
 - `Language.GraphQL.Encoder` moved to `Language.GraphQL.AST.Encoder`.

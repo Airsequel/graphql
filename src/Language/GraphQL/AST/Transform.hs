@@ -1,5 +1,5 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | After the document is parsed, before getting executed the AST is
 --   transformed into a similar, simpler AST. This module is responsible for
@@ -19,6 +19,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
+import qualified Language.GraphQL.Execute.Directive as Directive
 import qualified Language.GraphQL.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
@@ -46,7 +47,6 @@ document subs document' =
 
 -- * Operation
 
--- TODO: Replace Maybe by MonadThrow CustomError
 operations :: [Full.OperationDefinition] -> TransformT Core.Document
 operations operations' = do
     coreOperations <- traverse operation operations'
@@ -61,20 +61,34 @@ operation (Full.OperationDefinition Full.Query name _vars _dirs sels) =
 operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
     Core.Mutation name <$> appendSelection sels
 
+-- * Selection
+
 selection ::
     Full.Selection ->
     TransformT (Either (Seq Core.Selection) Core.Selection)
-selection (Full.SelectionField fld) = Right . Core.SelectionField <$> field fld
+selection (Full.SelectionField field') =
+    maybe (Left mempty) (Right . Core.SelectionField) <$> field field'
 selection (Full.SelectionFragmentSpread fragment) =
-    Right . Core.SelectionFragment <$> fragmentSpread fragment
-selection (Full.SelectionInlineFragment fragment)
-    | (Full.InlineFragment (Just typeCondition) _ selectionSet) <- fragment
-        = Right
-        . Core.SelectionFragment
-        . Core.Fragment typeCondition
-        <$> appendSelection selectionSet
-    | (Full.InlineFragment Nothing _ selectionSet) <- fragment
-        = Left <$> appendSelection selectionSet
+    maybe (Left mempty) (Right . Core.SelectionFragment)
+    <$> fragmentSpread fragment
+selection (Full.SelectionInlineFragment fragment) =
+    inlineFragment fragment
+
+appendSelection ::
+    Traversable t =>
+    t Full.Selection ->
+    TransformT (Seq Core.Selection)
+appendSelection = foldM go mempty
+  where
+    go acc sel = append acc <$> selection sel
+    append acc (Left list) = list >< acc
+    append acc (Right one) = one <| acc
+
+directives :: [Full.Directive] -> TransformT [Core.Directive]
+directives = traverse directive
+  where
+    directive (Full.Directive directiveName directiveArguments) =
+        Core.Directive directiveName <$> arguments directiveArguments
 
 -- * Fragment replacement
 
@@ -87,10 +101,27 @@ collectFragments = do
         _ <- fragmentDefinition nextValue
         collectFragments
 
-fragmentSpread :: Full.FragmentSpread -> TransformT Core.Fragment
-fragmentSpread (Full.FragmentSpread name _) = do
+inlineFragment ::
+    Full.InlineFragment ->
+    TransformT (Either (Seq Core.Selection) Core.Selection)
+inlineFragment (Full.InlineFragment type' directives' selectionSet) = do
+    fragmentDirectives <- Directive.selection <$> directives directives'
+    case fragmentDirectives of
+        Nothing -> pure $ Left mempty
+        _ -> do
+            fragmentSelectionSet <- appendSelection selectionSet
+            pure $ maybe Left selectionFragment type' fragmentSelectionSet
+  where
+    selectionFragment typeName = Right
+        . Core.SelectionFragment
+        . Core.Fragment typeName
+
+fragmentSpread :: Full.FragmentSpread -> TransformT (Maybe Core.Fragment)
+fragmentSpread (Full.FragmentSpread name directives') = do
+    spreadDirectives <- Directive.selection <$> directives directives'
     fragments' <- gets fragments
-    maybe lookupDefinition liftJust (HashMap.lookup name fragments')
+    fragment <- maybe lookupDefinition liftJust (HashMap.lookup name fragments')
+    pure $ fragment <$ spreadDirectives 
   where
     lookupDefinition = do
         fragmentDefinitions' <- gets fragmentDefinitions
@@ -100,10 +131,10 @@ fragmentSpread (Full.FragmentSpread name _) = do
 fragmentDefinition ::
     Full.FragmentDefinition ->
     TransformT Core.Fragment
-fragmentDefinition (Full.FragmentDefinition name typeCondition _dirs selections) = do
+fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
     modify deleteFragmentDefinition
     fragmentSelection <- appendSelection selections
-    let newValue = Core.Fragment typeCondition fragmentSelection
+    let newValue = Core.Fragment type' fragmentSelection
     modify $ insertFragment newValue
     liftJust newValue
   where
@@ -113,11 +144,20 @@ fragmentDefinition (Full.FragmentDefinition name typeCondition _dirs selections)
         let newFragments = HashMap.insert name newValue fragments'
          in Replacement newFragments fragmentDefinitions'
 
-field :: Full.Field -> TransformT Core.Field
-field (Full.Field a n args _dirs sels) = do
-    arguments <- traverse argument args
-    selection' <- appendSelection sels
-    return $ Core.Field a n arguments selection'
+field :: Full.Field -> TransformT (Maybe Core.Field)
+field (Full.Field alias name arguments' directives' selections) = do
+    fieldArguments <- traverse argument arguments'
+    fieldSelections <- appendSelection selections
+    fieldDirectives <- Directive.selection <$> directives directives'
+    let field' = Core.Field alias name fieldArguments fieldSelections
+    pure $ field' <$ fieldDirectives
+
+arguments :: [Full.Argument] -> TransformT Core.Arguments
+arguments = fmap Core.Arguments . foldM go HashMap.empty
+  where
+    go arguments' argument' = do
+        (Core.Argument name value') <- argument argument'
+        return $ HashMap.insert name value' arguments'
 
 argument :: Full.Argument -> TransformT Core.Argument
 argument (Full.Argument n v) = Core.Argument n <$> value v
@@ -138,17 +178,7 @@ value (Full.Object o) =
     Core.Object . HashMap.fromList <$> traverse objectField o
 
 objectField :: Full.ObjectField -> TransformT (Core.Name, Core.Value)
-objectField (Full.ObjectField n v) = (n,) <$> value v
-
-appendSelection ::
-    Traversable t =>
-    t Full.Selection ->
-    TransformT (Seq Core.Selection)
-appendSelection = foldM go mempty
-  where
-    go acc sel = append acc <$> selection sel
-    append acc (Left list) = list >< acc
-    append acc (Right one) = one <| acc
+objectField (Full.ObjectField name value') = (name,) <$> value value'
 
 liftJust :: forall a. a -> TransformT a
 liftJust = lift . lift . Just

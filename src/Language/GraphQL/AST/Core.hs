@@ -2,6 +2,8 @@
 module Language.GraphQL.AST.Core
     ( Alias
     , Argument(..)
+    , Arguments(..)
+    , Directive(..)
     , Document
     , Field(..)
     , Fragment(..)
@@ -38,6 +40,14 @@ data Field
 
 -- | Single argument.
 data Argument = Argument Name Value deriving (Eq, Show)
+
+-- | Argument list.
+newtype Arguments = Arguments (HashMap Name Value)
+    deriving (Eq, Show)
+
+-- | Directive.
+data Directive = Directive Name Arguments
+    deriving (Eq, Show)
 
 -- | Represents fragments and inline fragments.
 data Fragment
