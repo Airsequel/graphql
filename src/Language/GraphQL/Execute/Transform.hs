@@ -4,7 +4,7 @@
 -- | After the document is parsed, before getting executed the AST is
 --   transformed into a similar, simpler AST. This module is responsible for
 --   this transformation.
-module Language.GraphQL.AST.Transform
+module Language.GraphQL.Execute.Transform
     ( document
     ) where
 
@@ -29,6 +29,9 @@ data Replacement = Replacement
     }
 
 type TransformT a = StateT Replacement (ReaderT Schema.Subs Maybe) a
+
+liftJust :: forall a. a -> TransformT a
+liftJust = lift . lift . Just
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
@@ -179,6 +182,3 @@ value (Full.Object o) =
 
 objectField :: Full.ObjectField -> TransformT (Core.Name, Core.Value)
 objectField (Full.ObjectField name value') = (name,) <$> value value'
-
-liftJust :: forall a. a -> TransformT a
-liftJust = lift . lift . Just

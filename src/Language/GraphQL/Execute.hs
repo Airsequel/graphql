@@ -15,7 +15,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as AST
 import qualified Language.GraphQL.AST.Core as AST.Core
-import qualified Language.GraphQL.AST.Transform as Transform
+import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
 import qualified Language.GraphQL.Schema as Schema
 

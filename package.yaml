@@ -37,7 +37,7 @@ dependencies:
 library:
   source-dirs: src
   other-modules:
-    - Language.GraphQL.AST.Transform
+    - Language.GraphQL.Execute.Transform
     - Language.GraphQL.Execute.Directive
 
 tests:
