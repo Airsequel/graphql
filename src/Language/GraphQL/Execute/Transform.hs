@@ -19,8 +19,8 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
-import qualified Language.GraphQL.Execute.Directive as Directive
 import qualified Language.GraphQL.Schema as Schema
+import qualified Language.GraphQL.Type.Directive as Directive
 
 -- | Associates a fragment name with a list of 'Core.Field's.
 data Replacement = Replacement

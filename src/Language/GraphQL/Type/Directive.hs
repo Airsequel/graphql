@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Language.GraphQL.Execute.Directive
+module Language.GraphQL.Type.Directive
     ( selection
     ) where
 

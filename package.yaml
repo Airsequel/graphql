@@ -38,7 +38,7 @@ library:
   source-dirs: src
   other-modules:
     - Language.GraphQL.Execute.Transform
-    - Language.GraphQL.Execute.Directive
+    - Language.GraphQL.Type.Directive
 
 tests:
   tasty:
