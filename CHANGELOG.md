@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - Fragment spread is evaluated based on the `__typename` resolver. If the
   resolver is missing, it is assumed that the type condition is satisfied (all
   fragments are included).
+- Escaping characters during encoding.
 
 ### Added
 - Directive support (@skip and @include).

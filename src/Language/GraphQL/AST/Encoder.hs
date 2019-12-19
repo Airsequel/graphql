@@ -18,6 +18,7 @@ import Data.Monoid ((<>))
 import qualified Data.List.NonEmpty as NonEmpty (toList)
 import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as Text.Lazy
+import qualified Data.Text.Lazy.Builder as Builder
 import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
@@ -191,10 +192,18 @@ booleanValue True  = "true"
 booleanValue False = "false"
 
 stringValue :: Text -> Text
-stringValue
-    = quotes
-    . Text.Lazy.replace "\"" "\\\""
-    . Text.Lazy.replace "\\" "\\\\"
+stringValue string = Builder.toLazyText
+    $ quote
+    <> Text.Lazy.foldr replace quote string
+  where
+    replace '\\' = mappend $ Builder.fromLazyText "\\\\"
+    replace '\"' = mappend $ Builder.fromLazyText "\\\""
+    replace '\b' = mappend $ Builder.fromLazyText "\\b"
+    replace '\f' = mappend $ Builder.fromLazyText "\\f"
+    replace '\n' = mappend $ Builder.fromLazyText "\\n"
+    replace '\r' = mappend $ Builder.fromLazyText "\\r"
+    replace char = mappend $ Builder.singleton char
+    quote = Builder.singleton '\"'
 
 listValue :: Formatter -> [Full.Value] -> Text
 listValue formatter = bracketsCommas formatter $ value formatter
@@ -242,9 +251,6 @@ brackets = between '[' ']'
 
 braces :: Text -> Text
 braces = between '{' '}'
-
-quotes :: Text -> Text
-quotes = between '"' '"'
 
 spaces :: forall a. (a -> Text) -> [a] -> Text
 spaces f = Text.Lazy.intercalate "\SP" . fmap f

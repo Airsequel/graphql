@@ -17,3 +17,5 @@ spec = describe "value" $ do
         value minified (String "\\") `shouldBe` "\"\\\\\""
     it "escapes quotes" $
         value minified (String "\"") `shouldBe` "\"\\\"\""
+    it "escapes backspace" $
+        value minified (String "a\bc") `shouldBe` "\"a\\bc\""
