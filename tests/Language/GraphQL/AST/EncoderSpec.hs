@@ -19,3 +19,5 @@ spec = describe "value" $ do
         value minified (String "\"") `shouldBe` "\"\\\"\""
     it "escapes backspace" $
         value minified (String "a\bc") `shouldBe` "\"a\\bc\""
+    it "escapes Unicode" $
+        value minified (String "\0") `shouldBe` "\"\\u0000\""
