@@ -21,6 +21,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Text.Lazy as Lazy (Text)
 import qualified Data.Text.Lazy as Lazy.Text
+import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as Builder
 import Data.Text.Lazy.Builder.Int (decimal, hexadecimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
@@ -109,40 +110,47 @@ selectionSet formatter
 selectionSetOpt :: Formatter -> Full.SelectionSetOpt -> Lazy.Text
 selectionSetOpt formatter = bracesList formatter $ selection formatter
 
+indent :: (Integral a) => a -> Lazy.Text
+indent indentation = Lazy.Text.replicate (fromIntegral indentation) "  "
+
 selection :: Formatter -> Full.Selection -> Lazy.Text
-selection formatter = Lazy.Text.append indent . f
+selection formatter = Lazy.Text.append indent' . encodeSelection
   where
-    f (Full.SelectionField x) = field incrementIndent x
-    f (Full.SelectionInlineFragment x) = inlineFragment incrementIndent x
-    f (Full.SelectionFragmentSpread x) = fragmentSpread incrementIndent x
+    encodeSelection (Full.SelectionField field') = field incrementIndent field'
+    encodeSelection (Full.SelectionInlineFragment fragment) =
+        inlineFragment incrementIndent fragment
+    encodeSelection (Full.SelectionFragmentSpread spread) =
+        fragmentSpread incrementIndent spread
     incrementIndent
-        | Pretty n <- formatter = Pretty $ n + 1
+        | Pretty indentation <- formatter = Pretty $ indentation + 1
         | otherwise = Minified
-    indent
-        | Pretty n <- formatter = Lazy.Text.replicate (fromIntegral $ n + 1) "  "
-        | otherwise = mempty
+    indent'
+        | Pretty indentation <- formatter = indent $ indentation + 1
+        | otherwise = ""
+
+colon :: Formatter -> Lazy.Text
+colon formatter = eitherFormat formatter ": " ":"
 
 field :: Formatter -> Full.Field -> Lazy.Text
-field formatter (Full.Field alias name args dirs selso)
-    = optempty (`Lazy.Text.append` colon) (Lazy.Text.fromStrict $ fold alias)
+field formatter (Full.Field alias name args dirs set)
+    = optempty prependAlias (fold alias)
     <> Lazy.Text.fromStrict name
     <> optempty (arguments formatter) args
     <> optempty (directives formatter) dirs
-    <> selectionSetOpt'
+    <> optempty selectionSetOpt' set
   where
-    colon = eitherFormat formatter ": " ":"
-    selectionSetOpt'
-        | null selso = mempty
-        | otherwise = eitherFormat formatter " " mempty <> selectionSetOpt formatter selso
+    prependAlias aliasName = Lazy.Text.fromStrict aliasName <>  colon formatter
+    selectionSetOpt' = (eitherFormat formatter " " "" <>)
+        . selectionSetOpt formatter
 
 arguments :: Formatter -> [Full.Argument] -> Lazy.Text
 arguments formatter = parensCommas formatter $ argument formatter
 
 argument :: Formatter -> Full.Argument -> Lazy.Text
-argument formatter (Full.Argument name v)
+argument formatter (Full.Argument name value')
     = Lazy.Text.fromStrict name
-    <> eitherFormat formatter ": " ":"
-    <> value formatter v
+    <> colon formatter
+    <> value formatter value'
 
 -- * Fragments
 
@@ -174,8 +182,8 @@ directive formatter (Full.Directive name args)
     = "@" <> Lazy.Text.fromStrict name <> optempty (arguments formatter) args
 
 directives :: Formatter -> [Full.Directive] -> Lazy.Text
-directives formatter@(Pretty _) = Lazy.Text.cons ' ' . spaces (directive formatter)
 directives Minified = spaces (directive Minified)
+directives formatter = Lazy.Text.cons ' ' . spaces (directive formatter)
 
 -- | Converts a 'Full.Value' into a string.
 value :: Formatter -> Full.Value -> Lazy.Text
@@ -184,7 +192,7 @@ value _ (Full.Int x) = Builder.toLazyText $ decimal x
 value _ (Full.Float x) = Builder.toLazyText $ realFloat x
 value _ (Full.Boolean  x) = booleanValue x
 value _ Full.Null = mempty
-value _ (Full.String x) = stringValue x
+value formatter (Full.String string) = stringValue formatter string
 value _ (Full.Enum x) = Lazy.Text.fromStrict x
 value formatter (Full.List x) = listValue formatter x
 value formatter (Full.Object x) = objectValue formatter x
@@ -193,23 +201,39 @@ booleanValue :: Bool -> Lazy.Text
 booleanValue True  = "true"
 booleanValue False = "false"
 
-stringValue :: Text -> Lazy.Text
-stringValue string = Builder.toLazyText
-    $ quote
-    <> Text.foldr (mappend . replace) quote string
+stringValue :: Formatter -> Text -> Lazy.Text
+stringValue Minified string = Builder.toLazyText
+    $ quote <> Text.foldr (mappend . escape') quote string
   where
-    replace char
-      | char == '\\' = Builder.fromString "\\\\"
-      | char == '\"' = Builder.fromString "\\\""
-      | char == '\b' = Builder.fromString "\\b"
-      | char == '\f' = Builder.fromString "\\f"
-      | char == '\n' = Builder.fromString "\\n"
-      | char == '\r' = Builder.fromString "\\r"
-      | char < '\x0010' = unicode  "\\u000" char
-      | char < '\x0020' = unicode "\\u00" char
-      | otherwise = Builder.singleton char
     quote = Builder.singleton '\"'
-    unicode prefix char = Builder.fromString prefix <> hexadecimal (ord char)
+    escape' '\n' = Builder.fromString "\\n"
+    escape' char = escape char
+stringValue (Pretty indentation) string = byStringType $ Text.lines string
+  where
+    byStringType [] = "\"\""
+    byStringType [line] = Builder.toLazyText
+        $ quote <> Text.foldr (mappend . escape) quote line
+    byStringType lines' = "\"\"\"\n"
+        <> Lazy.Text.unlines (transformLine <$> lines')
+        <> indent indentation
+        <> "\"\"\""
+    transformLine = (indent (indentation + 1) <>)
+        . Lazy.Text.fromStrict
+        . Text.replace "\"\"\"" "\\\"\"\""
+    quote = Builder.singleton '\"'
+
+escape :: Char -> Builder
+escape char'
+    | char' == '\\' = Builder.fromString "\\\\"
+    | char' == '\"' = Builder.fromString "\\\""
+    | char' == '\b' = Builder.fromString "\\b"
+    | char' == '\f' = Builder.fromString "\\f"
+    | char' == '\r' = Builder.fromString "\\r"
+    | char' < '\x0010' = unicode  "\\u000" char'
+    | char' < '\x0020' = unicode "\\u00" char'
+    | otherwise = Builder.singleton char'
+  where
+    unicode prefix = mappend (Builder.fromString prefix) . (hexadecimal . ord)
 
 listValue :: Formatter -> [Full.Value] -> Lazy.Text
 listValue formatter = bracketsCommas formatter $ value formatter
@@ -222,14 +246,9 @@ objectValue formatter = intercalate $ objectField formatter
         . Lazy.Text.intercalate (eitherFormat formatter ", " ",")
         . fmap f
 
-
 objectField :: Formatter -> Full.ObjectField -> Lazy.Text
-objectField formatter (Full.ObjectField name v)
-    = Lazy.Text.fromStrict name <> colon <> value formatter v
-  where
-    colon
-      | Pretty _ <- formatter = ": "
-      | Minified <- formatter = ":"
+objectField formatter (Full.ObjectField name value') =
+    Lazy.Text.fromStrict name <> colon formatter <> value formatter value'
 
 -- | Converts a 'Full.Type' a type into a string.
 type' :: Full.Type -> Lazy.Text

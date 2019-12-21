@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Directive support (@skip and @include).
+- Pretifying multi-line string arguments as block strings.
 
 ## [0.6.0.0] - 2019-11-27
 ### Changed
