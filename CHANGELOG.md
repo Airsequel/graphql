@@ -1,7 +1,7 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [0.6.1.0] - 2019-12-23
 ### Fixed
 - Parsing multiple string arguments, such as 
   `login(username: "username", password: "password")` would fail on the comma
@@ -162,6 +162,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Data types for the GraphQL language.
 
+[0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
 [0.6.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.1.0...v0.6.0.0
 [0.5.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.1...v0.5.1.0
 [0.5.0.1]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.0...v0.5.0.1
