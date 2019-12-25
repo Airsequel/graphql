@@ -6,23 +6,19 @@ module Language.GraphQL.AST.Parser
     ( document
     ) where
 
-import Control.Applicative ( Alternative(..)
-                           , optional
-                           )
+import Control.Applicative (Alternative(..), optional)
 import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST
 import Language.GraphQL.AST.Lexer
-import Text.Megaparsec ( lookAhead
-                       , option
-                       , try
-                       , (<?>)
-                       )
+import Text.Megaparsec (lookAhead, option, try, (<?>))
 
 -- | Parser for the GraphQL documents.
 document :: Parser Document
-document = unicodeBOM >> spaceConsumer >> lexeme (manyNE definition)
+document = unicodeBOM
+    >> spaceConsumer
+    >> lexeme (manyNE $ ExecutableDefinition <$> definition)
 
-definition :: Parser Definition
+definition :: Parser ExecutableDefinition
 definition = DefinitionOperation <$> operationDefinition
          <|> DefinitionFragment  <$> fragmentDefinition
          <?> "definition error!"
@@ -50,19 +46,20 @@ selectionSetOpt :: Parser SelectionSetOpt
 selectionSetOpt = braces $ some selection
 
 selection :: Parser Selection
-selection = SelectionField          <$> field
-        <|> try (SelectionFragmentSpread <$> fragmentSpread)
-        <|> SelectionInlineFragment <$> inlineFragment
-        <?> "selection error!"
+selection = field
+    <|> try fragmentSpread
+    <|> inlineFragment
+    <?> "selection error!"
 
 -- * Field
 
-field :: Parser Field
-field = Field <$> optional alias
-              <*> name
-              <*> opt arguments
-              <*> opt directives
-              <*> opt selectionSetOpt
+field :: Parser Selection
+field = Field
+    <$> optional alias
+    <*> name
+    <*> opt arguments
+    <*> opt directives
+    <*> opt selectionSetOpt
 
 alias :: Parser Alias
 alias = try $ name <* colon
@@ -77,16 +74,18 @@ argument = Argument <$> name <* colon <*> value
 
 -- * Fragments
 
-fragmentSpread :: Parser FragmentSpread
-fragmentSpread = FragmentSpread <$  spread
-                                <*> fragmentName
-                                <*> opt directives
+fragmentSpread :: Parser Selection
+fragmentSpread = FragmentSpread
+    <$ spread
+    <*> fragmentName
+    <*> opt directives
 
-inlineFragment :: Parser InlineFragment
-inlineFragment = InlineFragment <$  spread
-                                <*> optional typeCondition
-                                <*> opt directives
-                                <*> selectionSet
+inlineFragment :: Parser Selection
+inlineFragment = InlineFragment
+    <$ spread
+    <*> optional typeCondition
+    <*> opt directives
+    <*> selectionSet
 
 fragmentDefinition :: Parser FragmentDefinition
 fragmentDefinition = FragmentDefinition

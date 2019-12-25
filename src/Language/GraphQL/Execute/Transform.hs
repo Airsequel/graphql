@@ -42,9 +42,9 @@ document subs document' =
         $ Replacement HashMap.empty fragmentTable
   where
     (fragmentTable, operationDefinitions) = foldr defragment mempty document'
-    defragment (Full.DefinitionOperation definition) acc =
+    defragment (Full.ExecutableDefinition (Full.DefinitionOperation definition)) acc =
         (definition :) <$> acc
-    defragment (Full.DefinitionFragment definition) acc =
+    defragment (Full.ExecutableDefinition (Full.DefinitionFragment definition)) acc =
         let (Full.FragmentDefinition name _ _ _) = definition
          in first (HashMap.insert name definition) acc
 
@@ -69,13 +69,35 @@ operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
 selection ::
     Full.Selection ->
     TransformT (Either (Seq Core.Selection) Core.Selection)
-selection (Full.SelectionField field') =
-    maybe (Left mempty) (Right . Core.SelectionField) <$> field field'
-selection (Full.SelectionFragmentSpread fragment) =
-    maybe (Left mempty) (Right . Core.SelectionFragment)
-    <$> fragmentSpread fragment
-selection (Full.SelectionInlineFragment fragment) =
-    inlineFragment fragment
+selection (Full.Field alias name arguments' directives' selections) =
+    maybe (Left mempty) (Right . Core.SelectionField) <$> do
+        fieldArguments <- traverse argument arguments'
+        fieldSelections <- appendSelection selections
+        fieldDirectives <- Directive.selection <$> directives directives'
+        let field' = Core.Field alias name fieldArguments fieldSelections
+        pure $ field' <$ fieldDirectives
+selection (Full.FragmentSpread name directives') =
+    maybe (Left mempty) (Right . Core.SelectionFragment) <$> do
+        spreadDirectives <- Directive.selection <$> directives directives'
+        fragments' <- gets fragments
+        fragment <- maybe lookupDefinition liftJust (HashMap.lookup name fragments')
+        pure $ fragment <$ spreadDirectives
+  where
+    lookupDefinition = do
+        fragmentDefinitions' <- gets fragmentDefinitions
+        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
+        fragmentDefinition found
+selection (Full.InlineFragment type' directives' selections) = do
+    fragmentDirectives <- Directive.selection <$> directives directives'
+    case fragmentDirectives of
+        Nothing -> pure $ Left mempty
+        _ -> do
+            fragmentSelectionSet <- appendSelection selections
+            pure $ maybe Left selectionFragment type' fragmentSelectionSet
+  where
+    selectionFragment typeName = Right
+        . Core.SelectionFragment
+        . Core.Fragment typeName
 
 appendSelection ::
     Traversable t =>
@@ -104,33 +126,6 @@ collectFragments = do
         _ <- fragmentDefinition nextValue
         collectFragments
 
-inlineFragment ::
-    Full.InlineFragment ->
-    TransformT (Either (Seq Core.Selection) Core.Selection)
-inlineFragment (Full.InlineFragment type' directives' selectionSet) = do
-    fragmentDirectives <- Directive.selection <$> directives directives'
-    case fragmentDirectives of
-        Nothing -> pure $ Left mempty
-        _ -> do
-            fragmentSelectionSet <- appendSelection selectionSet
-            pure $ maybe Left selectionFragment type' fragmentSelectionSet
-  where
-    selectionFragment typeName = Right
-        . Core.SelectionFragment
-        . Core.Fragment typeName
-
-fragmentSpread :: Full.FragmentSpread -> TransformT (Maybe Core.Fragment)
-fragmentSpread (Full.FragmentSpread name directives') = do
-    spreadDirectives <- Directive.selection <$> directives directives'
-    fragments' <- gets fragments
-    fragment <- maybe lookupDefinition liftJust (HashMap.lookup name fragments')
-    pure $ fragment <$ spreadDirectives 
-  where
-    lookupDefinition = do
-        fragmentDefinitions' <- gets fragmentDefinitions
-        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
-        fragmentDefinition found
-
 fragmentDefinition ::
     Full.FragmentDefinition ->
     TransformT Core.Fragment
@@ -146,14 +141,6 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
     insertFragment newValue (Replacement fragments' fragmentDefinitions') =
         let newFragments = HashMap.insert name newValue fragments'
          in Replacement newFragments fragmentDefinitions'
-
-field :: Full.Field -> TransformT (Maybe Core.Field)
-field (Full.Field alias name arguments' directives' selections) = do
-    fieldArguments <- traverse argument arguments'
-    fieldSelections <- appendSelection selections
-    fieldDirectives <- Directive.selection <$> directives directives'
-    let field' = Core.Field alias name fieldArguments fieldSelections
-    pure $ field' <$ fieldDirectives
 
 arguments :: [Full.Argument] -> TransformT Core.Arguments
 arguments = fmap Core.Arguments . foldM go HashMap.empty

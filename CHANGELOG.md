@@ -1,9 +1,22 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+### Changed
+- Renamed `AST.Definition` into `AST.ExecutableDefinition`.
+  TypeSystemDefinition and TypeSystemExtension can also be definitions.
+- Defined `AST.Definition` as
+  `newtype Definition = ExecutableDefinition ExecutableDefinition` for now. It
+  should be soon extended to contain missing definition types.
+- Removed types `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.
+  These types are only used in `AST.Selection` and `AST.Selection` contains now
+  3 corresponding data constructors, `Field`, `InlineFragment` and
+  `FragmentSpread`, instead of separate types. It simplifies pattern matching
+  and doesn't make the code less typesafe.
+
 ## [0.6.1.0] - 2019-12-23
 ### Fixed
-- Parsing multiple string arguments, such as 
+- Parsing multiple string arguments, such as
   `login(username: "username", password: "password")` would fail on the comma
   due to strings not having a space consumer.
 - Fragment spread is evaluated based on the `__typename` resolver. If the
@@ -162,6 +175,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...HEAD
 [0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
 [0.6.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.1.0...v0.6.0.0
 [0.5.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.1...v0.5.1.0

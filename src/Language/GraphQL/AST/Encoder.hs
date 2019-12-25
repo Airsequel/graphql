@@ -49,10 +49,11 @@ document formatter defs
     | Pretty _ <- formatter = Lazy.Text.intercalate "\n" encodeDocument
     | Minified <-formatter = Lazy.Text.snoc (mconcat encodeDocument) '\n'
   where
-    encodeDocument = NonEmpty.toList $ definition formatter <$> defs
+    encodeDocument = foldr executableDefinition [] defs
+    executableDefinition (Full.ExecutableDefinition x) acc = definition formatter x : acc
 
 -- | Converts a 'Full.Definition' into a string.
-definition :: Formatter -> Full.Definition -> Lazy.Text
+definition :: Formatter -> Full.ExecutableDefinition -> Lazy.Text
 definition formatter x
     | Pretty _ <- formatter = Lazy.Text.snoc (encodeDefinition x) '\n'
     | Minified <- formatter = encodeDefinition x
@@ -116,11 +117,12 @@ indent indentation = Lazy.Text.replicate (fromIntegral indentation) "  "
 selection :: Formatter -> Full.Selection -> Lazy.Text
 selection formatter = Lazy.Text.append indent' . encodeSelection
   where
-    encodeSelection (Full.SelectionField field') = field incrementIndent field'
-    encodeSelection (Full.SelectionInlineFragment fragment) =
-        inlineFragment incrementIndent fragment
-    encodeSelection (Full.SelectionFragmentSpread spread) =
-        fragmentSpread incrementIndent spread
+    encodeSelection (Full.Field alias name args directives' selections) =
+        field incrementIndent alias name args directives' selections
+    encodeSelection (Full.InlineFragment typeCondition directives' selections) =
+        inlineFragment incrementIndent typeCondition directives' selections
+    encodeSelection (Full.FragmentSpread name directives') =
+        fragmentSpread incrementIndent name directives'
     incrementIndent
         | Pretty indentation <- formatter = Pretty $ indentation + 1
         | otherwise = Minified
@@ -131,8 +133,14 @@ selection formatter = Lazy.Text.append indent' . encodeSelection
 colon :: Formatter -> Lazy.Text
 colon formatter = eitherFormat formatter ": " ":"
 
-field :: Formatter -> Full.Field -> Lazy.Text
-field formatter (Full.Field alias name args dirs set)
+field :: Formatter ->
+    Maybe Full.Name ->
+    Full.Name ->
+    [Full.Argument] ->
+    [Full.Directive] ->
+    [Full.Selection] ->
+    Lazy.Text
+field formatter alias name args dirs set
     = optempty prependAlias (fold alias)
     <> Lazy.Text.fromStrict name
     <> optempty (arguments formatter) args
@@ -154,13 +162,18 @@ argument formatter (Full.Argument name value')
 
 -- * Fragments
 
-fragmentSpread :: Formatter -> Full.FragmentSpread -> Lazy.Text
-fragmentSpread formatter (Full.FragmentSpread name ds)
-    = "..." <> Lazy.Text.fromStrict name <> optempty (directives formatter) ds
+fragmentSpread :: Formatter -> Full.Name -> [Full.Directive] -> Lazy.Text
+fragmentSpread formatter name directives'
+    = "..." <> Lazy.Text.fromStrict name
+    <> optempty (directives formatter) directives'
 
-inlineFragment :: Formatter -> Full.InlineFragment -> Lazy.Text
-inlineFragment formatter (Full.InlineFragment tc dirs sels)
-    = "... on "
+inlineFragment ::
+    Formatter ->
+    Maybe Full.TypeCondition ->
+    [Full.Directive] ->
+    Full.SelectionSet ->
+    Lazy.Text
+inlineFragment formatter tc dirs sels = "... on "
     <> Lazy.Text.fromStrict (fold tc)
     <> directives formatter dirs
     <> eitherFormat formatter " " mempty

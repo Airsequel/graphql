@@ -8,10 +8,8 @@ module Language.GraphQL.AST
     , Definition(..)
     , Directive(..)
     , Document
-    , Field(..)
+    , ExecutableDefinition(..)
     , FragmentDefinition(..)
-    , FragmentSpread(..)
-    , InlineFragment(..)
     , Name
     , NonNullType(..)
     , ObjectField(..)
@@ -35,6 +33,10 @@ import Data.Text (Text)
 -- | GraphQL document.
 type Document = NonEmpty Definition
 
+-- | All kinds of definitions that can occur in a GraphQL document.
+newtype Definition = ExecutableDefinition ExecutableDefinition
+    deriving (Eq, Show)
+
 -- | Name
 type Name = Text
 
@@ -44,7 +46,7 @@ data Directive = Directive Name [Argument] deriving (Eq, Show)
 -- * Operations
 
 -- | Top-level definition of a document, either an operation or a fragment.
-data Definition
+data ExecutableDefinition
     = DefinitionOperation OperationDefinition
     | DefinitionFragment FragmentDefinition
     deriving (Eq, Show)
@@ -72,13 +74,6 @@ type SelectionSet = NonEmpty Selection
 -- | Field selection.
 type SelectionSetOpt = [Selection]
 
--- | Single selection element.
-data Selection
-    = SelectionField Field
-    | SelectionFragmentSpread FragmentSpread
-    | SelectionInlineFragment InlineFragment
-    deriving (Eq, Show)
-
 -- * Field
 
 -- | Single GraphQL field.
@@ -102,8 +97,10 @@ data Selection
 -- * "zuck" is an alias for "user". "id" and "name" have no aliases.
 -- * "id: 4" is an argument for "user". "id" and "name" don't have any
 -- arguments.
-data Field
+data Selection
     = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt
+    | FragmentSpread Name [Directive]
+    | InlineFragment (Maybe TypeCondition) [Directive] SelectionSet
     deriving (Eq, Show)
 
 -- | Alternative field name.
@@ -132,15 +129,6 @@ type Alias = Name
 --
 --  Here "id" is an argument for the field "user" and its value is 4.
 data Argument = Argument Name Value deriving (Eq,Show)
-
--- * Fragments
-
--- | Fragment spread.
-data FragmentSpread = FragmentSpread Name [Directive] deriving (Eq, Show)
-
--- | Inline fragment.
-data InlineFragment = InlineFragment (Maybe TypeCondition) [Directive] SelectionSet
-                      deriving (Eq, Show)
 
 -- | Fragment definition.
 data FragmentDefinition
