@@ -5,10 +5,8 @@
 module Language.GraphQL.AST
     ( Alias
     , Argument(..)
-    , Definition(..)
-    , Directive(..)
-    , Document
     , ExecutableDefinition(..)
+    , Directive(..)
     , FragmentDefinition(..)
     , Name
     , NonNullType(..)
@@ -27,15 +25,6 @@ module Language.GraphQL.AST
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
-
--- * Document
-
--- | GraphQL document.
-type Document = NonEmpty Definition
-
--- | All kinds of definitions that can occur in a GraphQL document.
-newtype Definition = ExecutableDefinition ExecutableDefinition
-    deriving (Eq, Show)
 
 -- | Name
 type Name = Text
@@ -73,8 +62,6 @@ type SelectionSet = NonEmpty Selection
 
 -- | Field selection.
 type SelectionSetOpt = [Selection]
-
--- * Field
 
 -- | Single GraphQL field.
 --

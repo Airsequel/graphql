@@ -7,12 +7,13 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+### Added
+- AST for the GraphQL schema.
+
 ### Changed
 - Rename `AST.Definition` into `AST.ExecutableDefinition`.
-  TypeSystemDefinition and TypeSystemExtension can also be definitions.
-- Define `AST.Definition` as
-  `newtype Definition = ExecutableDefinition ExecutableDefinition` for now. It
-  should be soon extended to contain missing definition types.
+  `AST.TypeSystemDefinition` and `AST.TypeSystemExtension` can also be
+  definitions.
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.

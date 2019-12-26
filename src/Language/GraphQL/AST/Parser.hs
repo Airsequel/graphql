@@ -9,14 +9,15 @@ module Language.GraphQL.AST.Parser
 import Control.Applicative (Alternative(..), optional)
 import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST
+import qualified Language.GraphQL.AST.Document as Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec (lookAhead, option, try, (<?>))
 
 -- | Parser for the GraphQL documents.
-document :: Parser Document
+document :: Parser Document.Document
 document = unicodeBOM
     >> spaceConsumer
-    >> lexeme (manyNE $ ExecutableDefinition <$> definition)
+    >> lexeme (manyNE $ Document.ExecutableDefinition <$> definition)
 
 definition :: Parser ExecutableDefinition
 definition = DefinitionOperation <$> operationDefinition

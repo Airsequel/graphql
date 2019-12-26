@@ -19,6 +19,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
+import Language.GraphQL.AST.Document (Definition(..), Document)
 import qualified Language.GraphQL.Schema as Schema
 import qualified Language.GraphQL.Type.Directive as Directive
 
@@ -35,18 +36,19 @@ liftJust = lift . lift . Just
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
-document :: Schema.Subs -> Full.Document -> Maybe Core.Document
+document :: Schema.Subs -> Document -> Maybe Core.Document
 document subs document' =
     flip runReaderT subs
         $ evalStateT (collectFragments >> operations operationDefinitions)
         $ Replacement HashMap.empty fragmentTable
   where
     (fragmentTable, operationDefinitions) = foldr defragment mempty document'
-    defragment (Full.ExecutableDefinition (Full.DefinitionOperation definition)) acc =
+    defragment (ExecutableDefinition (Full.DefinitionOperation definition)) acc =
         (definition :) <$> acc
-    defragment (Full.ExecutableDefinition (Full.DefinitionFragment definition)) acc =
+    defragment (ExecutableDefinition (Full.DefinitionFragment definition)) acc =
         let (Full.FragmentDefinition name _ _ _) = definition
          in first (HashMap.insert name definition) acc
+    defragment _ acc = acc
 
 -- * Operation
 

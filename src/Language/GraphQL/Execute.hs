@@ -13,7 +13,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NE
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Language.GraphQL.AST as AST
+import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.AST.Core as AST.Core
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
@@ -27,7 +27,7 @@ import qualified Language.GraphQL.Schema as Schema
 execute :: MonadIO m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
     -> Schema.Subs -- ^ Variable substitution function.
-    -> AST.Document -- @GraphQL@ document.
+    -> Document -- @GraphQL@ document.
     -> m Aeson.Value
 execute schema subs doc =
     maybe transformError (document schema Nothing) $ Transform.document subs doc
@@ -44,7 +44,7 @@ executeWithName :: MonadIO m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers
     -> Text -- ^ Operation name.
     -> Schema.Subs -- ^ Variable substitution function.
-    -> AST.Document -- ^ @GraphQL@ Document.
+    -> Document -- ^ @GraphQL@ Document.
     -> m Aeson.Value
 executeWithName schema name subs doc =
     maybe transformError (document schema $ Just name) $ Transform.document subs doc

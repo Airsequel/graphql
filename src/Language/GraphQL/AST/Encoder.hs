@@ -26,6 +26,7 @@ import qualified Data.Text.Lazy.Builder as Builder
 import Data.Text.Lazy.Builder.Int (decimal, hexadecimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 import qualified Language.GraphQL.AST as Full
+import Language.GraphQL.AST.Document
 
 -- | Instructs the encoder whether the GraphQL document should be minified or
 --   pretty printed.
@@ -43,17 +44,18 @@ pretty = Pretty 0
 minified :: Formatter
 minified = Minified
 
--- | Converts a 'Full.Document' into a string.
-document :: Formatter -> Full.Document -> Lazy.Text
+-- | Converts a Document' into a string.
+document :: Formatter -> Document -> Lazy.Text
 document formatter defs
     | Pretty _ <- formatter = Lazy.Text.intercalate "\n" encodeDocument
     | Minified <-formatter = Lazy.Text.snoc (mconcat encodeDocument) '\n'
   where
     encodeDocument = foldr executableDefinition [] defs
-    executableDefinition (Full.ExecutableDefinition x) acc = definition formatter x : acc
+    executableDefinition (ExecutableDefinition x) acc = definition formatter x : acc
+    executableDefinition _ acc = acc
 
 -- | Converts a 'Full.Definition' into a string.
-definition :: Formatter -> Full.ExecutableDefinition -> Lazy.Text
+definition :: Formatter -> ExecutableDefinition -> Lazy.Text
 definition formatter x
     | Pretty _ <- formatter = Lazy.Text.snoc (encodeDefinition x) '\n'
     | Minified <- formatter = encodeDefinition x
