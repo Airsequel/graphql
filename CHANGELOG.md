@@ -1,14 +1,21 @@
-# Change Log
+# Changelog
 All notable changes to this project will be documented in this file.
+
+The format is based on
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to
+[Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
 ### Changed
-- Renamed `AST.Definition` into `AST.ExecutableDefinition`.
+- Rename `AST.Definition` into `AST.ExecutableDefinition`.
   TypeSystemDefinition and TypeSystemExtension can also be definitions.
-- Defined `AST.Definition` as
+- Define `AST.Definition` as
   `newtype Definition = ExecutableDefinition ExecutableDefinition` for now. It
   should be soon extended to contain missing definition types.
-- Removed types `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.
+
+### Removed
+- `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.
   These types are only used in `AST.Selection` and `AST.Selection` contains now
   3 corresponding data constructors, `Field`, `InlineFragment` and
   `FragmentSpread`, instead of separate types. It simplifies pattern matching
