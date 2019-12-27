@@ -1,7 +1,4 @@
--- | This module defines an abstract syntax tree for the @GraphQL@ language based on
---   <https://facebook.github.io/graphql/ Facebook's GraphQL Specification>.
---
--- Target AST for Parser.
+-- | Target AST for Parser.
 module Language.GraphQL.AST
     ( Alias
     , Argument(..)
