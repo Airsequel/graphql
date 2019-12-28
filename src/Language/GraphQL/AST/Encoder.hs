@@ -66,7 +66,7 @@ definition formatter x
         = fragmentDefinition formatter fragment
 
 operationDefinition :: Formatter -> Full.OperationDefinition -> Lazy.Text
-operationDefinition formatter (Full.OperationSelectionSet sels)
+operationDefinition formatter (Full.SelectionSet sels)
     = selectionSet formatter sels
 operationDefinition formatter (Full.OperationDefinition Full.Query name vars dirs sels)
     = "query " <> node formatter name vars dirs sels

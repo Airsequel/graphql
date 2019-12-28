@@ -58,13 +58,13 @@ operations operations' = do
     lift . lift $ NonEmpty.nonEmpty coreOperations
 
 operation :: Full.OperationDefinition -> TransformT Core.Operation
-operation (Full.OperationSelectionSet sels) =
-    operation $ Full.OperationDefinition Full.Query mempty mempty mempty sels
+operation (Full.SelectionSet sels)
+    = operation $ Full.OperationDefinition Full.Query mempty mempty mempty sels
 -- TODO: Validate Variable definitions with substituter
-operation (Full.OperationDefinition Full.Query name _vars _dirs sels) =
-    Core.Query name <$> appendSelection sels
-operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels) =
-    Core.Mutation name <$> appendSelection sels
+operation (Full.OperationDefinition Full.Query name _vars _dirs sels)
+    = Core.Query name <$> appendSelection sels
+operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels)
+    = Core.Mutation name <$> appendSelection sels
 
 -- * Selection
 

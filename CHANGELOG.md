@@ -11,9 +11,11 @@ and this project adheres to
 - AST for the GraphQL schema.
 
 ### Changed
-- Rename `AST.Definition` into `AST.ExecutableDefinition`.
-  `AST.TypeSystemDefinition` and `AST.TypeSystemExtension` can also be
-  definitions.
+- Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.
+  `AST.Document.TypeSystemDefinition` and `AST.Document.TypeSystemExtension`
+  can also be definitions.
+- Move all AST data to `AST.Document` and reexport them.
+- Rename `AST.OperationSelectionSet` to `AST.Document.SelectionSet`.
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.

@@ -25,13 +25,16 @@ definition = DefinitionOperation <$> operationDefinition
          <?> "definition error!"
 
 operationDefinition :: Parser OperationDefinition
-operationDefinition = OperationSelectionSet <$> selectionSet
-                  <|> OperationDefinition   <$> operationType
-                                            <*> optional name
-                                            <*> opt variableDefinitions
-                                            <*> opt directives
-                                            <*> selectionSet
-                  <?> "operationDefinition error"
+operationDefinition = SelectionSet <$> selectionSet
+    <|> operationDefinition'
+    <?> "operationDefinition error"
+  where
+    operationDefinition'
+        = OperationDefinition <$> operationType
+        <*> optional name
+        <*> opt variableDefinitions
+        <*> opt directives
+        <*> selectionSet
 
 operationType :: Parser OperationType
 operationType = Query <$ symbol "query"
