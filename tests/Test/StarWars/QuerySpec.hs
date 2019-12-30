@@ -5,20 +5,14 @@ module Test.StarWars.QuerySpec
     ) where
 
 import qualified Data.Aeson as Aeson
-import Data.Aeson ( object
-                  , (.=)
-                  )
+import Data.Aeson ((.=))
+import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
 import Language.GraphQL.Schema (Subs)
 import Text.RawString.QQ (r)
-import Test.Hspec.Expectations ( Expectation
-                               , shouldBe
-                               )
-import Test.Hspec ( Spec
-                  , describe
-                  , it
-                  )
+import Test.Hspec.Expectations (Expectation, shouldBe)
+import Test.Hspec (Spec, describe, it)
 import Test.StarWars.Schema
 
 -- * Test
@@ -34,7 +28,11 @@ spec = describe "Star Wars Query Tests" $ do
             }
             }
         |]
-        $ object [ "data" .= object ["hero" .= object ["id" .= ("2001" :: Text)]]]
+        $ Aeson.object
+            [ "data" .= Aeson.object
+                [ "hero" .= Aeson.object ["id" .= ("2001" :: Text)]
+                ]
+            ]
       it "R2-D2 ID and friends" $ testQuery
         [r| query HeroNameAndFriendsQuery {
             hero {
@@ -46,14 +44,14 @@ spec = describe "Star Wars Query Tests" $ do
             }
             }
         |]
-        $ object [ "data" .= object [
-            "hero" .= object
+        $ Aeson.object [ "data" .= Aeson.object [
+            "hero" .= Aeson.object
                 [ "id" .= ("2001" :: Text)
                 , r2d2Name
                 , "friends" .=
-                    [ object [lukeName]
-                    , object [hanName]
-                    , object [leiaName]
+                    [ Aeson.object [lukeName]
+                    , Aeson.object [hanName]
+                    , Aeson.object [leiaName]
                     ]
                 ]
         ]]
@@ -73,37 +71,37 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
         |]
-        $ object [ "data" .= object [
-          "hero" .= object [
+        $ Aeson.object [ "data" .= Aeson.object [
+          "hero" .= Aeson.object [
               "name" .= ("R2-D2" :: Text)
             , "friends" .= [
-                  object [
+                  Aeson.object [
                       "name" .= ("Luke Skywalker" :: Text)
                     , "appearsIn" .= ["NEWHOPE","EMPIRE","JEDI" :: Text]
                     , "friends" .= [
-                          object [hanName]
-                        , object [leiaName]
-                        , object [c3poName]
-                        , object [r2d2Name]
+                          Aeson.object [hanName]
+                        , Aeson.object [leiaName]
+                        , Aeson.object [c3poName]
+                        , Aeson.object [r2d2Name]
                         ]
                     ]
-                , object [
+                , Aeson.object [
                       hanName
                     , "appearsIn" .= [ "NEWHOPE","EMPIRE","JEDI" :: Text]
-                    , "friends" .= [
-                          object [lukeName]
-                        , object [leiaName]
-                        , object [r2d2Name]
+                    , "friends" .=
+                        [ Aeson.object [lukeName]
+                        , Aeson.object [leiaName]
+                        , Aeson.object [r2d2Name]
                         ]
                     ]
-                , object [
+                , Aeson.object [
                       leiaName
                     , "appearsIn" .= [ "NEWHOPE","EMPIRE","JEDI" :: Text]
-                    , "friends" .= [
-                          object [lukeName]
-                        , object [hanName]
-                        , object [c3poName]
-                        , object [r2d2Name]
+                    , "friends" .=
+                        [ Aeson.object [lukeName]
+                        , Aeson.object [hanName]
+                        , Aeson.object [c3poName]
+                        , Aeson.object [r2d2Name]
                         ]
                     ]
                 ]
@@ -116,40 +114,40 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
         |]
-        $ object [ "data" .= object [
-          "human" .= object [lukeName]
-        ]]
+        $ Aeson.object [ "data" .= Aeson.object
+            [ "human" .= Aeson.object [lukeName]
+            ]]
 
     it "Luke ID with variable" $ testQueryParams
-      (\v -> if v == "someId" then Just "1000" else Nothing)
+      (HashMap.singleton "someId" "1000")
       [r| query FetchSomeIDQuery($someId: String!) {
             human(id: $someId) {
               name
             }
           }
       |]
-      $ object [ "data" .= object [
-        "human" .= object [lukeName]
+      $ Aeson.object [ "data" .= Aeson.object [
+        "human" .= Aeson.object [lukeName]
       ]]
     it "Han ID with variable" $ testQueryParams
-      (\v -> if v == "someId" then Just "1002" else Nothing)
+      (HashMap.singleton "someId" "1002")
       [r| query FetchSomeIDQuery($someId: String!) {
             human(id: $someId) {
               name
             }
           }
       |]
-      $ object [ "data" .= object [
-        "human" .= object [hanName]
+      $ Aeson.object [ "data" .= Aeson.object [
+        "human" .= Aeson.object [hanName]
       ]]
     it "Invalid ID" $ testQueryParams
-      (\v -> if v == "id" then Just "Not a valid ID" else Nothing)
+      (HashMap.singleton "id" "Not a valid ID")
       [r| query humanQuery($id: String!) {
             human(id: $id) {
               name
             }
           }
-      |] $ object ["data" .= object ["human" .= Aeson.Null]]
+      |] $ Aeson.object ["data" .= Aeson.object ["human" .= Aeson.Null]]
     it "Luke aliased" $ testQuery
       [r| query FetchLukeAliased {
             luke: human(id: "1000") {
@@ -157,8 +155,8 @@ spec = describe "Star Wars Query Tests" $ do
             }
           }
       |]
-      $ object [ "data" .= object [
-       "luke" .= object [lukeName]
+      $ Aeson.object [ "data" .= Aeson.object [
+       "luke" .= Aeson.object [lukeName]
       ]]
     it "R2-D2 ID and friends aliased" $ testQuery
       [r| query HeroNameAndFriendsQuery {
@@ -171,14 +169,14 @@ spec = describe "Star Wars Query Tests" $ do
             }
           }
       |]
-      $ object [ "data" .= object [
-        "hero" .= object [
+      $ Aeson.object [ "data" .= Aeson.object [
+        "hero" .= Aeson.object [
             "id" .= ("2001" :: Text)
           , r2d2Name
-          , "friends" .= [
-                object ["friendName" .= ("Luke Skywalker" :: Text)]
-              , object ["friendName" .= ("Han Solo" :: Text)]
-              , object ["friendName" .= ("Leia Organa" :: Text)]
+          , "friends" .=
+              [ Aeson.object ["friendName" .= ("Luke Skywalker" :: Text)]
+              , Aeson.object ["friendName" .= ("Han Solo" :: Text)]
+              , Aeson.object ["friendName" .= ("Leia Organa" :: Text)]
               ]
           ]
       ]]
@@ -192,9 +190,9 @@ spec = describe "Star Wars Query Tests" $ do
             }
           }
       |]
-      $ object [ "data" .= object [
-        "luke" .= object [lukeName]
-      , "leia" .= object [leiaName]
+      $ Aeson.object [ "data" .= Aeson.object
+        [ "luke" .= Aeson.object [lukeName]
+        , "leia" .= Aeson.object [leiaName]
       ]]
 
     describe "Fragments for complex queries" $ do
@@ -210,9 +208,9 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
         |]
-        $ object [ "data" .= object [
-          "luke" .= object [lukeName, tatooine]
-        , "leia" .= object [leiaName, alderaan]
+        $ Aeson.object [ "data" .= Aeson.object [
+          "luke" .= Aeson.object [lukeName, tatooine]
+        , "leia" .= Aeson.object [leiaName, alderaan]
         ]]
       it "Fragment for duplicate content" $ testQuery
         [r|  query UseFragment {
@@ -228,9 +226,9 @@ spec = describe "Star Wars Query Tests" $ do
               homePlanet
             }
         |]
-        $ object [ "data" .= object [
-          "luke" .= object [lukeName, tatooine]
-        , "leia" .= object [leiaName, alderaan]
+        $ Aeson.object [ "data" .= Aeson.object [
+          "luke" .= Aeson.object [lukeName, tatooine]
+        , "leia" .= Aeson.object [leiaName, alderaan]
         ]]
 
     describe "__typename" $ do
@@ -242,8 +240,11 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
           |]
-        $ object ["data" .= object [
-            "hero" .= object ["__typename" .= ("Droid" :: Text), r2d2Name]
+        $ Aeson.object ["data" .= Aeson.object [
+            "hero" .= Aeson.object
+                [ "__typename" .= ("Droid" :: Text)
+                , r2d2Name
+                ]
         ]]
       it "Luke is a human" $ testQuery
         [r| query CheckTypeOfLuke {
@@ -253,8 +254,11 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
           |]
-        $ object ["data" .= object [
-            "hero" .= object ["__typename" .= ("Human" :: Text), lukeName]
+        $ Aeson.object ["data" .= Aeson.object [
+            "hero" .= Aeson.object
+                [ "__typename" .= ("Human" :: Text)
+                , lukeName
+                ]
         ]]
 
     describe "Errors in resolvers" $ do
@@ -267,15 +271,15 @@ spec = describe "Star Wars Query Tests" $ do
               }
             }
           |]
-          $ object
-              [ "data" .= object
-                  [ "hero" .= object
+          $ Aeson.object
+              [ "data" .= Aeson.object
+                  [ "hero" .= Aeson.object
                       [ "name" .= ("R2-D2" :: Text)
                       , "secretBackstory" .= Aeson.Null
                       ]
                   ]
               , "errors" .=
-                  [ object
+                  [ Aeson.object
                       ["message" .= ("secretBackstory is secret." :: Text)]
                   ]
               ]
@@ -290,19 +294,19 @@ spec = describe "Star Wars Query Tests" $ do
                 }
               }
             |]
-          $ object ["data" .= object
-            [ "hero" .= object
+          $ Aeson.object ["data" .= Aeson.object
+            [ "hero" .= Aeson.object
                 [ "name" .= ("R2-D2" :: Text)
                 , "friends" .=
-                    [ object
+                    [ Aeson.object
                         [ "name" .= ("Luke Skywalker" :: Text)
                         , "secretBackstory" .= Aeson.Null
                         ]
-                    , object
+                    , Aeson.object
                         [ "name" .= ("Han Solo" :: Text)
                         , "secretBackstory" .= Aeson.Null
                         ]
-                    , object
+                    , Aeson.object
                         [ "name" .= ("Leia Organa" :: Text)
                         , "secretBackstory" .= Aeson.Null
                         ]
@@ -310,9 +314,15 @@ spec = describe "Star Wars Query Tests" $ do
                 ]
             ]
             , "errors" .=
-                [ object ["message" .= ("secretBackstory is secret." :: Text)]
-                , object ["message" .= ("secretBackstory is secret." :: Text)]
-                , object ["message" .= ("secretBackstory is secret." :: Text)]
+                [ Aeson.object
+                    [ "message" .= ("secretBackstory is secret." :: Text)
+                    ]
+                , Aeson.object
+                    [ "message" .= ("secretBackstory is secret." :: Text)
+                    ]
+                , Aeson.object
+                    [ "message" .= ("secretBackstory is secret." :: Text)
+                    ]
                 ]
             ]
         it "error on secretBackstory with alias" $ testQuery
@@ -323,15 +333,17 @@ spec = describe "Star Wars Query Tests" $ do
                 }
               }
             |]
-          $ object
-              [ "data" .= object
-                  [ "mainHero" .= object
+          $ Aeson.object
+              [ "data" .= Aeson.object
+                  [ "mainHero" .= Aeson.object
                       [ "name" .= ("R2-D2" :: Text)
                       , "story" .= Aeson.Null
                       ]
                   ]
               , "errors" .=
-                  [ object ["message" .= ("secretBackstory is secret." :: Text)]
+                  [ Aeson.object
+                    [ "message" .= ("secretBackstory is secret." :: Text)
+                    ]
                   ]
               ]
 

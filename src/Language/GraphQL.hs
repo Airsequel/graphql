@@ -20,7 +20,7 @@ graphql :: MonadIO m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
     -> T.Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
-graphql = flip graphqlSubs $ const Nothing
+graphql = flip graphqlSubs mempty
 
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
 -- applied to the query and the query is then executed using to the given

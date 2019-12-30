@@ -11,7 +11,7 @@ module Language.GraphQL.Execute.Transform
 import Control.Arrow (first)
 import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Reader (ReaderT, ask, runReaderT)
+import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -155,9 +155,7 @@ argument :: Full.Argument -> TransformT Core.Argument
 argument (Full.Argument n v) = Core.Argument n <$> value v
 
 value :: Full.Value -> TransformT Core.Value
-value (Full.Variable n) = do
-    substitute' <- lift ask
-    lift . lift $ substitute' n
+value (Full.Variable name) = lift (asks $ HashMap.lookup name) >>= lift . lift
 value (Full.Int i) = pure $ Core.Int i
 value (Full.Float f) = pure $ Core.Float f
 value (Full.String x) = pure $ Core.String x

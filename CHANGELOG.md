@@ -16,6 +16,8 @@ and this project adheres to
   can also be definitions.
 - Move all AST data to `AST.Document` and reexport them.
 - Rename `AST.OperationSelectionSet` to `AST.Document.SelectionSet`.
+- Make `Schema.Subs` a `Data.HashMap.Strict` (was a function
+  `key -> Maybe value` before).
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.

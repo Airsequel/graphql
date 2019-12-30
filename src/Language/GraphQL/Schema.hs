@@ -44,8 +44,9 @@ data Resolver m = Resolver
     Text -- ^ Name
     (Field -> CollectErrsT m Aeson.Object) -- ^ Resolver
 
--- | Variable substitution function.
-type Subs = Name -> Maybe Value
+-- | Contains variables for the query. The key of the map is a variable name,
+--   and the value is the variable value.
+type Subs = HashMap Name Value
 
 -- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
 object :: MonadIO m => Name -> ActionT m [Resolver m] -> Resolver m
