@@ -16,7 +16,6 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > module Main where
 >
 > import Control.Monad.IO.Class (liftIO)
-> import Control.Monad.Trans.Except (throwE)
 > import Data.Aeson (encode)
 > import Data.ByteString.Lazy.Char8 (putStrLn)
 > import Data.List.NonEmpty (NonEmpty(..))
@@ -25,7 +24,6 @@ Since this file is a literate haskell file, we start by importing some dependenc
 >
 > import Language.GraphQL
 > import qualified Language.GraphQL.Schema as Schema
-> import Language.GraphQL.Trans (ActionT(..))
 >
 > import Prelude hiding (putStrLn)
 
@@ -70,10 +68,9 @@ For this example, we're going to be using time.
 > schema2 = time :| []
 >
 > time :: Schema.Resolver IO
-> time = Schema.scalarA "time" $ \case
->   [] -> do t <- liftIO getCurrentTime
->            return $ show t
->   _ -> ActionT $ throwE "Invalid arguments."
+> time = Schema.scalar "time" $ do
+>   t <- liftIO getCurrentTime
+>   return $ show t
 
 This defines a simple schema with one type and one field,
 which resolves to the current time.

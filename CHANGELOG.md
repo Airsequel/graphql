@@ -9,6 +9,7 @@ and this project adheres to
 ## [Unreleased]
 ### Added
 - AST for the GraphQL schema.
+- `Trans.argument`.
 
 ### Changed
 - Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.
@@ -25,6 +26,10 @@ and this project adheres to
   3 corresponding data constructors, `Field`, `InlineFragment` and
   `FragmentSpread`, instead of separate types. It simplifies pattern matching
   and doesn't make the code less typesafe.
+- `Schema.scalarA`.
+- `Schema.wrappedScalarA`.
+- `Schema.wrappedObjectA`.
+- `Schema.objectA`.
 
 ## [0.6.1.0] - 2019-12-23
 ### Fixed

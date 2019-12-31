@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Test.StarWars.Schema
     ( character
@@ -8,9 +7,9 @@ module Test.StarWars.Schema
     , schema
     ) where
 
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.IO.Class (MonadIO(..))
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (catMaybes)
 import qualified Language.GraphQL.Schema as Schema
@@ -24,26 +23,31 @@ schema :: MonadIO m => NonEmpty (Schema.Resolver m)
 schema = hero :| [human, droid]
 
 hero :: MonadIO m => Schema.Resolver m
-hero = Schema.objectA "hero" $ \case
-  [] -> character artoo
-  [Schema.Argument "episode" (Schema.Enum "NEWHOPE")] -> character $ getHero 4
-  [Schema.Argument "episode" (Schema.Enum "EMPIRE" )] -> character $ getHero 5
-  [Schema.Argument "episode" (Schema.Enum "JEDI"   )] -> character $ getHero 6
-  _ -> ActionT $ throwE "Invalid arguments."
+hero = Schema.object "hero" $ do
+  episode <- argument "episode"
+  character $ case episode of
+      Schema.Enum "NEWHOPE" -> getHero 4
+      Schema.Enum "EMPIRE" -> getHero 5
+      Schema.Enum "JEDI" -> getHero 6
+      _ -> artoo
 
 human :: MonadIO m => Schema.Resolver m
-human = Schema.wrappedObjectA "human" $ \case
-  [Schema.Argument "id" (Schema.String i)] -> do
-      humanCharacter <- lift $ return $ getHuman i >>= Just
-      case humanCharacter of
-        Nothing -> return Type.Null
-        Just e -> Type.Named <$> character e
-  _ -> ActionT $ throwE "Invalid arguments."
+human = Schema.wrappedObject "human" $ do
+    id' <- argument "id"
+    case id' of
+        Schema.String i -> do
+            humanCharacter <- lift $ return $ getHuman i >>= Just
+            case humanCharacter of
+                Nothing -> return Type.Null
+                Just e -> Type.Named <$> character e
+        _ -> ActionT $ throwE "Invalid arguments."
 
 droid :: MonadIO m => Schema.Resolver m
-droid = Schema.objectA "droid" $ \case
-   [Schema.Argument "id" (Schema.String i)] -> character =<< liftIO (getDroid i)
-   _ -> ActionT $ throwE "Invalid arguments."
+droid = Schema.object "droid" $ do
+    id' <- argument "id"
+    case id' of
+        Schema.String i -> character =<< liftIO (getDroid i)
+        _ -> ActionT $ throwE "Invalid arguments."
 
 character :: MonadIO m => Character -> ActionT m [Schema.Resolver m]
 character char = return

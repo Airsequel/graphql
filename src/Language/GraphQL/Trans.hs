@@ -2,6 +2,7 @@
 module Language.GraphQL.Trans
     ( ActionT(..)
     , Context(Context)
+    , argument
     ) where
 
 import Control.Applicative (Alternative(..))
@@ -9,10 +10,13 @@ import Control.Monad (MonadPlus(..))
 import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Except (ExceptT)
-import Control.Monad.Trans.Reader (ReaderT)
+import Control.Monad.Trans.Reader (ReaderT, asks)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
-import Language.GraphQL.AST.Core (Name, Value)
+import Language.GraphQL.AST.Core
+import Prelude hiding (lookup)
 
 -- | Resolution context holds resolver arguments.
 newtype Context = Context (HashMap Name Value)
@@ -47,3 +51,13 @@ instance Monad m => Alternative (ActionT m) where
 instance Monad m => MonadPlus (ActionT m) where
     mzero = empty
     mplus = (<|>)
+
+-- | Retrieves an argument by its name. If the argument with this name couldn't
+--   be found, returns 'Value.Null' (i.e. the argument is assumed to
+--   be optional then).
+argument :: MonadIO m => Name -> ActionT m Value
+argument argumentName = do
+    argumentValue <- ActionT $ lift $ asks lookup
+    pure $ fromMaybe Null argumentValue
+  where
+    lookup (Context argumentMap) = HashMap.lookup argumentName argumentMap

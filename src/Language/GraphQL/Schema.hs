@@ -6,14 +6,10 @@ module Language.GraphQL.Schema
     ( Resolver
     , Subs
     , object
-    , objectA
     , scalar
-    , scalarA
     , resolve
     , wrappedObject
-    , wrappedObjectA
     , wrappedScalar
-    , wrappedScalarA
     -- * AST Reexports
     , Field
     , Argument(..)
@@ -50,64 +46,55 @@ type Subs = HashMap Name Value
 
 -- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
 object :: MonadIO m => Name -> ActionT m [Resolver m] -> Resolver m
-object name = objectA name . const
-
--- | Like 'object' but also taking 'Argument's.
-objectA :: MonadIO m
-    => Name -> ([Argument] -> ActionT m [Resolver m]) -> Resolver m
-objectA name f = Resolver name $ resolveFieldValue f resolveRight
+object name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
 
--- | Like 'object' but also taking 'Argument's and can be null or a list of objects.
-wrappedObjectA :: MonadIO m
-    => Name -> ([Argument] -> ActionT m (Type.Wrapping [Resolver m])) -> Resolver m
-wrappedObjectA name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'object' but can be null or a list of objects.
+wrappedObject ::
+    MonadIO m =>
+    Name ->
+    ActionT m (Type.Wrapping [Resolver m]) ->
+    Resolver m
+wrappedObject name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ sels) resolver
         = withField (traverse (`resolve` sels) resolver) fld
 
--- | Like 'object' but can be null or a list of objects.
-wrappedObject :: MonadIO m
-    => Name -> ActionT m (Type.Wrapping [Resolver m]) -> Resolver m
-wrappedObject name = wrappedObjectA name . const
-
 -- | A scalar represents a primitive value, like a string or an integer.
 scalar :: (MonadIO m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
-scalar name = scalarA name . const
-
--- | Like 'scalar' but also taking 'Argument's.
-scalarA :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> ([Argument] -> ActionT m a) -> Resolver m
-scalarA name f = Resolver name $ resolveFieldValue f resolveRight
+scalar name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld result = withField (return result) fld
 
--- | Like 'scalar' but also taking 'Argument's and can be null or a list of scalars.
-wrappedScalarA :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> ([Argument] -> ActionT m (Type.Wrapping a)) -> Resolver m
-wrappedScalarA name f = Resolver name $ resolveFieldValue f resolveRight
+-- | Like 'scalar' but can be null or a list of scalars.
+wrappedScalar ::
+    (MonadIO m, Aeson.ToJSON a) =>
+    Name ->
+    ActionT m (Type.Wrapping a) ->
+    Resolver m
+wrappedScalar name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld (Type.Named result) = withField (return result) fld
     resolveRight fld Type.Null
         = return $ HashMap.singleton (aliasOrName fld) Aeson.Null
     resolveRight fld (Type.List result) = withField (return result) fld
 
--- | Like 'scalar' but can be null or a list of scalars.
-wrappedScalar :: (MonadIO m, Aeson.ToJSON a)
-    => Name -> ActionT m (Type.Wrapping a) -> Resolver m
-wrappedScalar name = wrappedScalarA name . const
-
-resolveFieldValue :: MonadIO m
-    => ([Argument] -> ActionT m a)
-    -> (Field -> a -> CollectErrsT m (HashMap Text Aeson.Value))
-    -> Field
-    -> CollectErrsT m (HashMap Text Aeson.Value)
+resolveFieldValue ::
+    MonadIO m =>
+    ActionT m a ->
+    (Field -> a -> CollectErrsT m (HashMap Text Aeson.Value)) ->
+    Field ->
+    CollectErrsT m (HashMap Text Aeson.Value)
 resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
-    result <- lift $ reader . runExceptT . runActionT $ f args
+    result <- lift $ reader . runExceptT . runActionT $ f
     either resolveLeft (resolveRight fld) result
       where
-        reader = flip runReaderT $ Context mempty
+        reader = flip runReaderT
+            $ Context
+            $ HashMap.fromList
+            $ argumentToTuple <$> args
+        argumentToTuple (Argument name value) = (name, value)
         resolveLeft err = do
             _ <- addErrMsg err
             return $ HashMap.singleton (aliasOrName fld) Aeson.Null
