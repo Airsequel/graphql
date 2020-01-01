@@ -1,7 +1,6 @@
 -- | This is the AST meant to be executed.
 module Language.GraphQL.AST.Core
     ( Alias
-    , Argument(..)
     , Arguments(..)
     , Directive(..)
     , Document
@@ -35,15 +34,18 @@ data Operation
 
 -- | Single GraphQL field.
 data Field
-    = Field (Maybe Alias) Name [Argument] (Seq Selection)
+    = Field (Maybe Alias) Name Arguments (Seq Selection)
     deriving (Eq, Show)
-
--- | Single argument.
-data Argument = Argument Name Value deriving (Eq, Show)
 
 -- | Argument list.
 newtype Arguments = Arguments (HashMap Name Value)
     deriving (Eq, Show)
+
+instance Semigroup Arguments where
+    (Arguments x) <> (Arguments y) = Arguments $ x <> y
+
+instance Monoid Arguments where
+    mempty = Arguments mempty
 
 -- | Directive.
 data Directive = Directive Name Arguments

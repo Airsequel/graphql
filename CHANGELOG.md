@@ -30,6 +30,8 @@ and this project adheres to
 - `Schema.wrappedScalarA`.
 - `Schema.wrappedObjectA`.
 - `Schema.objectA`.
+- `AST.Argument`. Replaced with `AST.Arguments` which holds all arguments as a
+  key/value map.
 
 ## [0.6.1.0] - 2019-12-23
 ### Fixed

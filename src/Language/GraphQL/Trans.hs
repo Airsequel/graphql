@@ -1,7 +1,7 @@
 -- | Monad transformer stack used by the @GraphQL@ resolvers.
 module Language.GraphQL.Trans
     ( ActionT(..)
-    , Context(Context)
+    , Context(..)
     , argument
     ) where
 
@@ -11,7 +11,6 @@ import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Reader (ReaderT, asks)
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
@@ -19,7 +18,9 @@ import Language.GraphQL.AST.Core
 import Prelude hiding (lookup)
 
 -- | Resolution context holds resolver arguments.
-newtype Context = Context (HashMap Name Value)
+newtype Context = Context
+    { arguments :: Arguments
+    }
 
 -- | Monad transformer stack used by the resolvers to provide error handling
 --   and resolution context (resolver arguments).
@@ -57,7 +58,7 @@ instance Monad m => MonadPlus (ActionT m) where
 --   be optional then).
 argument :: MonadIO m => Name -> ActionT m Value
 argument argumentName = do
-    argumentValue <- ActionT $ lift $ asks lookup
+    argumentValue <- ActionT $ lift $ asks $ lookup . arguments
     pure $ fromMaybe Null argumentValue
   where
-    lookup (Context argumentMap) = HashMap.lookup argumentName argumentMap
+    lookup (Arguments argumentMap) = HashMap.lookup argumentName argumentMap

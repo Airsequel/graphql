@@ -60,7 +60,6 @@ operations operations' = do
 operation :: Full.OperationDefinition -> TransformT Core.Operation
 operation (Full.SelectionSet sels)
     = operation $ Full.OperationDefinition Full.Query mempty mempty mempty sels
--- TODO: Validate Variable definitions with substituter
 operation (Full.OperationDefinition Full.Query name _vars _dirs sels)
     = Core.Query name <$> appendSelection sels
 operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels)
@@ -73,7 +72,7 @@ selection ::
     TransformT (Either (Seq Core.Selection) Core.Selection)
 selection (Full.Field alias name arguments' directives' selections) =
     maybe (Left mempty) (Right . Core.SelectionField) <$> do
-        fieldArguments <- traverse argument arguments'
+        fieldArguments <- arguments arguments'
         fieldSelections <- appendSelection selections
         fieldDirectives <- Directive.selection <$> directives directives'
         let field' = Core.Field alias name fieldArguments fieldSelections
@@ -147,12 +146,9 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
 arguments :: [Full.Argument] -> TransformT Core.Arguments
 arguments = fmap Core.Arguments . foldM go HashMap.empty
   where
-    go arguments' argument' = do
-        (Core.Argument name value') <- argument argument'
-        return $ HashMap.insert name value' arguments'
-
-argument :: Full.Argument -> TransformT Core.Argument
-argument (Full.Argument n v) = Core.Argument n <$> value v
+    go arguments' (Full.Argument name value') = do
+        substitutedValue <- value value'
+        return $ HashMap.insert name substitutedValue arguments'
 
 value :: Full.Value -> TransformT Core.Value
 value (Full.Variable name) = lift (asks $ HashMap.lookup name) >>= lift . lift

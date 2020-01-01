@@ -12,7 +12,6 @@ module Language.GraphQL.Schema
     , wrappedScalar
     -- * AST Reexports
     , Field
-    , Argument(..)
     , Value(..)
     ) where
 
@@ -90,11 +89,7 @@ resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
     result <- lift $ reader . runExceptT . runActionT $ f
     either resolveLeft (resolveRight fld) result
       where
-        reader = flip runReaderT
-            $ Context
-            $ HashMap.fromList
-            $ argumentToTuple <$> args
-        argumentToTuple (Argument name value) = (name, value)
+        reader = flip runReaderT $ Context {arguments=args}
         resolveLeft err = do
             _ <- addErrMsg err
             return $ HashMap.singleton (aliasOrName fld) Aeson.Null
