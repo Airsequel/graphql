@@ -8,21 +8,44 @@ module Language.GraphQL.AST.Parser
 
 import Control.Applicative (Alternative(..), optional)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
-import Language.GraphQL.AST
-import qualified Language.GraphQL.AST.Document as Document
+import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec (lookAhead, option, try, (<?>))
 
 -- | Parser for the GraphQL documents.
-document :: Parser Document.Document
+document :: Parser Document
 document = unicodeBOM
     >> spaceConsumer
-    >> lexeme (NonEmpty.some $ Document.ExecutableDefinition <$> definition)
+    >> lexeme (NonEmpty.some definition)
 
-definition :: Parser ExecutableDefinition
-definition = DefinitionOperation <$> operationDefinition
-         <|> DefinitionFragment  <$> fragmentDefinition
-         <?> "definition error!"
+definition :: Parser Definition
+definition = ExecutableDefinition <$> executableDefinition
+    <|> TypeSystemDefinition <$> typeSystemDefinition
+    <?> "Definition"
+
+executableDefinition :: Parser ExecutableDefinition
+executableDefinition = DefinitionOperation <$> operationDefinition
+    <|> DefinitionFragment  <$> fragmentDefinition
+    <?> "ExecutableDefinition"
+
+typeSystemDefinition :: Parser TypeSystemDefinition
+typeSystemDefinition = schemaDefinition
+
+schemaDefinition :: Parser TypeSystemDefinition
+schemaDefinition = SchemaDefinition
+    <$ symbol "schema"
+    <*> opt directives
+    <*> operationTypeDefinitions
+    <?> "SchemaDefinition"
+
+operationTypeDefinitions :: Parser OperationTypeDefinitions
+operationTypeDefinitions  = braces $ manyNE operationTypeDefinition
+
+operationTypeDefinition :: Parser OperationTypeDefinition
+operationTypeDefinition = OperationTypeDefinition
+    <$> operationType <* colon
+    <*> name
+    <?> "OperationTypeDefinition"
 
 operationDefinition :: Parser OperationDefinition
 operationDefinition = SelectionSet <$> selectionSet
@@ -39,7 +62,7 @@ operationDefinition = SelectionSet <$> selectionSet
 operationType :: Parser OperationType
 operationType = Query <$ symbol "query"
     <|> Mutation <$ symbol "mutation"
-    <?> "operationType error"
+    -- <?> Keep default error message
 
 -- * SelectionSet
 

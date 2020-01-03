@@ -5,7 +5,7 @@
 module Language.GraphQL.AST.Document
     ( Alias
     , Argument(..)
-    , Definition(ExecutableDefinition)
+    , Definition(ExecutableDefinition, TypeSystemDefinition)
     , Directive(..)
     , Document
     , ExecutableDefinition(..)
@@ -15,11 +15,14 @@ module Language.GraphQL.AST.Document
     , ObjectField(..)
     , OperationDefinition(..)
     , OperationType(..)
+    , OperationTypeDefinition(..)
+    , OperationTypeDefinitions
     , Selection(..)
     , SelectionSet
     , SelectionSetOpt
     , Type(..)
     , TypeCondition
+    , TypeSystemDefinition(..)
     , Value(..)
     , VariableDefinition(..)
     ) where
@@ -228,7 +231,7 @@ data Directive = Directive Name [Argument] deriving (Eq, Show)
 -- * Type System
 
 data TypeSystemDefinition
-    = SchemaDefinition [Directive] RootOperationTypeDefinitions
+    = SchemaDefinition [Directive] OperationTypeDefinitions
     | TypeDefinition TypeDefinition
     | DirectiveDefinition
         Description Name ArgumentsDefinition DirectiveLocation
@@ -243,14 +246,14 @@ data TypeSystemExtension
 
 -- ** Schema
 
-type RootOperationTypeDefinitions = NonEmpty RootOperationTypeDefinition
+type OperationTypeDefinitions = NonEmpty OperationTypeDefinition
 
-data RootOperationTypeDefinition
-    = RootOperationTypeDefinition OperationType NamedType
+data OperationTypeDefinition
+    = OperationTypeDefinition OperationType NamedType
     deriving (Eq, Show)
 
 data SchemaExtension
-    = SchemaOperationExtension [Directive] RootOperationTypeDefinitions
+    = SchemaOperationExtension [Directive] OperationTypeDefinitions
     | SchemaDirectiveExtension (NonEmpty Directive)
     deriving (Eq, Show)
 

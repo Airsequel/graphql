@@ -42,3 +42,6 @@ spec = describe "Parser" $ do
             mutation auth{
                 test(username: """username""", password: """password""")
             }|]
+
+    it "parses minimal schema definition" $
+        parse document "" `shouldSucceedOn` [r|schema { query: Query }|]
