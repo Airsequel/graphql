@@ -9,6 +9,7 @@ and this project adheres to
 ## [Unreleased]
 ### Added
 - AST for the GraphQL schema.
+- Parser for the SchemaDefinition
 - `Trans.argument`.
 
 ### Changed

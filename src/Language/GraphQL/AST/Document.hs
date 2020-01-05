@@ -5,11 +5,17 @@
 module Language.GraphQL.AST.Document
     ( Alias
     , Argument(..)
+    , ArgumentsDefinition(..)
     , Definition(ExecutableDefinition, TypeSystemDefinition)
+    , Description(..)
     , Directive(..)
     , Document
     , ExecutableDefinition(..)
+    , FieldDefinition(..)
     , FragmentDefinition(..)
+    , ImplementsInterfaces(..)
+    , ImplementsInterfacesOpt(..)
+    , InputValueDefinition(..)
     , Name
     , NonNullType(..)
     , ObjectField(..)
@@ -22,6 +28,7 @@ module Language.GraphQL.AST.Document
     , SelectionSetOpt
     , Type(..)
     , TypeCondition
+    , TypeDefinition(..)
     , TypeSystemDefinition(..)
     , Value(..)
     , VariableDefinition(..)
@@ -302,12 +309,26 @@ newtype ImplementsInterfaces = ImplementsInterfaces (NonEmpty NamedType)
 newtype ImplementsInterfacesOpt = ImplementsInterfacesOpt [NamedType]
     deriving (Eq, Show)
 
+instance Semigroup ImplementsInterfacesOpt where
+    (ImplementsInterfacesOpt xs) <> (ImplementsInterfacesOpt ys) =
+        ImplementsInterfacesOpt $ xs <> ys
+
+instance Monoid ImplementsInterfacesOpt where
+    mempty = ImplementsInterfacesOpt []
+
 data FieldDefinition
-    = FieldDefinition Description Name ArgumentsDefinition Type
+    = FieldDefinition Description Name ArgumentsDefinition Type [Directive]
     deriving (Eq, Show)
 
 newtype ArgumentsDefinition = ArgumentsDefinition [InputValueDefinition]
     deriving (Eq, Show)
+
+instance Semigroup ArgumentsDefinition where
+    (ArgumentsDefinition xs) <> (ArgumentsDefinition ys) =
+        ArgumentsDefinition $ xs <> ys
+
+instance Monoid ArgumentsDefinition where
+    mempty = ArgumentsDefinition []
 
 data InputValueDefinition
     = InputValueDefinition Description Name Type (Maybe Value) [Directive]

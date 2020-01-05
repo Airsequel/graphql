@@ -28,15 +28,8 @@ module Language.GraphQL.AST.Lexer
     , unicodeBOM
     ) where
 
-import Control.Applicative ( Alternative(..)
-                           , liftA2
-                           )
-import Data.Char ( chr
-                 , digitToInt
-                 , isAsciiLower
-                 , isAsciiUpper
-                 , ord
-                 )
+import Control.Applicative (Alternative(..), liftA2)
+import Data.Char (chr, digitToInt, isAsciiLower, isAsciiUpper, ord)
 import Data.Foldable (foldl')
 import Data.List (dropWhileEnd)
 import Data.Proxy (Proxy(..))
@@ -56,10 +49,7 @@ import Text.Megaparsec ( Parsec
                        , takeWhile1P
                        , try
                        )
-import Text.Megaparsec.Char ( char
-                            , digitChar
-                            , space1
-                            )
+import Text.Megaparsec.Char (char, digitChar, space1)
 import qualified Text.Megaparsec.Char.Lexer as Lexer
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL

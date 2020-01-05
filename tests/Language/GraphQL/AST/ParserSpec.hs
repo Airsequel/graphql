@@ -28,20 +28,44 @@ spec = describe "Parser" $ do
     it "accepts two required arguments" $
         parse document "" `shouldSucceedOn` [r|
             mutation auth($username: String!, $password: String!){
-                test
+              test
             }|]
 
     it "accepts two string arguments" $
         parse document "" `shouldSucceedOn` [r|
             mutation auth{
-                test(username: "username", password: "password")
+              test(username: "username", password: "password")
             }|]
 
     it "accepts two block string arguments" $
         parse document "" `shouldSucceedOn` [r|
             mutation auth{
-                test(username: """username""", password: """password""")
+              test(username: """username""", password: """password""")
             }|]
 
     it "parses minimal schema definition" $
         parse document "" `shouldSucceedOn` [r|schema { query: Query }|]
+
+    it "parses minimal scalar definition" $
+        parse document "" `shouldSucceedOn` [r|scalar Time|]
+
+    it "parses ImplementsInterfaces" $
+        parse document "" `shouldSucceedOn` [r|
+            type Person implements NamedEntity & ValuedEntity {
+              name: String
+            }
+        |]
+
+    it "parses a  type without ImplementsInterfaces" $
+        parse document "" `shouldSucceedOn` [r|
+            type Person {
+              name: String
+            }
+        |]
+
+    it "parses ArgumentsDefinition in an ObjectDefinition" $
+        parse document "" `shouldSucceedOn` [r|
+            type Person {
+              name(first: String, last: String): String
+            }
+        |]

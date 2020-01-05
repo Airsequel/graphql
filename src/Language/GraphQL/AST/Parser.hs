@@ -8,6 +8,7 @@ module Language.GraphQL.AST.Parser
 
 import Control.Applicative (Alternative(..), optional)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
+import Control.Applicative.Combinators (sepBy)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec (lookAhead, option, try, (<?>))
@@ -30,6 +31,76 @@ executableDefinition = DefinitionOperation <$> operationDefinition
 
 typeSystemDefinition :: Parser TypeSystemDefinition
 typeSystemDefinition = schemaDefinition
+    <|> TypeDefinition <$> typeDefinition
+    <?> "TypeSystemDefinition"
+
+typeDefinition :: Parser TypeDefinition
+typeDefinition = scalarTypeDefinition
+    <|> objectTypeDefinition
+    <?> "TypeDefinition"
+
+scalarTypeDefinition :: Parser TypeDefinition
+scalarTypeDefinition = ScalarTypeDefinition
+    <$> description
+    <* symbol "scalar"
+    <*> name
+    <*> opt directives
+    <?> "ScalarTypeDefinition"
+
+objectTypeDefinition :: Parser TypeDefinition
+objectTypeDefinition = ObjectTypeDefinition
+    <$> description
+    <* symbol "type"
+    <*> name
+    <*> opt implementsInterfacesOpt
+    <*> opt directives
+    <*> braces (many fieldDefinition)
+    <?> "ObjectTypeDefinition"
+
+description :: Parser Description
+description = Description
+    <$> optional (string <|> blockString)
+    <?> "Description"
+
+{- TODO:
+    implementsInterfaces :: Parser ImplementsInterfaces
+implementsInterfaces = ImplementsInterfaces
+    <$ symbol "implements"
+    <* optional amp
+    <*> name `sepBy1` amp
+    <?> "ImplementsInterfaces" -}
+
+implementsInterfacesOpt :: Parser ImplementsInterfacesOpt
+implementsInterfacesOpt = ImplementsInterfacesOpt
+    <$ symbol "implements"
+    <* optional amp
+    <*> name `sepBy` amp
+    <?> "ImplementsInterfaces"
+
+inputValueDefinition :: Parser InputValueDefinition
+inputValueDefinition = InputValueDefinition
+    <$> description
+    <*> name
+    <* colon
+    <*> type'
+    <*> defaultValue
+    <*> opt directives
+    <?> "InputValueDefinition"
+
+argumentsDefinition :: Parser ArgumentsDefinition
+argumentsDefinition = ArgumentsDefinition
+    <$> parens (many inputValueDefinition)
+    <?> "ArgumentsDefinition"
+
+fieldDefinition :: Parser FieldDefinition
+fieldDefinition = FieldDefinition
+    <$> description
+    <*> name
+    <*> opt argumentsDefinition
+    <* colon
+    <*> type'
+    <*> opt directives
+    <?> "FieldDefinition"
 
 schemaDefinition :: Parser TypeSystemDefinition
 schemaDefinition = SchemaDefinition
@@ -157,7 +228,7 @@ value = Variable <$> variable
     objectValue = braces $ some objectField
 
 objectField :: Parser ObjectField
-objectField = ObjectField <$> name <* symbol ":" <*> value
+objectField = ObjectField <$> name <* colon <*> value
 
 -- * Variables
 
@@ -168,26 +239,27 @@ variableDefinition :: Parser VariableDefinition
 variableDefinition = VariableDefinition
     <$> variable
     <*  colon
-    <*> type_
-    <*> optional defaultValue
+    <*> type'
+    <*> defaultValue
+    <?> "VariableDefinition"
 
 variable :: Parser Name
 variable = dollar *> name
 
-defaultValue :: Parser Value
-defaultValue = equals *> value
+defaultValue :: Parser (Maybe Value)
+defaultValue = optional (equals *> value) <?> "DefaultValue"
 
 -- * Input Types
 
-type_ :: Parser Type
-type_ = try (TypeNonNull <$> nonNullType)
-    <|> TypeList <$> brackets type_
+type' :: Parser Type
+type' = try (TypeNonNull <$> nonNullType)
+    <|> TypeList <$> brackets type'
     <|> TypeNamed <$> name
-    <?> "type_ error!"
+    <?> "Type"
 
 nonNullType :: Parser NonNullType
 nonNullType = NonNullTypeNamed <$> name <* bang
-          <|> NonNullTypeList  <$> brackets type_  <* bang
+          <|> NonNullTypeList  <$> brackets type'  <* bang
           <?> "nonNullType error!"
 
 -- * Directives
