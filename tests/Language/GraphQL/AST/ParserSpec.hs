@@ -69,3 +69,8 @@ spec = describe "Parser" $ do
               name(first: String, last: String): String
             }
         |]
+
+    it "parses minimal union type definition" $
+        parse document "" `shouldSucceedOn` [r|
+            union SearchResult = Photo | Person
+        |]

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | This module defines an abstract syntax tree for the @GraphQL@ language. It
 -- follows closely the structure given in the specification. Please refer to
 -- <https://facebook.github.io/graphql/ Facebook's GraphQL Specification>.
@@ -14,9 +16,9 @@ module Language.GraphQL.AST.Document
     , FieldDefinition(..)
     , FragmentDefinition(..)
     , ImplementsInterfaces(..)
-    , ImplementsInterfacesOpt(..)
     , InputValueDefinition(..)
     , Name
+    , NamedType
     , NonNullType(..)
     , ObjectField(..)
     , OperationDefinition(..)
@@ -29,14 +31,18 @@ module Language.GraphQL.AST.Document
     , Type(..)
     , TypeCondition
     , TypeDefinition(..)
+    , TypeExtension(..)
     , TypeSystemDefinition(..)
+    , UnionMemberTypes(..)
     , Value(..)
     , VariableDefinition(..)
     ) where
 
+import Data.Foldable (toList)
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST.DirectiveLocation
 
 -- * Language
@@ -274,9 +280,13 @@ newtype Description = Description (Maybe Text)
 data TypeDefinition
     = ScalarTypeDefinition Description Name [Directive]
     | ObjectTypeDefinition
-        Description Name ImplementsInterfacesOpt [Directive] [FieldDefinition]
+        Description
+        Name
+        (ImplementsInterfaces [])
+        [Directive]
+        [FieldDefinition]
     | InterfaceTypeDefinition Description Name [Directive] [FieldDefinition]
-    | UnionTypeDefinition Description Name [Directive] UnionMemberTypesOpt
+    | UnionTypeDefinition Description Name [Directive] (UnionMemberTypes [])
     | EnumTypeDefinition Description Name [Directive] [EnumValueDefinition]
     | InputObjectTypeDefinition
         Description Name [Directive] InputFieldsDefinitionOpt
@@ -285,14 +295,16 @@ data TypeDefinition
 data TypeExtension
     = ScalarTypeExtension Name (NonEmpty Directive)
     | ObjectTypeFieldsDefinitionExtension
-        Name ImplementsInterfacesOpt [Directive] (NonEmpty FieldDefinition)
+        Name (ImplementsInterfaces []) [Directive] (NonEmpty FieldDefinition)
     | ObjectTypeDirectivesExtension
-        Name ImplementsInterfacesOpt (NonEmpty Directive)
-    | ObjectTypeImplementsInterfacesExtension Name ImplementsInterfaces
+        Name (ImplementsInterfaces []) (NonEmpty Directive)
+    | ObjectTypeImplementsInterfacesExtension
+        Name (ImplementsInterfaces NonEmpty)
     | InterfaceTypeFieldsDefinitionExtension
         Name [Directive] (NonEmpty FieldDefinition)
     | InterfaceTypeDirectivesExtension Name (NonEmpty Directive)
-    | UnionTypeUnionMemberTypesExtension Name [Directive] UnionMemberTypes
+    | UnionTypeUnionMemberTypesExtension
+        Name [Directive] (UnionMemberTypes NonEmpty)
     | UnionDirectivesExtension Name (NonEmpty Directive)
     | EnumTypeEnumValuesDefinitionExtension
         Name [Directive] (NonEmpty EnumValueDefinition)
@@ -304,17 +316,17 @@ data TypeExtension
 
 -- ** Objects
 
-newtype ImplementsInterfaces = ImplementsInterfaces (NonEmpty NamedType)
-    deriving (Eq, Show)
-newtype ImplementsInterfacesOpt = ImplementsInterfacesOpt [NamedType]
-    deriving (Eq, Show)
+newtype ImplementsInterfaces t = ImplementsInterfaces (t NamedType)
 
-instance Semigroup ImplementsInterfacesOpt where
-    (ImplementsInterfacesOpt xs) <> (ImplementsInterfacesOpt ys) =
-        ImplementsInterfacesOpt $ xs <> ys
+instance Foldable t => Eq (ImplementsInterfaces t) where
+    (ImplementsInterfaces xs) == (ImplementsInterfaces ys)
+        = toList xs == toList ys
 
-instance Monoid ImplementsInterfacesOpt where
-    mempty = ImplementsInterfacesOpt []
+instance Foldable t => Show (ImplementsInterfaces t) where
+    show (ImplementsInterfaces interfaces) = Text.unpack
+        $ Text.append "implements"
+        $ Text.intercalate " & "
+        $ toList interfaces
 
 data FieldDefinition
     = FieldDefinition Description Name ArgumentsDefinition Type [Directive]
@@ -336,11 +348,15 @@ data InputValueDefinition
 
 -- ** Unions
 
-newtype UnionMemberTypes = UnionMemberTypes (NonEmpty NamedType)
-    deriving (Eq, Show)
+newtype UnionMemberTypes t = UnionMemberTypes (t NamedType)
 
-newtype UnionMemberTypesOpt = UnionMemberTypesOpt [NamedType]
-    deriving (Eq, Show)
+instance Foldable t => Eq (UnionMemberTypes t) where
+    (UnionMemberTypes xs) == (UnionMemberTypes ys) = toList xs == toList ys
+
+instance Foldable t => Show (UnionMemberTypes t) where
+    show (UnionMemberTypes memberTypes) = Text.unpack
+        $ Text.intercalate " | "
+        $ toList memberTypes
 
 -- ** Enums
 

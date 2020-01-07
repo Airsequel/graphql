@@ -8,7 +8,8 @@ module Language.GraphQL.AST.Parser
 
 import Control.Applicative (Alternative(..), optional)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
-import Control.Applicative.Combinators (sepBy)
+import Control.Applicative.Combinators (sepBy, sepBy1)
+import Data.Text (Text)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec (lookAhead, option, try, (<?>))
@@ -37,6 +38,7 @@ typeSystemDefinition = schemaDefinition
 typeDefinition :: Parser TypeDefinition
 typeDefinition = scalarTypeDefinition
     <|> objectTypeDefinition
+    <|> unionTypeDefinition
     <?> "TypeDefinition"
 
 scalarTypeDefinition :: Parser TypeDefinition
@@ -52,7 +54,7 @@ objectTypeDefinition = ObjectTypeDefinition
     <$> description
     <* symbol "type"
     <*> name
-    <*> opt implementsInterfacesOpt
+    <*> option (ImplementsInterfaces []) (implementsInterfaces sepBy1)
     <*> opt directives
     <*> braces (many fieldDefinition)
     <?> "ObjectTypeDefinition"
@@ -62,19 +64,33 @@ description = Description
     <$> optional (string <|> blockString)
     <?> "Description"
 
-{- TODO:
-    implementsInterfaces :: Parser ImplementsInterfaces
-implementsInterfaces = ImplementsInterfaces
-    <$ symbol "implements"
-    <* optional amp
-    <*> name `sepBy1` amp
-    <?> "ImplementsInterfaces" -}
+unionTypeDefinition :: Parser TypeDefinition
+unionTypeDefinition = UnionTypeDefinition
+    <$> description
+    <* symbol "union"
+    <*> name
+    <*> opt directives
+    <*> option (UnionMemberTypes []) (unionMemberTypes sepBy1)
+    <?> "UnionTypeDefinition"
 
-implementsInterfacesOpt :: Parser ImplementsInterfacesOpt
-implementsInterfacesOpt = ImplementsInterfacesOpt
+unionMemberTypes ::
+    Foldable t =>
+    (Parser Text -> Parser Text -> Parser (t NamedType)) ->
+    Parser (UnionMemberTypes t)
+unionMemberTypes sepBy' = UnionMemberTypes
+    <$ equals
+    <* optional pipe
+    <*> name `sepBy'` pipe
+    <?> "UnionMemberTypes"
+
+implementsInterfaces ::
+    Foldable t =>
+    (Parser Text -> Parser Text -> Parser (t NamedType)) ->
+    Parser (ImplementsInterfaces t)
+implementsInterfaces sepBy' = ImplementsInterfaces
     <$ symbol "implements"
     <* optional amp
-    <*> name `sepBy` amp
+    <*> name `sepBy'` amp
     <?> "ImplementsInterfaces"
 
 inputValueDefinition :: Parser InputValueDefinition
