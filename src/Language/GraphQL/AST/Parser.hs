@@ -38,6 +38,7 @@ typeSystemDefinition = schemaDefinition
 typeDefinition :: Parser TypeDefinition
 typeDefinition = scalarTypeDefinition
     <|> objectTypeDefinition
+    <|> interfaceTypeDefinition
     <|> unionTypeDefinition
     <?> "TypeDefinition"
 
@@ -82,6 +83,15 @@ unionMemberTypes sepBy' = UnionMemberTypes
     <* optional pipe
     <*> name `sepBy'` pipe
     <?> "UnionMemberTypes"
+
+interfaceTypeDefinition :: Parser TypeDefinition
+interfaceTypeDefinition = InterfaceTypeDefinition
+    <$> description
+    <* symbol "interface"
+    <*> name
+    <*> opt directives
+    <*> braces (many fieldDefinition)
+    <?> "InterfaceTypeDefinition"
 
 implementsInterfaces ::
     Foldable t =>

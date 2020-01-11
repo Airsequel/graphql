@@ -10,10 +10,10 @@ setup() {
 	fi
 	if [ -e "$SEMAPHORE_CACHE_DIR/graphql.cabal" ]
 	then
-            cp -a $SEMAPHORE_CACHE_DIR/graphql.cabal graphql.cabal
-        fi
+		cp -a $SEMAPHORE_CACHE_DIR/graphql.cabal graphql.cabal
+	fi
 	$STACK --no-terminal setup
-        cp -a graphql.cabal $SEMAPHORE_CACHE_DIR/graphql.cabal
+	cp -a graphql.cabal $SEMAPHORE_CACHE_DIR/graphql.cabal
 }
 
 setup_test() {

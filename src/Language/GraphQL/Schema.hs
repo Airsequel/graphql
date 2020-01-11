@@ -94,7 +94,7 @@ resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
             _ <- addErrMsg err
             return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
--- | Helper function to facilitate 'Argument' handling.
+-- | Helper function to facilitate error handling and result emitting.
 withField :: (MonadIO m, Aeson.ToJSON a)
     => CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
 withField v fld

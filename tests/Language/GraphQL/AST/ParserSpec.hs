@@ -74,3 +74,10 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` [r|
             union SearchResult = Photo | Person
         |]
+
+    it "parses minimal interface type definition" $
+        parse document "" `shouldSucceedOn` [r|
+            interface NamedEntity {
+              name: String
+            }
+        |]
