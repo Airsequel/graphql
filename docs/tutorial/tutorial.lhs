@@ -12,7 +12,6 @@ We have written a small tutorial to help you (and ourselves) understand the grap
 Since this file is a literate haskell file, we start by importing some dependencies.
 
 > {-# LANGUAGE OverloadedStrings #-}
-> {-# LANGUAGE LambdaCase #-}
 > module Main where
 >
 > import Control.Monad.IO.Class (liftIO)

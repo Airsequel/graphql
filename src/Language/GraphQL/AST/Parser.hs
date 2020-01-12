@@ -7,7 +7,7 @@ module Language.GraphQL.AST.Parser
     ) where
 
 import Control.Applicative (Alternative(..), optional)
-import Data.List.NonEmpty (NonEmpty(..))
+import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
 import Language.GraphQL.AST
 import qualified Language.GraphQL.AST.Document as Document
 import Language.GraphQL.AST.Lexer
@@ -17,7 +17,7 @@ import Text.Megaparsec (lookAhead, option, try, (<?>))
 document :: Parser Document.Document
 document = unicodeBOM
     >> spaceConsumer
-    >> lexeme (manyNE $ Document.ExecutableDefinition <$> definition)
+    >> lexeme (NonEmpty.some $ Document.ExecutableDefinition <$> definition)
 
 definition :: Parser ExecutableDefinition
 definition = DefinitionOperation <$> operationDefinition
@@ -44,7 +44,7 @@ operationType = Query <$ symbol "query"
 -- * SelectionSet
 
 selectionSet :: Parser SelectionSet
-selectionSet = braces $ manyNE selection
+selectionSet = braces $ NonEmpty.some selection
 
 selectionSetOpt :: Parser SelectionSetOpt
 selectionSetOpt = braces $ some selection
@@ -186,6 +186,3 @@ but :: Parser a -> Parser ()
 but pn = False <$ lookAhead pn <|> pure True >>= \case
     False -> empty
     True  -> pure ()
-
-manyNE :: Alternative f => f a -> f (NonEmpty a)
-manyNE p = (:|) <$> p <*> many p
