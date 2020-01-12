@@ -12,6 +12,7 @@ module Language.GraphQL.AST.Document
     , Description(..)
     , Directive(..)
     , Document
+    , EnumValueDefinition(..)
     , ExecutableDefinition(..)
     , FieldDefinition(..)
     , FragmentDefinition(..)
@@ -289,7 +290,7 @@ data TypeDefinition
     | UnionTypeDefinition Description Name [Directive] (UnionMemberTypes [])
     | EnumTypeDefinition Description Name [Directive] [EnumValueDefinition]
     | InputObjectTypeDefinition
-        Description Name [Directive] InputFieldsDefinitionOpt
+        Description Name [Directive] [InputValueDefinition]
     deriving (Eq, Show)
 
 data TypeExtension
@@ -310,7 +311,7 @@ data TypeExtension
         Name [Directive] (NonEmpty EnumValueDefinition)
     | EnumTypeDirectivesExtension Name (NonEmpty Directive)
     | InputObjectTypeInputFieldsDefinitionExtension
-        Name [Directive] InputFieldsDefinition
+        Name [Directive] (NonEmpty InputValueDefinition)
     | InputObjectTypeDirectivesExtension Name (NonEmpty Directive)
     deriving (Eq, Show)
 
@@ -361,14 +362,4 @@ instance Foldable t => Show (UnionMemberTypes t) where
 -- ** Enums
 
 data EnumValueDefinition = EnumValueDefinition Description Name [Directive]
-    deriving (Eq, Show)
-
--- ** Input Objects
-
-newtype InputFieldsDefinition
-    = InputFieldsDefinition (NonEmpty InputValueDefinition)
-    deriving (Eq, Show)
-
-newtype InputFieldsDefinitionOpt
-    = InputFieldsDefinitionOpt [InputValueDefinition]
     deriving (Eq, Show)

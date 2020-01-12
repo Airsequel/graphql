@@ -7,8 +7,8 @@ module Language.GraphQL.AST.Parser
     ) where
 
 import Control.Applicative (Alternative(..), optional)
+import Control.Applicative.Combinators (sepBy1)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
-import Control.Applicative.Combinators (sepBy, sepBy1)
 import Data.Text (Text)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
@@ -40,6 +40,8 @@ typeDefinition = scalarTypeDefinition
     <|> objectTypeDefinition
     <|> interfaceTypeDefinition
     <|> unionTypeDefinition
+    <|> enumTypeDefinition
+    <|> inputObjectTypeDefinition
     <?> "TypeDefinition"
 
 scalarTypeDefinition :: Parser TypeDefinition
@@ -93,6 +95,35 @@ interfaceTypeDefinition = InterfaceTypeDefinition
     <*> braces (many fieldDefinition)
     <?> "InterfaceTypeDefinition"
 
+enumTypeDefinition :: Parser TypeDefinition
+enumTypeDefinition = EnumTypeDefinition
+    <$> description
+    <* symbol "enum"
+    <*> name
+    <*> opt directives
+    <*> opt enumValuesDefinition
+    <?> "EnumTypeDefinition"
+  where
+    enumValuesDefinition = braces (some enumValueDefinition)
+
+inputObjectTypeDefinition :: Parser TypeDefinition
+inputObjectTypeDefinition = InputObjectTypeDefinition
+    <$> description
+    <* symbol "input"
+    <*> name
+    <*> opt directives
+    <*> opt inputFieldsDefinition
+    <?> "InputObjectTypeDefinition"
+  where
+    inputFieldsDefinition = braces (some inputValueDefinition)
+
+enumValueDefinition :: Parser EnumValueDefinition
+enumValueDefinition = EnumValueDefinition
+    <$> description
+    <*> enumValue
+    <*> opt directives
+    <?> "EnumValueDefinition"
+
 implementsInterfaces ::
     Foldable t =>
     (Parser Text -> Parser Text -> Parser (t NamedType)) ->
@@ -134,9 +165,8 @@ schemaDefinition = SchemaDefinition
     <*> opt directives
     <*> operationTypeDefinitions
     <?> "SchemaDefinition"
-
-operationTypeDefinitions :: Parser OperationTypeDefinitions
-operationTypeDefinitions  = braces $ manyNE operationTypeDefinition
+  where
+    operationTypeDefinitions  = braces $ NonEmpty.some operationTypeDefinition
 
 operationTypeDefinition :: Parser OperationTypeDefinition
 operationTypeDefinition = OperationTypeDefinition
@@ -244,14 +274,14 @@ value = Variable <$> variable
     booleanValue = True  <$ symbol "true"
                <|> False <$ symbol "false"
 
-    enumValue :: Parser Name
-    enumValue = but (symbol "true") *> but (symbol "false") *> but (symbol "null") *> name
-
     listValue :: Parser [Value]
     listValue = brackets $ some value
 
     objectValue :: Parser [ObjectField]
     objectValue = braces $ some objectField
+
+enumValue :: Parser Name
+enumValue = but (symbol "true") *> but (symbol "false") *> but (symbol "null") *> name
 
 objectField :: Parser ObjectField
 objectField = ObjectField <$> name <* colon <*> value

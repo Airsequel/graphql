@@ -81,3 +81,31 @@ spec = describe "Parser" $ do
               name: String
             }
         |]
+
+    it "parses minimal enum type definition" $
+        parse document "" `shouldSucceedOn` [r|
+            enum Direction {
+              NORTH
+              EAST
+              SOUTH
+              WEST
+            }
+        |]
+
+    it "parses minimal enum type definition" $
+        parse document "" `shouldSucceedOn` [r|
+            enum Direction {
+              NORTH
+              EAST
+              SOUTH
+              WEST
+            }
+        |]
+
+    it "parses minimal input object type definition" $
+        parse document "" `shouldSucceedOn` [r|
+            input Point2D {
+              x: Float
+              y: Float
+            }
+        |]
