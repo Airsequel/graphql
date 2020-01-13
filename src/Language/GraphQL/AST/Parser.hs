@@ -32,8 +32,8 @@ operationDefinition = SelectionSet <$> selectionSet
     operationDefinition'
         = OperationDefinition <$> operationType
         <*> optional name
-        <*> opt variableDefinitions
-        <*> opt directives
+        <*> variableDefinitions
+        <*> directives
         <*> selectionSet
 
 operationType :: Parser OperationType
@@ -47,7 +47,7 @@ selectionSet :: Parser SelectionSet
 selectionSet = braces $ NonEmpty.some selection
 
 selectionSetOpt :: Parser SelectionSetOpt
-selectionSetOpt = braces $ some selection
+selectionSetOpt = listOptIn braces selection
 
 selection :: Parser Selection
 selection = field
@@ -61,9 +61,9 @@ field :: Parser Selection
 field = Field
     <$> optional alias
     <*> name
-    <*> opt arguments
-    <*> opt directives
-    <*> opt selectionSetOpt
+    <*> arguments
+    <*> directives
+    <*> selectionSetOpt
 
 alias :: Parser Alias
 alias = try $ name <* colon
@@ -71,7 +71,7 @@ alias = try $ name <* colon
 -- * Arguments
 
 arguments :: Parser [Argument]
-arguments = parens $ some argument
+arguments = listOptIn parens argument
 
 argument :: Parser Argument
 argument = Argument <$> name <* colon <*> value
@@ -82,13 +82,13 @@ fragmentSpread :: Parser Selection
 fragmentSpread = FragmentSpread
     <$ spread
     <*> fragmentName
-    <*> opt directives
+    <*> directives
 
 inlineFragment :: Parser Selection
 inlineFragment = InlineFragment
     <$ spread
     <*> optional typeCondition
-    <*> opt directives
+    <*> directives
     <*> selectionSet
 
 fragmentDefinition :: Parser FragmentDefinition
@@ -96,7 +96,7 @@ fragmentDefinition = FragmentDefinition
                  <$  symbol "fragment"
                  <*> name
                  <*> typeCondition
-                 <*> opt directives
+                 <*> directives
                  <*> selectionSet
 
 fragmentName :: Parser Name
@@ -139,13 +139,15 @@ objectField = ObjectField <$> name <* symbol ":" <*> value
 -- * Variables
 
 variableDefinitions :: Parser [VariableDefinition]
-variableDefinitions = parens $ some variableDefinition
+variableDefinitions = listOptIn parens variableDefinition
 
 variableDefinition :: Parser VariableDefinition
-variableDefinition = VariableDefinition <$> variable
-                                        <*  colon
-                                        <*> type_
-                                        <*> optional defaultValue
+variableDefinition = VariableDefinition
+    <$> variable
+    <*  colon
+    <*> type_
+    <*> optional defaultValue
+
 variable :: Parser Name
 variable = dollar *> name
 
@@ -168,18 +170,18 @@ nonNullType = NonNullTypeNamed <$> name <* bang
 -- * Directives
 
 directives :: Parser [Directive]
-directives = some directive
+directives = many directive
 
 directive :: Parser Directive
 directive = Directive
-        <$  at
-        <*> name
-        <*> opt arguments
+    <$  at
+    <*> name
+    <*> arguments
 
 -- * Internal
 
-opt :: Monoid a => Parser a -> Parser a
-opt = option mempty
+listOptIn :: (Parser [a] -> Parser [a]) -> Parser a -> Parser [a]
+listOptIn surround = option [] . surround . some
 
 -- Hack to reverse parser success
 but :: Parser a -> Parser ()
