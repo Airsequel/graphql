@@ -51,6 +51,7 @@ import Text.Megaparsec ( Parsec
                        )
 import Text.Megaparsec.Char (char, digitChar, space1)
 import qualified Text.Megaparsec.Char.Lexer as Lexer
+import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 
@@ -87,8 +88,8 @@ dollar :: Parser T.Text
 dollar = symbol "$"
 
 -- | Parser for "@".
-at :: Parser Char
-at = char '@'
+at :: Parser Text
+at = symbol "@"
 
 -- | Parser for "&".
 amp :: Parser T.Text

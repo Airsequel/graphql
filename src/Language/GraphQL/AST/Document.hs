@@ -248,7 +248,7 @@ data TypeSystemDefinition
     = SchemaDefinition [Directive] OperationTypeDefinitions
     | TypeDefinition TypeDefinition
     | DirectiveDefinition
-        Description Name ArgumentsDefinition DirectiveLocation
+        Description Name ArgumentsDefinition (NonEmpty DirectiveLocation)
     deriving (Eq, Show)
 
 -- ** Type System Extensions

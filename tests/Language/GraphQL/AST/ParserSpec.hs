@@ -109,3 +109,10 @@ spec = describe "Parser" $ do
               y: Float
             }
         |]
+
+    it "parses minimal input enum definition with an optional pipe" $
+        parse document "" `shouldSucceedOn` [r|
+            directive @example on
+              | FIELD
+              | FRAGMENT_SPREAD
+        |]

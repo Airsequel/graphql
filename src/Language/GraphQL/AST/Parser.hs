@@ -9,7 +9,14 @@ module Language.GraphQL.AST.Parser
 import Control.Applicative (Alternative(..), optional)
 import Control.Applicative.Combinators (sepBy1)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
+import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
+import qualified Language.GraphQL.AST.DirectiveLocation as Directive
+import Language.GraphQL.AST.DirectiveLocation
+    ( DirectiveLocation
+    , ExecutableDirectiveLocation
+    , TypeSystemDirectiveLocation
+    )
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec (lookAhead, option, try, (<?>))
@@ -33,7 +40,49 @@ executableDefinition = DefinitionOperation <$> operationDefinition
 typeSystemDefinition :: Parser TypeSystemDefinition
 typeSystemDefinition = schemaDefinition
     <|> TypeDefinition <$> typeDefinition
+    <|> directiveDefinition
     <?> "TypeSystemDefinition"
+
+directiveDefinition :: Parser TypeSystemDefinition
+directiveDefinition = DirectiveDefinition
+    <$> description
+    <* symbol "directive"
+    <* at
+    <*> name
+    <*> argumentsDefinition
+    <* symbol "on"
+    <*> directiveLocations
+
+directiveLocations :: Parser (NonEmpty DirectiveLocation)
+directiveLocations = optional pipe
+    *> directiveLocation `NonEmpty.sepBy1` pipe
+
+directiveLocation :: Parser DirectiveLocation
+directiveLocation
+    = Directive.ExecutableDirectiveLocation <$> executableDirectiveLocation
+    <|> Directive.TypeSystemDirectiveLocation <$> typeSystemDirectiveLocation
+
+executableDirectiveLocation :: Parser ExecutableDirectiveLocation
+executableDirectiveLocation = Directive.Query <$ symbol "QUERY"
+    <|> Directive.Mutation <$ symbol "MUTATION"
+    <|> Directive.Subscription <$ symbol "SUBSCRIPTION"
+    <|> Directive.Field <$ symbol "FIELD"
+    <|> Directive.FragmentDefinition <$ "FRAGMENT_DEFINITION"
+    <|> Directive.FragmentSpread <$ "FRAGMENT_SPREAD"
+    <|> Directive.InlineFragment <$ "INLINE_FRAGMENT"
+
+typeSystemDirectiveLocation :: Parser TypeSystemDirectiveLocation
+typeSystemDirectiveLocation = Directive.Schema <$ symbol "SCHEMA"
+    <|> Directive.Scalar <$ symbol "SCALAR"
+    <|> Directive.Object <$ symbol "OBJECT"
+    <|> Directive.FieldDefinition <$ symbol "FIELD_DEFINITION"
+    <|> Directive.ArgumentDefinition <$ symbol "ARGUMENT_DEFINITION"
+    <|> Directive.Interface <$ symbol "INTERFACE"
+    <|> Directive.Union <$ symbol "UNION"
+    <|> Directive.Enum <$ symbol "ENUM"
+    <|> Directive.EnumValue <$ symbol "ENUM_VALUE"
+    <|> Directive.InputObject <$ symbol "INPUT_OBJECT"
+    <|> Directive.InputFieldDefinition <$ symbol "INPUT_FIELD_DEFINITION"
 
 typeDefinition :: Parser TypeDefinition
 typeDefinition = scalarTypeDefinition
@@ -49,7 +98,7 @@ scalarTypeDefinition = ScalarTypeDefinition
     <$> description
     <* symbol "scalar"
     <*> name
-    <*> opt directives
+    <*> directives
     <?> "ScalarTypeDefinition"
 
 objectTypeDefinition :: Parser TypeDefinition
@@ -58,7 +107,7 @@ objectTypeDefinition = ObjectTypeDefinition
     <* symbol "type"
     <*> name
     <*> option (ImplementsInterfaces []) (implementsInterfaces sepBy1)
-    <*> opt directives
+    <*> directives
     <*> braces (many fieldDefinition)
     <?> "ObjectTypeDefinition"
 
@@ -72,7 +121,7 @@ unionTypeDefinition = UnionTypeDefinition
     <$> description
     <* symbol "union"
     <*> name
-    <*> opt directives
+    <*> directives
     <*> option (UnionMemberTypes []) (unionMemberTypes sepBy1)
     <?> "UnionTypeDefinition"
 
@@ -91,7 +140,7 @@ interfaceTypeDefinition = InterfaceTypeDefinition
     <$> description
     <* symbol "interface"
     <*> name
-    <*> opt directives
+    <*> directives
     <*> braces (many fieldDefinition)
     <?> "InterfaceTypeDefinition"
 
@@ -100,28 +149,28 @@ enumTypeDefinition = EnumTypeDefinition
     <$> description
     <* symbol "enum"
     <*> name
-    <*> opt directives
-    <*> opt enumValuesDefinition
+    <*> directives
+    <*> enumValuesDefinition
     <?> "EnumTypeDefinition"
   where
-    enumValuesDefinition = braces (some enumValueDefinition)
+    enumValuesDefinition = listOptIn braces enumValueDefinition
 
 inputObjectTypeDefinition :: Parser TypeDefinition
 inputObjectTypeDefinition = InputObjectTypeDefinition
     <$> description
     <* symbol "input"
     <*> name
-    <*> opt directives
-    <*> opt inputFieldsDefinition
+    <*> directives
+    <*> inputFieldsDefinition
     <?> "InputObjectTypeDefinition"
   where
-    inputFieldsDefinition = braces (some inputValueDefinition)
+    inputFieldsDefinition = listOptIn braces inputValueDefinition
 
 enumValueDefinition :: Parser EnumValueDefinition
 enumValueDefinition = EnumValueDefinition
     <$> description
     <*> enumValue
-    <*> opt directives
+    <*> directives
     <?> "EnumValueDefinition"
 
 implementsInterfaces ::
@@ -141,28 +190,28 @@ inputValueDefinition = InputValueDefinition
     <* colon
     <*> type'
     <*> defaultValue
-    <*> opt directives
+    <*> directives
     <?> "InputValueDefinition"
 
 argumentsDefinition :: Parser ArgumentsDefinition
 argumentsDefinition = ArgumentsDefinition
-    <$> parens (many inputValueDefinition)
+    <$> listOptIn parens inputValueDefinition
     <?> "ArgumentsDefinition"
 
 fieldDefinition :: Parser FieldDefinition
 fieldDefinition = FieldDefinition
     <$> description
     <*> name
-    <*> opt argumentsDefinition
+    <*> argumentsDefinition
     <* colon
     <*> type'
-    <*> opt directives
+    <*> directives
     <?> "FieldDefinition"
 
 schemaDefinition :: Parser TypeSystemDefinition
 schemaDefinition = SchemaDefinition
     <$ symbol "schema"
-    <*> opt directives
+    <*> directives
     <*> operationTypeDefinitions
     <?> "SchemaDefinition"
   where

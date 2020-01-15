@@ -77,7 +77,7 @@ spec = describe "Lexer" $ do
             parse spread "" "..." `shouldParse` "..."
             parse colon "" ":" `shouldParse` ":"
             parse equals "" "=" `shouldParse` "="
-            parse at "" "@" `shouldParse` '@'
+            parse at "" "@" `shouldParse` "@"
             runBetween brackets `shouldSucceedOn` "[]"
             runBetween braces `shouldSucceedOn` "{}"
             parse pipe "" "|" `shouldParse` "|"
