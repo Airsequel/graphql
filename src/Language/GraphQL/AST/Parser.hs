@@ -215,7 +215,7 @@ schemaDefinition = SchemaDefinition
     <*> operationTypeDefinitions
     <?> "SchemaDefinition"
   where
-    operationTypeDefinitions  = braces $ NonEmpty.some operationTypeDefinition
+    operationTypeDefinitions = braces $ NonEmpty.some operationTypeDefinition
 
 operationTypeDefinition :: Parser OperationTypeDefinition
 operationTypeDefinition = OperationTypeDefinition

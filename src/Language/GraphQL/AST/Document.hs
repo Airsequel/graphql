@@ -8,7 +8,7 @@ module Language.GraphQL.AST.Document
     ( Alias
     , Argument(..)
     , ArgumentsDefinition(..)
-    , Definition(ExecutableDefinition, TypeSystemDefinition)
+    , Definition(..)
     , Description(..)
     , Directive(..)
     , Document
@@ -26,6 +26,7 @@ module Language.GraphQL.AST.Document
     , OperationType(..)
     , OperationTypeDefinition(..)
     , OperationTypeDefinitions
+    , SchemaExtension(..)
     , Selection(..)
     , SelectionSet
     , SelectionSetOpt
@@ -34,6 +35,7 @@ module Language.GraphQL.AST.Document
     , TypeDefinition(..)
     , TypeExtension(..)
     , TypeSystemDefinition(..)
+    , TypeSystemExtension(..)
     , UnionMemberTypes(..)
     , Value(..)
     , VariableDefinition(..)

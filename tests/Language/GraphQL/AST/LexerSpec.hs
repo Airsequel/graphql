@@ -87,6 +87,8 @@ spec = describe "Lexer" $ do
             parse blockString "" [r|""""""|] `shouldParse` ""
         it "lexes ampersand" $
             parse amp "" "&" `shouldParse` "&"
+        it "lexes schema extensions" $
+            parse (extend "schema") "" `shouldSucceedOn` "extend schema"
 
 runBetween :: (Parser () -> Parser ()) -> Text -> Either (ParseErrorBundle Text Void) ()
 runBetween parser = parse (parser $ pure ()) ""

@@ -15,6 +15,7 @@ module Language.GraphQL.AST.Lexer
     , dollar
     , comment
     , equals
+    , extend
     , integer
     , float
     , lexeme
@@ -31,6 +32,7 @@ module Language.GraphQL.AST.Lexer
 import Control.Applicative (Alternative(..), liftA2)
 import Data.Char (chr, digitToInt, isAsciiLower, isAsciiUpper, ord)
 import Data.Foldable (foldl')
+import Data.Functor (($>))
 import Data.List (dropWhileEnd)
 import Data.Proxy (Proxy(..))
 import Data.Void (Void)
@@ -217,3 +219,7 @@ escapeSequence = do
 -- | Parser for the "Byte Order Mark".
 unicodeBOM :: Parser ()
 unicodeBOM = optional (char '\xfeff') >> pure ()
+
+-- | Parses "extend" followed by a 'symbol'. It is used by schema extensions.
+extend :: Text -> Parser ()
+extend token = symbol "extend" $> extend token >> pure ()

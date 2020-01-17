@@ -20,6 +20,8 @@ and this project adheres to
 - Rename `AST.OperationSelectionSet` to `AST.Document.SelectionSet`.
 - Make `Schema.Subs` a `Data.HashMap.Strict` (was a function
   `key -> Maybe value` before).
+- Make `AST.Lexer.at` a text (symbol) parser. It was a char before and is
+  `symbol "@"` now.
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.
