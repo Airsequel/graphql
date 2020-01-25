@@ -30,6 +30,7 @@ document = unicodeBOM
 definition :: Parser Definition
 definition = ExecutableDefinition <$> executableDefinition
     <|> TypeSystemDefinition <$> typeSystemDefinition
+    <|> TypeSystemExtension <$> typeSystemExtension
     <?> "Definition"
 
 executableDefinition :: Parser ExecutableDefinition
@@ -42,6 +43,10 @@ typeSystemDefinition = schemaDefinition
     <|> TypeDefinition <$> typeDefinition
     <|> directiveDefinition
     <?> "TypeSystemDefinition"
+
+typeSystemExtension :: Parser TypeSystemExtension
+typeSystemExtension = SchemaExtension <$> schemaExtension
+    <?> "TypeSystemExtension"
 
 directiveDefinition :: Parser TypeSystemDefinition
 directiveDefinition = DirectiveDefinition
@@ -214,8 +219,19 @@ schemaDefinition = SchemaDefinition
     <*> directives
     <*> operationTypeDefinitions
     <?> "SchemaDefinition"
+
+operationTypeDefinitions :: Parser (NonEmpty OperationTypeDefinition)
+operationTypeDefinitions = braces $ NonEmpty.some operationTypeDefinition
+
+schemaExtension :: Parser SchemaExtension
+schemaExtension = extend "schema"
+    >> try schemaOperationExtension
+    <|> SchemaDirectiveExtension <$> NonEmpty.some directive
+    <?> "SchemaExtension"
   where
-    operationTypeDefinitions = braces $ NonEmpty.some operationTypeDefinition
+    schemaOperationExtension = SchemaOperationExtension
+        <$> directives
+        <*> operationTypeDefinitions
 
 operationTypeDefinition :: Parser OperationTypeDefinition
 operationTypeDefinition = OperationTypeDefinition

@@ -11,6 +11,7 @@ and this project adheres to
 - AST for the GraphQL schema.
 - Parser for the TypeSystemDefinition.
 - `Trans.argument`.
+- Schema extension parser.
 
 ### Changed
 - Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.

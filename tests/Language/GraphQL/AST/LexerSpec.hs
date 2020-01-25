@@ -8,7 +8,7 @@ import Data.Text (Text)
 import Data.Void (Void)
 import Language.GraphQL.AST.Lexer
 import Test.Hspec (Spec, context, describe, it)
-import Test.Hspec.Megaparsec (shouldParse, shouldSucceedOn)
+import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (ParseErrorBundle, parse)
 import Text.RawString.QQ (r)
 
@@ -89,6 +89,8 @@ spec = describe "Lexer" $ do
             parse amp "" "&" `shouldParse` "&"
         it "lexes schema extensions" $
             parse (extend "schema") "" `shouldSucceedOn` "extend schema"
+        it "fails if the given token doesn't match" $
+            parse (extend "schema") "" `shouldFailOn` "extend shema"
 
 runBetween :: (Parser () -> Parser ()) -> Text -> Either (ParseErrorBundle Text Void) ()
 runBetween parser = parse (parser $ pure ()) ""

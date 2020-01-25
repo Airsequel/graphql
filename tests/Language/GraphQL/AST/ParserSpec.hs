@@ -4,9 +4,11 @@ module Language.GraphQL.AST.ParserSpec
     ( spec
     ) where
 
+import Data.List.NonEmpty (NonEmpty(..))
+import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Parser
 import Test.Hspec (Spec, describe, it)
-import Test.Hspec.Megaparsec (shouldSucceedOn)
+import Test.Hspec.Megaparsec (shouldParse, shouldSucceedOn)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
@@ -116,3 +118,20 @@ spec = describe "Parser" $ do
               | FIELD
               | FRAGMENT_SPREAD
         |]
+
+    it "parses schema extension with a new directive" $
+        parse document "" `shouldSucceedOn`[r|
+            extend schema @newDirective
+        |]
+
+    it "parses schema extension with an operation type definition" $
+        parse document "" `shouldSucceedOn` [r|extend schema { query: Query }|]
+
+    it "parses schema extension with an operation type and directive" $
+        let newDirective = Directive "newDirective" []
+            testSchemaExtension = TypeSystemExtension
+                $ SchemaExtension
+                $ SchemaOperationExtension [newDirective]
+                $ OperationTypeDefinition Query "Query" :| []
+            query = [r|extend schema @newDirective { query: Query }|]
+         in parse document "" query `shouldParse` (testSchemaExtension :| [])
