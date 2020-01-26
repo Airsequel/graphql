@@ -46,6 +46,7 @@ typeSystemDefinition = schemaDefinition
 
 typeSystemExtension :: Parser TypeSystemExtension
 typeSystemExtension = SchemaExtension <$> schemaExtension
+    <|> TypeExtension <$> typeExtension
     <?> "TypeSystemExtension"
 
 directiveDefinition :: Parser TypeSystemDefinition
@@ -57,6 +58,7 @@ directiveDefinition = DirectiveDefinition
     <*> argumentsDefinition
     <* symbol "on"
     <*> directiveLocations
+    <?> "DirectiveDefinition"
 
 directiveLocations :: Parser (NonEmpty DirectiveLocation)
 directiveLocations = optional pipe
@@ -98,6 +100,15 @@ typeDefinition = scalarTypeDefinition
     <|> inputObjectTypeDefinition
     <?> "TypeDefinition"
 
+typeExtension :: Parser TypeExtension
+typeExtension = scalarTypeExtension
+    <|> objectTypeExtension
+    <|> interfaceTypeExtension
+    <|> unionTypeExtension
+    <|> enumTypeExtension
+    <|> inputObjectTypeExtension
+    <?> "TypeExtension"
+
 scalarTypeDefinition :: Parser TypeDefinition
 scalarTypeDefinition = ScalarTypeDefinition
     <$> description
@@ -105,6 +116,13 @@ scalarTypeDefinition = ScalarTypeDefinition
     <*> name
     <*> directives
     <?> "ScalarTypeDefinition"
+
+scalarTypeExtension :: Parser TypeExtension
+scalarTypeExtension = ScalarTypeExtension
+    <$ extend "scalar"
+    <*> name
+    <*> NonEmpty.some directive
+    <?> "ScalarTypeExtension"
 
 objectTypeDefinition :: Parser TypeDefinition
 objectTypeDefinition = ObjectTypeDefinition
@@ -115,6 +133,26 @@ objectTypeDefinition = ObjectTypeDefinition
     <*> directives
     <*> braces (many fieldDefinition)
     <?> "ObjectTypeDefinition"
+
+objectTypeExtension :: Parser TypeExtension
+objectTypeExtension = extend "type"
+    >> try fieldsDefinitionExtension
+    <|> try directivesExtension
+    <|> implementsInterfacesExtension
+    <?> "ObjectTypeExtension"
+  where
+    fieldsDefinitionExtension = ObjectTypeFieldsDefinitionExtension
+        <$> name
+        <*> option (ImplementsInterfaces []) (implementsInterfaces sepBy1)
+        <*> directives
+        <*> braces (NonEmpty.some fieldDefinition)
+    directivesExtension = ObjectTypeDirectivesExtension
+        <$> name
+        <*> option (ImplementsInterfaces []) (implementsInterfaces sepBy1)
+        <*> NonEmpty.some directive
+    implementsInterfacesExtension = ObjectTypeImplementsInterfacesExtension
+        <$> name
+        <*> implementsInterfaces NonEmpty.sepBy1
 
 description :: Parser Description
 description = Description
@@ -129,6 +167,20 @@ unionTypeDefinition = UnionTypeDefinition
     <*> directives
     <*> option (UnionMemberTypes []) (unionMemberTypes sepBy1)
     <?> "UnionTypeDefinition"
+
+unionTypeExtension :: Parser TypeExtension
+unionTypeExtension = extend "union"
+    >> try unionMemberTypesExtension
+    <|> directivesExtension
+    <?> "UnionTypeExtension"
+  where
+    unionMemberTypesExtension = UnionTypeUnionMemberTypesExtension
+        <$> name
+        <*> directives
+        <*> unionMemberTypes NonEmpty.sepBy1
+    directivesExtension = UnionTypeDirectivesExtension
+        <$> name
+        <*> NonEmpty.some directive
 
 unionMemberTypes ::
     Foldable t =>
@@ -149,16 +201,42 @@ interfaceTypeDefinition = InterfaceTypeDefinition
     <*> braces (many fieldDefinition)
     <?> "InterfaceTypeDefinition"
 
+interfaceTypeExtension :: Parser TypeExtension
+interfaceTypeExtension = extend "interface"
+    >> try fieldsDefinitionExtension
+    <|> directivesExtension
+    <?> "InterfaceTypeExtension"
+  where
+    fieldsDefinitionExtension = InterfaceTypeFieldsDefinitionExtension
+        <$> name
+        <*> directives
+        <*> braces (NonEmpty.some fieldDefinition)
+    directivesExtension = InterfaceTypeDirectivesExtension
+        <$> name
+        <*> NonEmpty.some directive
+
 enumTypeDefinition :: Parser TypeDefinition
 enumTypeDefinition = EnumTypeDefinition
     <$> description
     <* symbol "enum"
     <*> name
     <*> directives
-    <*> enumValuesDefinition
+    <*> listOptIn braces enumValueDefinition
     <?> "EnumTypeDefinition"
+
+enumTypeExtension :: Parser TypeExtension
+enumTypeExtension = extend "enum"
+    >> try enumValuesDefinitionExtension
+    <|> directivesExtension
+    <?> "EnumTypeExtension"
   where
-    enumValuesDefinition = listOptIn braces enumValueDefinition
+    enumValuesDefinitionExtension = EnumTypeEnumValuesDefinitionExtension
+        <$> name
+        <*> directives
+        <*> braces (NonEmpty.some enumValueDefinition)
+    directivesExtension = EnumTypeDirectivesExtension
+        <$> name
+        <*> NonEmpty.some directive
 
 inputObjectTypeDefinition :: Parser TypeDefinition
 inputObjectTypeDefinition = InputObjectTypeDefinition
@@ -166,10 +244,22 @@ inputObjectTypeDefinition = InputObjectTypeDefinition
     <* symbol "input"
     <*> name
     <*> directives
-    <*> inputFieldsDefinition
+    <*> listOptIn braces inputValueDefinition
     <?> "InputObjectTypeDefinition"
+
+inputObjectTypeExtension :: Parser TypeExtension
+inputObjectTypeExtension = extend "input"
+    >> try inputFieldsDefinitionExtension
+    <|> directivesExtension
+    <?> "InputObjectTypeExtension"
   where
-    inputFieldsDefinition = listOptIn braces inputValueDefinition
+    inputFieldsDefinitionExtension = InputObjectTypeInputFieldsDefinitionExtension
+        <$> name
+        <*> directives
+        <*> braces (NonEmpty.some inputValueDefinition)
+    directivesExtension = InputObjectTypeDirectivesExtension
+        <$> name
+        <*> NonEmpty.some directive
 
 enumValueDefinition :: Parser EnumValueDefinition
 enumValueDefinition = EnumValueDefinition

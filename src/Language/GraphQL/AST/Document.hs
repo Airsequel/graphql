@@ -305,7 +305,7 @@ data TypeExtension
     | InterfaceTypeDirectivesExtension Name (NonEmpty Directive)
     | UnionTypeUnionMemberTypesExtension
         Name [Directive] (UnionMemberTypes NonEmpty)
-    | UnionDirectivesExtension Name (NonEmpty Directive)
+    | UnionTypeDirectivesExtension Name (NonEmpty Directive)
     | EnumTypeEnumValuesDefinitionExtension
         Name [Directive] (NonEmpty EnumValueDefinition)
     | EnumTypeDirectivesExtension Name (NonEmpty Directive)
