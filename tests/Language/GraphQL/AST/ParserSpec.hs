@@ -135,3 +135,10 @@ spec = describe "Parser" $ do
                 $ OperationTypeDefinition Query "Query" :| []
             query = [r|extend schema @newDirective { query: Query }|]
          in parse document "" query `shouldParse` (testSchemaExtension :| [])
+
+    it "parses an object extension" $
+        parse document "" `shouldSucceedOn` [r|
+            extend type Story {
+              isHiddenLocally: Boolean
+            }
+        |]

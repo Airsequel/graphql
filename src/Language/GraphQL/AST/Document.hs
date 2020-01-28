@@ -267,7 +267,7 @@ data OperationTypeDefinition
 
 data SchemaExtension
     = SchemaOperationExtension [Directive] (NonEmpty OperationTypeDefinition)
-    | SchemaDirectiveExtension (NonEmpty Directive)
+    | SchemaDirectivesExtension (NonEmpty Directive)
     deriving (Eq, Show)
 
 -- ** Descriptions

@@ -33,9 +33,12 @@ import Control.Applicative (Alternative(..), liftA2)
 import Data.Char (chr, digitToInt, isAsciiLower, isAsciiUpper, ord)
 import Data.Foldable (foldl')
 import Data.List (dropWhileEnd)
+import qualified Data.List.NonEmpty as NonEmpty
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Proxy (Proxy(..))
 import Data.Void (Void)
 import Text.Megaparsec ( Parsec
+                       , (<?>)
                        , between
                        , chunk
                        , chunkToTokens
@@ -220,5 +223,14 @@ unicodeBOM :: Parser ()
 unicodeBOM = optional (char '\xfeff') >> pure ()
 
 -- | Parses "extend" followed by a 'symbol'. It is used by schema extensions.
-extend :: Text -> Parser ()
-extend token = symbol "extend" *> symbol token >> pure ()
+extend :: forall a. Text -> String -> NonEmpty (Parser a) -> Parser a
+extend token extensionLabel parsers
+    = foldr combine headParser (NonEmpty.tail parsers)
+    <?> extensionLabel
+  where
+    headParser = tryExtension $ NonEmpty.head parsers
+    combine current accumulated = accumulated <|> tryExtension current
+    tryExtension extensionParser = try
+        $ symbol "extend"
+        *> symbol token
+        *> extensionParser

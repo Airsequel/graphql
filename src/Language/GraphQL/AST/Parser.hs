@@ -9,7 +9,7 @@ module Language.GraphQL.AST.Parser
 import Control.Applicative (Alternative(..), optional)
 import Control.Applicative.Combinators (sepBy1)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import qualified Language.GraphQL.AST.DirectiveLocation as Directive
 import Language.GraphQL.AST.DirectiveLocation
@@ -118,11 +118,8 @@ scalarTypeDefinition = ScalarTypeDefinition
     <?> "ScalarTypeDefinition"
 
 scalarTypeExtension :: Parser TypeExtension
-scalarTypeExtension = ScalarTypeExtension
-    <$ extend "scalar"
-    <*> name
-    <*> NonEmpty.some directive
-    <?> "ScalarTypeExtension"
+scalarTypeExtension = extend "scalar" "ScalarTypeExtension"
+    $ (ScalarTypeExtension <$> name <*> NonEmpty.some directive) :| []
 
 objectTypeDefinition :: Parser TypeDefinition
 objectTypeDefinition = ObjectTypeDefinition
@@ -135,11 +132,11 @@ objectTypeDefinition = ObjectTypeDefinition
     <?> "ObjectTypeDefinition"
 
 objectTypeExtension :: Parser TypeExtension
-objectTypeExtension = extend "type"
-    >> try fieldsDefinitionExtension
-    <|> try directivesExtension
-    <|> implementsInterfacesExtension
-    <?> "ObjectTypeExtension"
+objectTypeExtension = extend "type" "ObjectTypeExtension"
+    $ fieldsDefinitionExtension :|
+        [ directivesExtension
+        , implementsInterfacesExtension
+        ]
   where
     fieldsDefinitionExtension = ObjectTypeFieldsDefinitionExtension
         <$> name
@@ -169,10 +166,8 @@ unionTypeDefinition = UnionTypeDefinition
     <?> "UnionTypeDefinition"
 
 unionTypeExtension :: Parser TypeExtension
-unionTypeExtension = extend "union"
-    >> try unionMemberTypesExtension
-    <|> directivesExtension
-    <?> "UnionTypeExtension"
+unionTypeExtension = extend "union" "UnionTypeExtension"
+    $ unionMemberTypesExtension :| [directivesExtension]
   where
     unionMemberTypesExtension = UnionTypeUnionMemberTypesExtension
         <$> name
@@ -202,10 +197,8 @@ interfaceTypeDefinition = InterfaceTypeDefinition
     <?> "InterfaceTypeDefinition"
 
 interfaceTypeExtension :: Parser TypeExtension
-interfaceTypeExtension = extend "interface"
-    >> try fieldsDefinitionExtension
-    <|> directivesExtension
-    <?> "InterfaceTypeExtension"
+interfaceTypeExtension = extend "interface" "InterfaceTypeExtension"
+    $ fieldsDefinitionExtension :| [directivesExtension]
   where
     fieldsDefinitionExtension = InterfaceTypeFieldsDefinitionExtension
         <$> name
@@ -225,10 +218,8 @@ enumTypeDefinition = EnumTypeDefinition
     <?> "EnumTypeDefinition"
 
 enumTypeExtension :: Parser TypeExtension
-enumTypeExtension = extend "enum"
-    >> try enumValuesDefinitionExtension
-    <|> directivesExtension
-    <?> "EnumTypeExtension"
+enumTypeExtension = extend "enum" "EnumTypeExtension"
+    $ enumValuesDefinitionExtension :| [directivesExtension]
   where
     enumValuesDefinitionExtension = EnumTypeEnumValuesDefinitionExtension
         <$> name
@@ -248,10 +239,8 @@ inputObjectTypeDefinition = InputObjectTypeDefinition
     <?> "InputObjectTypeDefinition"
 
 inputObjectTypeExtension :: Parser TypeExtension
-inputObjectTypeExtension = extend "input"
-    >> try inputFieldsDefinitionExtension
-    <|> directivesExtension
-    <?> "InputObjectTypeExtension"
+inputObjectTypeExtension = extend "input" "InputObjectTypeExtension"
+    $ inputFieldsDefinitionExtension :| [directivesExtension]
   where
     inputFieldsDefinitionExtension = InputObjectTypeInputFieldsDefinitionExtension
         <$> name
@@ -314,11 +303,11 @@ operationTypeDefinitions :: Parser (NonEmpty OperationTypeDefinition)
 operationTypeDefinitions = braces $ NonEmpty.some operationTypeDefinition
 
 schemaExtension :: Parser SchemaExtension
-schemaExtension = extend "schema"
-    >> try schemaOperationExtension
-    <|> SchemaDirectiveExtension <$> NonEmpty.some directive
-    <?> "SchemaExtension"
+schemaExtension = extend "schema" "SchemaExtension"
+    $ schemaOperationExtension :| [directivesExtension]
   where
+    directivesExtension = SchemaDirectivesExtension
+        <$> NonEmpty.some directive
     schemaOperationExtension = SchemaOperationExtension
         <$> directives
         <*> operationTypeDefinitions

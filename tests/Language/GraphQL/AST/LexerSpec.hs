@@ -88,9 +88,12 @@ spec = describe "Lexer" $ do
         it "lexes ampersand" $
             parse amp "" "&" `shouldParse` "&"
         it "lexes schema extensions" $
-            parse (extend "schema") "" `shouldSucceedOn` "extend schema"
+            parseExtend "schema" `shouldSucceedOn` "extend schema"
         it "fails if the given token doesn't match" $
-            parse (extend "schema") "" `shouldFailOn` "extend shema"
+            parseExtend "schema" `shouldFailOn` "extend shema"
+
+parseExtend :: Text -> (Text -> Either (ParseErrorBundle Text Void) ())
+parseExtend extension = parse (extend extension "" $ pure $ pure ()) ""
 
 runBetween :: (Parser () -> Parser ()) -> Text -> Either (ParseErrorBundle Text Void) ()
 runBetween parser = parse (parser $ pure ()) ""
