@@ -56,7 +56,7 @@ instance Monad m => MonadPlus (ActionT m) where
 -- | Retrieves an argument by its name. If the argument with this name couldn't
 --   be found, returns 'Value.Null' (i.e. the argument is assumed to
 --   be optional then).
-argument :: MonadIO m => Name -> ActionT m Value
+argument :: Monad m => Name -> ActionT m Value
 argument argumentName = do
     argumentValue <- ActionT $ lift $ asks $ lookup . arguments
     pure $ fromMaybe Null argumentValue

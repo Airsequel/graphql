@@ -7,9 +7,9 @@ module Test.StarWars.Schema
     , schema
     ) where
 
-import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
+import Data.Functor.Identity (Identity)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (catMaybes)
 import qualified Language.GraphQL.Schema as Schema
@@ -19,10 +19,10 @@ import Test.StarWars.Data
 
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: MonadIO m => NonEmpty (Schema.Resolver m)
+schema :: NonEmpty (Schema.Resolver Identity)
 schema = hero :| [human, droid]
 
-hero :: MonadIO m => Schema.Resolver m
+hero :: Schema.Resolver Identity
 hero = Schema.object "hero" $ do
   episode <- argument "episode"
   character $ case episode of
@@ -31,7 +31,7 @@ hero = Schema.object "hero" $ do
       Schema.Enum "JEDI" -> getHero 6
       _ -> artoo
 
-human :: MonadIO m => Schema.Resolver m
+human :: Schema.Resolver Identity
 human = Schema.wrappedObject "human" $ do
     id' <- argument "id"
     case id' of
@@ -42,14 +42,14 @@ human = Schema.wrappedObject "human" $ do
                 Just e -> Type.Named <$> character e
         _ -> ActionT $ throwE "Invalid arguments."
 
-droid :: MonadIO m => Schema.Resolver m
+droid :: Schema.Resolver Identity
 droid = Schema.object "droid" $ do
     id' <- argument "id"
     case id' of
-        Schema.String i -> character =<< liftIO (getDroid i)
+        Schema.String i -> character =<< getDroid i
         _ -> ActionT $ throwE "Invalid arguments."
 
-character :: MonadIO m => Character -> ActionT m [Schema.Resolver m]
+character :: Character -> ActionT Identity [Schema.Resolver Identity]
 character char = return
     [ Schema.scalar "id" $ return $ id_ char
     , Schema.scalar "name" $ return $ name char

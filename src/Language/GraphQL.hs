@@ -4,7 +4,6 @@ module Language.GraphQL
     , graphqlSubs
     ) where
 
-import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.Text as T
@@ -16,7 +15,7 @@ import Text.Megaparsec (parse)
 
 -- | If the text parses correctly as a @GraphQL@ query the query is
 -- executed using the given 'Schema.Resolver's.
-graphql :: MonadIO m
+graphql :: Monad m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
     -> T.Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
@@ -25,7 +24,7 @@ graphql = flip graphqlSubs mempty
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
 -- applied to the query and the query is then executed using to the given
 -- 'Schema.Resolver's.
-graphqlSubs :: MonadIO m
+graphqlSubs :: Monad m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
     -> Schema.Subs -- ^ Variable substitution function.
     -> T.Text -- ^ Text representing a @GraphQL@ request document.

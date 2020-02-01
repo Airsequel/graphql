@@ -6,7 +6,6 @@ module Language.GraphQL.Execute
     , executeWithName
     ) where
 
-import Control.Monad.IO.Class (MonadIO)
 import qualified Data.Aeson as Aeson
 import Data.Foldable (toList)
 import Data.List.NonEmpty (NonEmpty(..))
@@ -24,7 +23,7 @@ import qualified Language.GraphQL.Schema as Schema
 --
 -- Returns the result of the query against the schema wrapped in a /data/
 -- field, or errors wrapped in an /errors/ field.
-execute :: MonadIO m
+execute :: Monad m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
     -> Schema.Subs -- ^ Variable substitution function.
     -> Document -- @GraphQL@ document.
@@ -40,7 +39,7 @@ execute schema subs doc =
 --
 -- Returns the result of the query against the schema wrapped in a /data/
 -- field, or errors wrapped in an /errors/ field.
-executeWithName :: MonadIO m
+executeWithName :: Monad m
     => NonEmpty (Schema.Resolver m) -- ^ Resolvers
     -> Text -- ^ Operation name.
     -> Schema.Subs -- ^ Variable substitution function.
@@ -51,7 +50,7 @@ executeWithName schema name subs doc =
   where
     transformError = return $ singleError "Schema transformation error."
 
-document :: MonadIO m
+document :: Monad m
     => NonEmpty (Schema.Resolver m)
     -> Maybe Text
     -> AST.Core.Document
@@ -67,7 +66,7 @@ document schema (Just name) operations = case NE.dropWhile matchingName operatio
     matchingName _ = False
 document _ _ _ = return $ singleError "Missing operation name."
 
-operation :: MonadIO m
+operation :: Monad m
     => NonEmpty (Schema.Resolver m)
     -> AST.Core.Operation
     -> m Aeson.Value

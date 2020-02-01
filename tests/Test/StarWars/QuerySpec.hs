@@ -6,6 +6,7 @@ module Test.StarWars.QuerySpec
 
 import qualified Data.Aeson as Aeson
 import Data.Aeson ((.=))
+import Data.Functor.Identity (Identity(..))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
@@ -357,7 +358,8 @@ spec = describe "Star Wars Query Tests" $ do
     alderaan = "homePlanet" .= ("Alderaan" :: Text)
 
 testQuery :: Text -> Aeson.Value -> Expectation
-testQuery q expected = graphql schema q >>= flip shouldBe expected
+testQuery q expected = runIdentity (graphql schema q) `shouldBe` expected
 
 testQueryParams :: Subs -> Text -> Aeson.Value -> Expectation
-testQueryParams f q expected = graphqlSubs schema f q >>= flip shouldBe expected
+testQueryParams f q expected =
+    runIdentity (graphqlSubs schema f q) `shouldBe` expected

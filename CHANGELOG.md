@@ -23,6 +23,8 @@ and this project adheres to
   `key -> Maybe value` before).
 - Make `AST.Lexer.at` a text (symbol) parser. It was a char before and is
   `symbol "@"` now.
+- Replace `MonadIO` with a plain `Monad`. Since the tests don't use IO,
+  set the inner monad to `Identity`.
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.

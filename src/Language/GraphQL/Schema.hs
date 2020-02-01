@@ -15,7 +15,6 @@ module Language.GraphQL.Schema
     , Value(..)
     ) where
 
-import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -33,8 +32,8 @@ import Language.GraphQL.Trans
 import qualified Language.GraphQL.Type as Type
 
 -- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
---   information (if an error has occurred). @m@ is usually expected to be an
---   instance of 'MonadIO'.
+--   information (if an error has occurred). @m@ is an arbitrary monad, usually
+--   'IO'.
 data Resolver m = Resolver
     Text -- ^ Name
     (Field -> CollectErrsT m Aeson.Object) -- ^ Resolver
@@ -44,14 +43,14 @@ data Resolver m = Resolver
 type Subs = HashMap Name Value
 
 -- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
-object :: MonadIO m => Name -> ActionT m [Resolver m] -> Resolver m
+object :: Monad m => Name -> ActionT m [Resolver m] -> Resolver m
 object name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
 
 -- | Like 'object' but can be null or a list of objects.
 wrappedObject ::
-    MonadIO m =>
+    Monad m =>
     Name ->
     ActionT m (Type.Wrapping [Resolver m]) ->
     Resolver m
@@ -61,14 +60,14 @@ wrappedObject name f = Resolver name $ resolveFieldValue f resolveRight
         = withField (traverse (`resolve` sels) resolver) fld
 
 -- | A scalar represents a primitive value, like a string or an integer.
-scalar :: (MonadIO m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
+scalar :: (Monad m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
 scalar name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld result = withField (return result) fld
 
 -- | Like 'scalar' but can be null or a list of scalars.
 wrappedScalar ::
-    (MonadIO m, Aeson.ToJSON a) =>
+    (Monad m, Aeson.ToJSON a) =>
     Name ->
     ActionT m (Type.Wrapping a) ->
     Resolver m
@@ -80,7 +79,7 @@ wrappedScalar name f = Resolver name $ resolveFieldValue f resolveRight
     resolveRight fld (Type.List result) = withField (return result) fld
 
 resolveFieldValue ::
-    MonadIO m =>
+    Monad m =>
     ActionT m a ->
     (Field -> a -> CollectErrsT m (HashMap Text Aeson.Value)) ->
     Field ->
@@ -95,7 +94,7 @@ resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
             return $ HashMap.singleton (aliasOrName fld) Aeson.Null
 
 -- | Helper function to facilitate error handling and result emitting.
-withField :: (MonadIO m, Aeson.ToJSON a)
+withField :: (Monad m, Aeson.ToJSON a)
     => CollectErrsT m a -> Field -> CollectErrsT m (HashMap Text Aeson.Value)
 withField v fld
     = HashMap.singleton (aliasOrName fld) . Aeson.toJSON <$> runAppendErrs v
@@ -103,7 +102,7 @@ withField v fld
 -- | Takes a list of 'Resolver's and a list of 'Field's and applies each
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
-resolve :: MonadIO m
+resolve :: Monad m
     => [Resolver m] -> Seq Selection -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where

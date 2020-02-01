@@ -8,7 +8,6 @@ module Test.StarWars.Data
     , getEpisode
     , getFriends
     , getHero
-    , getHeroIO
     , getHuman
     , id_
     , homePlanet
@@ -18,10 +17,8 @@ module Test.StarWars.Data
     ) where
 
 import Data.Monoid (mempty)
-import Control.Applicative ( Alternative(..)
-                           , liftA2 
-                           )
-import Control.Monad.IO.Class (MonadIO(..))
+import Data.Functor.Identity (Identity)
+import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -71,7 +68,7 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: MonadIO m => Character -> ActionT m Text
+secretBackstory :: Character -> ActionT Identity Text
 secretBackstory = const $ ActionT $ throwE "secretBackstory is secret."
 
 typeName :: Character -> Text
@@ -165,9 +162,6 @@ artoo' = Droid
 getHero :: Int -> Character
 getHero 5 = luke
 getHero _ = artoo
-
-getHeroIO :: Int -> IO Character
-getHeroIO = pure . getHero
 
 getHuman :: Alternative f => ID -> f Character
 getHuman = fmap Right . getHuman'
