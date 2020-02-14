@@ -230,6 +230,7 @@ data Type
     | TypeNonNull NonNullType
     deriving (Eq, Show)
 
+-- | Represents type names.
 type NamedType = Name
 
 -- | Helper type to represent Non-Null types and lists of such types.
@@ -241,10 +242,30 @@ data NonNullType
 -- ** Directives
 
 -- | Directive.
+--
+-- Directives begin with "@", can accept arguments, and can be applied to the
+-- most GraphQL elements, providing additional information.
 data Directive = Directive Name [Argument] deriving (Eq, Show)
 
 -- * Type System
 
+-- | Type system can define a schema, a type or a directive.
+--
+-- @
+-- schema {
+--   query: Query
+-- }
+--
+-- directive @example on FIELD_DEFINITION
+--
+-- type Query {
+--   field: String @example
+-- }
+-- @
+--
+-- This example defines a custom directive "@example", which is applied to a
+-- field definition of the type definition "Query". On the top the schema
+-- is defined by taking advantage of the type "Query".
 data TypeSystemDefinition
     = SchemaDefinition [Directive] (NonEmpty OperationTypeDefinition)
     | TypeDefinition TypeDefinition
@@ -254,6 +275,8 @@ data TypeSystemDefinition
 
 -- ** Type System Extensions
 
+-- | Extension for a type system definition. Only schema and type definitions
+-- can be extended.
 data TypeSystemExtension
     = SchemaExtension SchemaExtension
     | TypeExtension TypeExtension
@@ -261,10 +284,25 @@ data TypeSystemExtension
 
 -- ** Schema
 
+-- | Root operation type definition.
+--
+-- Defining root operation types is not required since they have defaults. So
+-- the default query root type is "Query", and the default mutation root type
+-- is "Mutation". But these defaults can be changed for a specific schema. In
+-- the following code the query root type is changed to "MyQueryRootType", and
+-- the mutation root type to "MyMutationRootType":
+--
+-- @
+-- schema {
+--   query: MyQueryRootType
+--   mutation: MyMutationRootType
+-- }
+-- @
 data OperationTypeDefinition
     = OperationTypeDefinition OperationType NamedType
     deriving (Eq, Show)
 
+-- | Extension of the schema definition by further operations or directives.
 data SchemaExtension
     = SchemaOperationExtension [Directive] (NonEmpty OperationTypeDefinition)
     | SchemaDirectivesExtension (NonEmpty Directive)
@@ -272,11 +310,28 @@ data SchemaExtension
 
 -- ** Descriptions
 
+-- | GraphQL has built-in capability to document service APIs. Documentation
+-- is a GraphQL string that precedes a particular definition and contains
+-- Markdown. Any GraphQL definition can be documented this way.
+--
+-- @
+-- """
+-- Supported languages.
+-- """
+-- enum Language {
+--   "English"
+--   EN
+--
+--   "Russian"
+--   RU
+-- }
+-- @
 newtype Description = Description (Maybe Text)
     deriving (Eq, Show)
 
 -- ** Types
 
+-- | Type definitions describe various user-defined types.
 data TypeDefinition
     = ScalarTypeDefinition Description Name [Directive]
     | ObjectTypeDefinition
@@ -292,6 +347,7 @@ data TypeDefinition
         Description Name [Directive] [InputValueDefinition]
     deriving (Eq, Show)
 
+-- | Extensions for custom, already defined types.
 data TypeExtension
     = ScalarTypeExtension Name (NonEmpty Directive)
     | ObjectTypeFieldsDefinitionExtension
@@ -316,6 +372,16 @@ data TypeExtension
 
 -- ** Objects
 
+-- | Defines a list of interfaces implemented by the given object type.
+--
+-- @
+-- type Business implements NamedEntity & ValuedEntity {
+--   name: String
+-- }
+-- @
+--
+-- Here the object type "Business" implements two interfaces: "NamedEntity" and
+-- "ValuedEntity".
 newtype ImplementsInterfaces t = ImplementsInterfaces (t NamedType)
 
 instance Foldable t => Eq (ImplementsInterfaces t) where
@@ -328,10 +394,33 @@ instance Foldable t => Show (ImplementsInterfaces t) where
         $ Text.intercalate " & "
         $ toList interfaces
 
+-- | Definition of a single field in a type.
+--
+-- @
+-- type Person {
+--   name: String
+--   picture(width: Int, height: Int): Url
+-- }
+-- @
+--
+-- "name" and "picture", including their arguments and types, are field
+-- definitions.
 data FieldDefinition
     = FieldDefinition Description Name ArgumentsDefinition Type [Directive]
     deriving (Eq, Show)
 
+-- | A list of values passed to a field.
+--
+-- @
+-- type Person {
+--   name: String
+--   picture(width: Int, height: Int): Url
+-- }
+-- @
+--
+-- "Person" has two fields, "name" and "picture". "name" doesn't have any
+-- arguments, so 'ArgumentsDefinition' contains an empty list. "picture"
+-- contains definitions for 2 arguments: "width" and "height".
 newtype ArgumentsDefinition = ArgumentsDefinition [InputValueDefinition]
     deriving (Eq, Show)
 
@@ -342,12 +431,32 @@ instance Semigroup ArgumentsDefinition where
 instance Monoid ArgumentsDefinition where
     mempty = ArgumentsDefinition []
 
+-- | Defines an input value.
+--
+-- * Input values can define field arguments, see 'ArgumentsDefinition'.
+-- * They can also be used as field definitions in an input type.
+--
+-- @
+-- input Point2D {
+--   x: Float
+--   y: Float
+-- }
+-- @
+--
+-- The input type "Point2D" contains two value definitions: "x" and "y".
 data InputValueDefinition
     = InputValueDefinition Description Name Type (Maybe Value) [Directive]
     deriving (Eq, Show)
 
 -- ** Unions
 
+-- | List of types forming a union.
+--
+-- @
+-- union SearchResult = Person | Photo
+-- @
+--
+-- "Person" and "Photo" are member types of the union "SearchResult".
 newtype UnionMemberTypes t = UnionMemberTypes (t NamedType)
 
 instance Foldable t => Eq (UnionMemberTypes t) where
@@ -360,5 +469,18 @@ instance Foldable t => Show (UnionMemberTypes t) where
 
 -- ** Enums
 
+-- | Single value in an enum definition.
+--
+-- @
+-- enum Direction {
+--   NORTH
+--   EAST
+--   SOUTH
+--   WEST
+-- }
+-- @
+--
+-- "NORTH, "EAST", "SOUTH", and "WEST" are value definitions of an enum type
+-- definition "Direction".
 data EnumValueDefinition = EnumValueDefinition Description Name [Directive]
     deriving (Eq, Show)
