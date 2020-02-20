@@ -15,7 +15,6 @@ module Language.GraphQL.AST.Encoder
 
 import Data.Char (ord)
 import Data.Foldable (fold)
-import Data.Monoid ((<>))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import qualified Data.Text as Text

@@ -16,7 +16,6 @@ module Test.StarWars.Data
     , typeName
     ) where
 
-import Data.Monoid (mempty)
 import Data.Functor.Identity (Identity)
 import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad.Trans.Except (throwE)

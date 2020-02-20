@@ -20,18 +20,20 @@ import Control.Monad.Trans.State ( StateT
                                  , modify
                                  , runStateT
                                  )
-import Text.Megaparsec ( ParseErrorBundle(..)
-                       , SourcePos(..)
-                       , errorOffset
-                       , parseErrorTextPretty
-                       , reachOffset
-                       , unPos
-                       )
+import Text.Megaparsec
+    ( ParseErrorBundle(..)
+    , PosState(..)
+    , SourcePos(..)
+    , errorOffset
+    , parseErrorTextPretty
+    , reachOffset
+    , unPos
+    )
 
 -- | Wraps a parse error into a list of errors.
 parseError :: Applicative f => ParseErrorBundle Text Void -> f Aeson.Value
 parseError ParseErrorBundle{..}  =
-  pure $ Aeson.object [("errors", Aeson.toJSON $ fst $ foldl go ([], bundlePosState) bundleErrors)]
+    pure $ Aeson.object [("errors", Aeson.toJSON $ fst $ foldl go ([], bundlePosState) bundleErrors)]
   where
     errorObject s SourcePos{..} = Aeson.object
         [ ("message", Aeson.toJSON $ init $ parseErrorTextPretty s)
@@ -39,7 +41,8 @@ parseError ParseErrorBundle{..}  =
         , ("column", Aeson.toJSON $ unPos sourceColumn)
         ]
     go (result, state) x =
-        let (sourcePosition, _, newState) = reachOffset (errorOffset x) state
+        let (_, newState) = reachOffset (errorOffset x) state
+            sourcePosition = pstateSourcePos newState
          in (errorObject x sourcePosition : result, newState)
 
 -- | A wrapper to pass error messages around.
