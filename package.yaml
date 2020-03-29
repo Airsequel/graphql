@@ -54,4 +54,5 @@ tests:
     - hspec
     - hspec-expectations
     - hspec-megaparsec
+    - QuickCheck
     - raw-strings-qq

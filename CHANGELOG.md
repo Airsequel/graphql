@@ -9,6 +9,8 @@ and this project adheres to
 ## [Unreleased]
 ### Fixed
 - Result of null encoding
+- Block strings encoding
+- Result of tab and newline encoding
 
 ### Added
 - AST for the GraphQL schema.

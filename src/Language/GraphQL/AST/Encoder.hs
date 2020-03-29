@@ -53,7 +53,7 @@ document formatter defs
     executableDefinition (ExecutableDefinition x) acc = definition formatter x : acc
     executableDefinition _ acc = acc
 
--- | Converts a 'Full.Definition' into a string.
+-- | Converts a t'Full.ExecutableDefinition' into a string.
 definition :: Formatter -> ExecutableDefinition -> Lazy.Text
 definition formatter x
     | Pretty _ <- formatter = Lazy.Text.snoc (encodeDefinition x) '\n'
@@ -64,6 +64,7 @@ definition formatter x
     encodeDefinition (Full.DefinitionFragment fragment)
         = fragmentDefinition formatter fragment
 
+-- | Converts a 'Full.OperationDefinition into a string.
 operationDefinition :: Formatter -> Full.OperationDefinition -> Lazy.Text
 operationDefinition formatter (Full.SelectionSet sels)
     = selectionSet formatter sels
@@ -72,6 +73,7 @@ operationDefinition formatter (Full.OperationDefinition Full.Query name vars dir
 operationDefinition formatter (Full.OperationDefinition Full.Mutation name vars dirs sels)
     = "mutation " <> node formatter name vars dirs sels
 
+-- | Converts a Full.Query or Full.Mutation into a string.
 node :: Formatter ->
     Maybe Full.Name ->
     [Full.VariableDefinition] ->
@@ -112,8 +114,11 @@ selectionSet formatter
 selectionSetOpt :: Formatter -> Full.SelectionSetOpt -> Lazy.Text
 selectionSetOpt formatter = bracesList formatter $ selection formatter
 
+indentSymbol :: Lazy.Text
+indentSymbol = "  "
+
 indent :: (Integral a) => a -> Lazy.Text
-indent indentation = Lazy.Text.replicate (fromIntegral indentation) "  "
+indent indentation = Lazy.Text.replicate (fromIntegral indentation) indentSymbol
 
 selection :: Formatter -> Full.Selection -> Lazy.Text
 selection formatter = Lazy.Text.append indent' . encodeSelection
@@ -134,6 +139,7 @@ selection formatter = Lazy.Text.append indent' . encodeSelection
 colon :: Formatter -> Lazy.Text
 colon formatter = eitherFormat formatter ": " ":"
 
+-- | Converts Full.Field into a string
 field :: Formatter ->
     Maybe Full.Name ->
     Full.Name ->
@@ -215,26 +221,40 @@ booleanValue :: Bool -> Lazy.Text
 booleanValue True  = "true"
 booleanValue False = "false"
 
+quote :: Builder.Builder
+quote = Builder.singleton '\"'
+
+oneLine :: Text -> Builder
+oneLine string = quote <> Text.foldr (mappend . escape) quote string
+
 stringValue :: Formatter -> Text -> Lazy.Text
 stringValue Minified string = Builder.toLazyText
-    $ quote <> Text.foldr (mappend . escape') quote string
-  where
-    quote = Builder.singleton '\"'
-    escape' '\n' = Builder.fromString "\\n"
-    escape' char = escape char
-stringValue (Pretty indentation) string = byStringType $ Text.lines string
-  where
-    byStringType [] = "\"\""
-    byStringType [line] = Builder.toLazyText
-        $ quote <> Text.foldr (mappend . escape) quote line
-    byStringType lines' = "\"\"\"\n"
-        <> Lazy.Text.unlines (transformLine <$> lines')
-        <> indent indentation
-        <> "\"\"\""
-    transformLine = (indent (indentation + 1) <>)
-        . Lazy.Text.fromStrict
-        . Text.replace "\"\"\"" "\\\"\"\""
-    quote = Builder.singleton '\"'
+    $ quote <> Text.foldr (mappend . escape) quote string
+stringValue (Pretty indentation) string =
+  if hasEscaped string
+  then stringValue Minified string
+  else Builder.toLazyText $ encoded lines'
+    where
+      isWhiteSpace char = char == ' ' || char == '\t'
+      isNewline char = char == '\n' || char == '\r'
+      hasEscaped = Text.any (not . isAllowed)
+      isAllowed char =
+          char == '\t' || isNewline char || (char >= '\x0020' && char /= '\x007F')
+
+      tripleQuote = Builder.fromText "\"\"\""
+      start = tripleQuote <> Builder.singleton '\n'
+      end = Builder.fromLazyText (indent indentation) <> tripleQuote
+
+      strip = Text.dropWhile isWhiteSpace . Text.dropWhileEnd isWhiteSpace
+      lines' = map Builder.fromText $ Text.split isNewline (Text.replace "\r\n" "\n" $ strip string)
+      encoded [] = oneLine string
+      encoded [_] = oneLine string
+      encoded lines'' = start <> transformLines lines'' <> end
+      transformLines = foldr ((\line acc -> line <> Builder.singleton '\n' <> acc) . transformLine) mempty
+      transformLine line =
+        if Lazy.Text.null (Builder.toLazyText line)
+        then line
+        else Builder.fromLazyText (indent (indentation + 1)) <> line
 
 escape :: Char -> Builder
 escape char'
@@ -242,7 +262,9 @@ escape char'
     | char' == '\"' = Builder.fromString "\\\""
     | char' == '\b' = Builder.fromString "\\b"
     | char' == '\f' = Builder.fromString "\\f"
+    | char' == '\n' = Builder.fromString "\\n"
     | char' == '\r' = Builder.fromString "\\r"
+    | char' == '\t' = Builder.fromString "\\t"
     | char' < '\x0010' = unicode  "\\u000" char'
     | char' < '\x0020' = unicode "\\u00" char'
     | otherwise = Builder.singleton char'
