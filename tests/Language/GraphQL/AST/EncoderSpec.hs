@@ -12,6 +12,11 @@ import Text.RawString.QQ (r)
 spec :: Spec
 spec = do
     describe "value" $ do
+        context "null value" $ do
+            let testNull formatter = value formatter Null `shouldBe` "null"
+            it "minified" $ testNull minified
+            it "pretty" $ testNull pretty
+
         context "minified" $ do
             it "escapes \\" $
                 value minified (String "\\") `shouldBe` "\"\\\\\""
