@@ -17,6 +17,7 @@ and this project adheres to
 - Type system definition parser.
 - `Trans.argument`.
 - Schema extension parser.
+- Contributing guidelines
 
 ### Changed
 - Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.

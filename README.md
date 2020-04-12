@@ -24,10 +24,17 @@ For the list of currently missing features see issues marked as
 ## Documentation
 
 API documentation is available through
-[hackage](https://hackage.haskell.org/package/graphql).
+[Hackage](https://hackage.haskell.org/package/graphql).
 
 You'll also find a small tutorial with some examples under
 [docs/tutorial](https://github.com/caraus-ecms/graphql/tree/master/docs/tutorial).
+
+## Further information
+
+- [Contributing guidelines](CONTRIBUTING.md).
+- [Changelog](CHANGELOG.md) – this one contains the most recent changes; 
+  individual changelogs for specific versions can be found on
+  [Hackage](https://hackage.haskell.org/package/graphql).
 
 ## Contact
 
