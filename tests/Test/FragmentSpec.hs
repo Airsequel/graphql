@@ -51,7 +51,7 @@ spec :: Spec
 spec = do
     describe "Inline fragment executor" $ do
         it "chooses the first selection if the type matches" $ do
-            actual <- graphql (garment "Hat" :| []) inlineQuery
+            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -62,7 +62,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "chooses the last selection if the type matches" $ do
-            actual <- graphql (garment "Shirt" :| []) inlineQuery
+            actual <- graphql (HashMap.singleton "Query" $ garment "Shirt" :| []) inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -83,7 +83,7 @@ spec = do
             }|]
                 resolvers = Schema.object "garment" $ return [circumference,  size]
 
-            actual <- graphql (resolvers :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ resolvers :| []) query
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -101,7 +101,7 @@ spec = do
               }
             }|]
 
-            actual <- graphql (size :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ size :| []) query
             actual `shouldNotSatisfy` hasErrors
 
     describe "Fragment spread executor" $ do
@@ -116,7 +116,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (circumference :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ circumference :| []) query
             let expected = object
                     [ "data" .= object
                         [ "circumference" .= (60 :: Int)
@@ -141,7 +141,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (garment "Hat" :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) query
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -162,7 +162,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (circumference :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ circumference :| []) query
             actual `shouldSatisfy` hasErrors
 
         it "considers type condition" $ do
@@ -187,5 +187,5 @@ spec = do
                             ]
                         ]
                     ]
-            actual <- graphql (garment "Hat" :| []) query
+            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) query
             actual `shouldBe` expected

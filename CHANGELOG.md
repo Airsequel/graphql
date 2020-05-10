@@ -17,7 +17,8 @@ and this project adheres to
 - Type system definition parser.
 - `Trans.argument`.
 - Schema extension parser.
-- Contributing guidelines
+- Contributing guidelines.
+- `Schema.resolversToMap` (intended for to be used internally).
 
 ### Changed
 - Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.
@@ -31,6 +32,12 @@ and this project adheres to
   `symbol "@"` now.
 - Replace `MonadIO` with a plain `Monad`. Since the tests don't use IO,
   set the inner monad to `Identity`.
+- `NonEmpty (Resolver m)` is now `HashMap Text (NonEmpty (Resolver m))`. Root
+  operation type can be any type, therefore a hashmap is needed. Since types
+  cannot be empty, we save the list of resolvers in the type as a non-empty
+  list. Currently only "Query" and "Mutation" are supported as types. For more
+  schema support is required. The executor checks now if the type in the query
+  matches the type of the provided root resolvers.
 
 ### Removed
 - `AST.Field`, `AST.InlineFragment` and `AST.FragmentSpread`.

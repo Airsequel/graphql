@@ -5,14 +5,18 @@ module Test.DirectiveSpec
     ) where
 
 import Data.Aeson (Value, object, (.=))
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 
-experimentalResolver :: Schema.Resolver IO
-experimentalResolver = Schema.scalar "experimentalField" $ pure (5 :: Int) 
+experimentalResolver :: HashMap Text (NonEmpty (Schema.Resolver IO))
+experimentalResolver = HashMap.singleton "Query"
+    $ Schema.scalar "experimentalField" (pure (5 :: Int)) :| []
 
 emptyObject :: Value
 emptyObject = object
@@ -29,7 +33,7 @@ spec =
               }
             |]
 
-            actual <- graphql (experimentalResolver :| []) query
+            actual <- graphql experimentalResolver query
             actual `shouldBe` emptyObject
 
         it "should not skip fields if @skip is false" $ do
@@ -44,7 +48,7 @@ spec =
                         ]
                     ]
 
-            actual <- graphql (experimentalResolver :| []) query
+            actual <- graphql experimentalResolver query
             actual `shouldBe` expected
 
         it "should skip fields if @include is false" $ do
@@ -54,7 +58,7 @@ spec =
               }
             |]
 
-            actual <- graphql (experimentalResolver :| []) query
+            actual <- graphql experimentalResolver query
             actual `shouldBe` emptyObject
 
         it "should be able to @skip a fragment spread" $ do
@@ -68,7 +72,7 @@ spec =
               }
             |]
 
-            actual <- graphql (experimentalResolver :| []) query
+            actual <- graphql experimentalResolver query
             actual `shouldBe` emptyObject
 
         it "should be able to @skip an inline fragment" $ do
@@ -80,5 +84,5 @@ spec =
               }
             |]
 
-            actual <- graphql (experimentalResolver :| []) query
+            actual <- graphql experimentalResolver query
             actual `shouldBe` emptyObject

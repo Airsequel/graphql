@@ -6,7 +6,8 @@ module Language.GraphQL
 
 import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty (NonEmpty)
-import qualified Data.Text as T
+import Data.HashMap.Strict (HashMap)
+import Data.Text (Text)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
 import Language.GraphQL.AST.Parser
@@ -16,8 +17,8 @@ import Text.Megaparsec (parse)
 -- | If the text parses correctly as a @GraphQL@ query the query is
 -- executed using the given 'Schema.Resolver's.
 graphql :: Monad m
-    => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
-    -> T.Text -- ^ Text representing a @GraphQL@ request document.
+    => HashMap Text (NonEmpty (Schema.Resolver m)) -- ^ Resolvers.
+    -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
 graphql = flip graphqlSubs mempty
 
@@ -25,9 +26,9 @@ graphql = flip graphqlSubs mempty
 -- applied to the query and the query is then executed using to the given
 -- 'Schema.Resolver's.
 graphqlSubs :: Monad m
-    => NonEmpty (Schema.Resolver m) -- ^ Resolvers.
+    => HashMap Text (NonEmpty (Schema.Resolver m)) -- ^ Resolvers.
     -> Schema.Subs -- ^ Variable substitution function.
-    -> T.Text -- ^ Text representing a @GraphQL@ request document.
+    -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
 graphqlSubs schema f
     = either parseError (execute schema f)

@@ -3,11 +3,12 @@
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 -- functions for defining and manipulating schemas.
 module Language.GraphQL.Schema
-    ( Resolver
+    ( Resolver(..)
     , Subs
     , object
-    , scalar
     , resolve
+    , resolversToMap
+    , scalar
     , wrappedObject
     , wrappedScalar
     -- * AST Reexports
@@ -18,7 +19,7 @@ module Language.GraphQL.Schema
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
-import Data.Foldable (find, fold)
+import Data.Foldable (fold, toList)
 import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
 import Data.HashMap.Strict (HashMap)
@@ -38,6 +39,15 @@ data Resolver m = Resolver
     Text -- ^ Name
     (Field -> CollectErrsT m Aeson.Object) -- ^ Resolver
 
+-- | Converts resolvers to a map.
+resolversToMap
+    :: (Foldable f, Functor f)
+    => f (Resolver m)
+    -> HashMap Text (Field -> CollectErrsT m Aeson.Object)
+resolversToMap = HashMap.fromList . toList . fmap toKV
+  where
+    toKV (Resolver name f) = (name, f)
+
 -- | Contains variables for the query. The key of the map is a variable name,
 --   and the value is the variable value.
 type Subs = HashMap Name Value
@@ -46,7 +56,8 @@ type Subs = HashMap Name Value
 object :: Monad m => Name -> ActionT m [Resolver m] -> Resolver m
 object name f = Resolver name $ resolveFieldValue f resolveRight
   where
-    resolveRight fld@(Field _ _ _ flds) resolver = withField (resolve resolver flds) fld
+    resolveRight fld@(Field _ _ _ flds) resolver
+        = withField (resolve (resolversToMap resolver) flds) fld
 
 -- | Like 'object' but can be null or a list of objects.
 wrappedObject ::
@@ -57,7 +68,8 @@ wrappedObject ::
 wrappedObject name f = Resolver name $ resolveFieldValue f resolveRight
   where
     resolveRight fld@(Field _ _ _ sels) resolver
-        = withField (traverse (`resolve` sels) resolver) fld
+        = withField (traverse (resolveMap sels) resolver) fld
+    resolveMap = flip (resolve . resolversToMap)
 
 -- | A scalar represents a primitive value, like a string or an integer.
 scalar :: (Monad m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
@@ -81,7 +93,7 @@ wrappedScalar name f = Resolver name $ resolveFieldValue f resolveRight
 resolveFieldValue ::
     Monad m =>
     ActionT m a ->
-    (Field -> a -> CollectErrsT m (HashMap Text Aeson.Value)) ->
+    (Field -> a -> CollectErrsT m Aeson.Object) ->
     Field ->
     CollectErrsT m (HashMap Text Aeson.Value)
 resolveFieldValue f resolveRight fld@(Field _ _ args _) = do
@@ -103,22 +115,21 @@ withField v fld
 --   'Resolver' to each 'Field'. Resolves into a value containing the
 --   resolved 'Field', or a null value and error information.
 resolve :: Monad m
-    => [Resolver m] -> Seq Selection -> CollectErrsT m Aeson.Value
+    => HashMap Text (Field -> CollectErrsT m Aeson.Object)
+    -> Seq Selection
+    -> CollectErrsT m Aeson.Value
 resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
   where
-    resolveTypeName (Resolver "__typename" f) = do
+    resolveTypeName f = do
         value <- f $ Field Nothing "__typename" mempty mempty
         return $ HashMap.lookupDefault "" "__typename" value
-    resolveTypeName _ = return ""
     tryResolvers (SelectionField fld@(Field _ name _ _))
-        = maybe (errmsg fld) (tryResolver fld) $ find (compareResolvers name) resolvers
+        = fromMaybe (errmsg fld) $ HashMap.lookup name resolvers <*> Just fld
     tryResolvers (SelectionFragment (Fragment typeCondition selections')) = do
-        that <- traverse resolveTypeName (find (compareResolvers "__typename") resolvers)
+        that <- traverse resolveTypeName $ HashMap.lookup "__typename" resolvers
         if maybe True (Aeson.String typeCondition ==) that
             then fmap fold . traverse tryResolvers $ selections'
             else return mempty
-    compareResolvers name (Resolver name' _) = name == name'
-    tryResolver fld (Resolver _ resolver)  = resolver fld
     errmsg fld@(Field _ name _ _) = do
         addErrMsg $ T.unwords ["field", name, "not resolved."]
         return $ HashMap.singleton (aliasOrName fld) Aeson.Null

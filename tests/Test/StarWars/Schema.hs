@@ -10,8 +10,11 @@ module Test.StarWars.Schema
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
 import Data.Functor.Identity (Identity)
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (catMaybes)
+import Data.Text (Text)
 import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
 import qualified Language.GraphQL.Type as Type
@@ -19,8 +22,8 @@ import Test.StarWars.Data
 
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: NonEmpty (Schema.Resolver Identity)
-schema = hero :| [human, droid]
+schema :: HashMap Text (NonEmpty (Schema.Resolver Identity))
+schema = HashMap.singleton "Query" $ hero :| [human, droid]
 
 hero :: Schema.Resolver Identity
 hero = Schema.object "hero" $ do
