@@ -7,6 +7,8 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+
+## [0.7.0.0] - 2020-05-11
 ### Fixed
 - Result of null encoding
 - Block strings encoding
@@ -214,6 +216,7 @@ and this project adheres to
 - Data types for the GraphQL language.
 
 [Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...HEAD
+[0.7.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...v0.7.0.0
 [0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
 [0.6.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.1.0...v0.6.0.0
 [0.5.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.1...v0.5.1.0
