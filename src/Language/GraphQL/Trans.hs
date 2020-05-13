@@ -18,8 +18,9 @@ import Language.GraphQL.AST.Core
 import Prelude hiding (lookup)
 
 -- | Resolution context holds resolver arguments.
-newtype Context = Context
+data Context = Context
     { arguments :: Arguments
+    , info :: Field
     }
 
 -- | Monad transformer stack used by the resolvers to provide error handling

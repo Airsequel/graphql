@@ -4,7 +4,7 @@ module Test.DirectiveSpec
     ( spec
     ) where
 
-import Data.Aeson (Value, object, (.=))
+import Data.Aeson (Value(..), object, (.=))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))

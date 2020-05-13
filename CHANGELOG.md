@@ -7,6 +7,11 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+### Changed
+- `Resolver` is now `Resolver Name FieldResolver` where `FieldResolver` can
+  contain a JSON value or another resolver, which is invoked during the
+  execution. `FieldResolver` is executed in `ActionT` and the current `Field` is
+  passed in the reader and not as an explicit argument.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed
@@ -20,7 +25,7 @@ and this project adheres to
 - `Trans.argument`.
 - Schema extension parser.
 - Contributing guidelines.
-- `Schema.resolversToMap` (intended for to be used internally).
+- `Schema.resolversToMap` (intended to be used internally).
 
 ### Changed
 - Rename `AST.Definition` into `AST.Document.ExecutableDefinition`.

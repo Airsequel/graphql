@@ -189,3 +189,27 @@ spec = do
                     ]
             actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) query
             actual `shouldBe` expected
+
+        it "test1" $ do
+            let query = [r|
+              {
+                garment {
+                  circumference
+                }
+              }
+            |]
+                expected = object
+                    [ "data" .= object
+                        [ "garment" .= object
+                            [ "circumference" .= (60 :: Int)
+                            ]
+                        ]
+                    ]
+            actual <- graphql schema query
+            actual `shouldBe` expected
+          where
+            schema = HashMap.singleton "Query" $ garment' :| []
+            garment' = Schema.object "garment" $ return
+                [ circumference'
+                ]
+            circumference' = Schema.scalar "circumference" $ pure (60 :: Int)
