@@ -3,7 +3,8 @@
 -- | This module provides a representation of a @GraphQL@ Schema in addition to
 -- functions for defining and manipulating schemas.
 module Language.GraphQL.Schema
-    ( Resolver(..)
+    ( FieldResolver(..)
+    , Resolver(..)
     , Subs
     , object
     , resolve

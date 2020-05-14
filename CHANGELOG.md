@@ -13,6 +13,12 @@ and this project adheres to
   execution. `FieldResolver` is executed in `ActionT` and the current `Field` is
   passed in the reader and not as an explicit argument.
 
+### Added
+- `Type.Definition` and `Type.Schema` modules. Both contain the first types (but
+  not all yet) to describe a schema. Public functions that execute queries
+  accept a `Schema` now instead of a `HashMap`. The execution fails if the root
+  operation doesn't match the root Query type in the schema.
+
 ## [0.7.0.0] - 2020-05-11
 ### Fixed
 - Result of null encoding

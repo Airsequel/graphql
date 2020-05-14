@@ -5,18 +5,22 @@ module Test.DirectiveSpec
     ) where
 
 import Data.Aeson (Value(..), object, (.=))
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty(..))
-import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
+import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type.Schema (Schema(..))
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 
-experimentalResolver :: HashMap Text (NonEmpty (Schema.Resolver IO))
-experimentalResolver = HashMap.singleton "Query"
-    $ Schema.scalar "experimentalField" (pure (5 :: Int)) :| []
+experimentalResolver :: Schema IO
+experimentalResolver = Schema { query = queryType, mutation = Nothing }
+  where
+    queryType = ObjectType "Query"
+        $ HashMap.singleton "experimentalField"
+        $ Schema.ValueResolver
+        $ pure
+        $ Number 5
 
 emptyObject :: Value
 emptyObject = object
@@ -27,17 +31,17 @@ spec :: Spec
 spec =
     describe "Directive executor" $ do
         it "should be able to @skip fields" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 experimentalField @skip(if: true)
               }
             |]
 
-            actual <- graphql experimentalResolver query
+            actual <- graphql experimentalResolver sourceQuery
             actual `shouldBe` emptyObject
 
         it "should not skip fields if @skip is false" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 experimentalField @skip(if: false)
               }
@@ -48,21 +52,21 @@ spec =
                         ]
                     ]
 
-            actual <- graphql experimentalResolver query
+            actual <- graphql experimentalResolver sourceQuery
             actual `shouldBe` expected
 
         it "should skip fields if @include is false" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 experimentalField @include(if: false)
               }
             |]
 
-            actual <- graphql experimentalResolver query
+            actual <- graphql experimentalResolver sourceQuery
             actual `shouldBe` emptyObject
 
         it "should be able to @skip a fragment spread" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 ...experimentalFragment @skip(if: true)
               }
@@ -72,11 +76,11 @@ spec =
               }
             |]
 
-            actual <- graphql experimentalResolver query
+            actual <- graphql experimentalResolver sourceQuery
             actual `shouldBe` emptyObject
 
         it "should be able to @skip an inline fragment" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 ... on ExperimentalType @skip(if: true) {
                   experimentalField
@@ -84,5 +88,5 @@ spec =
               }
             |]
 
-            actual <- graphql experimentalResolver query
+            actual <- graphql experimentalResolver sourceQuery
             actual `shouldBe` emptyObject

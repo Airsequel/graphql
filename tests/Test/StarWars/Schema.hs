@@ -10,20 +10,23 @@ module Test.StarWars.Schema
 import Control.Monad.Trans.Except (throwE)
 import Control.Monad.Trans.Class (lift)
 import Data.Functor.Identity (Identity)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (catMaybes)
-import Data.Text (Text)
 import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
+import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type as Type
+import Language.GraphQL.Type.Schema
 import Test.StarWars.Data
 
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: HashMap Text (NonEmpty (Schema.Resolver Identity))
-schema = HashMap.singleton "Query" $ hero :| [human, droid]
+schema :: Schema Identity
+schema = Schema { query = queryType, mutation = Nothing }
+  where
+    queryType = ObjectType "Query"
+        $ Schema.resolversToMap
+        $ hero :| [human, droid]
 
 hero :: Schema.Resolver Identity
 hero = Schema.object "hero" $ do
@@ -55,7 +58,7 @@ droid = Schema.object "droid" $ do
 character :: Character -> ActionT Identity [Schema.Resolver Identity]
 character char = return
     [ Schema.scalar "id" $ return $ id_ char
-    , Schema.scalar "name" $ return $ name char
+    , Schema.scalar "name" $ return $ name_ char
     , Schema.wrappedObject "friends"
         $ traverse character $ Type.List $ Type.Named <$> getFriends char
     , Schema.wrappedScalar "appearsIn" $ return . Type.List

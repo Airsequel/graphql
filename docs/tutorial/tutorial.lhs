@@ -17,14 +17,14 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > import Control.Monad.IO.Class (liftIO)
 > import Data.Aeson (encode)
 > import Data.ByteString.Lazy.Char8 (putStrLn)
-> import Data.HashMap.Strict (HashMap)
-> import qualified Data.HashMap.Strict as HashMap
 > import Data.List.NonEmpty (NonEmpty(..))
 > import Data.Text (Text)
 > import Data.Time (getCurrentTime)
 >
 > import Language.GraphQL
 > import qualified Language.GraphQL.Schema as Schema
+> import Language.GraphQL.Type.Definition
+> import Language.GraphQL.Type.Schema
 >
 > import Prelude hiding (putStrLn)
 
@@ -35,8 +35,11 @@ example from [graphql.js](https://github.com/graphql/graphql-js).
 
 First we build a GraphQL schema.
 
-> schema1 :: HashMap Text (NonEmpty (Schema.Resolver IO))
-> schema1 = HashMap.singleton "Query" $ hello :| []
+> schema1 :: Schema IO
+> schema1 = Schema queryType Nothing
+>
+> queryType :: ObjectType IO
+> queryType = ObjectType "Query" $ Schema.resolversToMap $ hello :| []
 >
 > hello :: Schema.Resolver IO
 > hello = Schema.scalar "hello" (return ("it's me" :: Text))
@@ -65,8 +68,11 @@ returning
 
 For this example, we're going to be using time.
 
-> schema2 :: HashMap Text (NonEmpty (Schema.Resolver IO))
-> schema2 = HashMap.singleton "Query" $ time :| []
+> schema2 :: Schema IO
+> schema2 = Schema queryType2 Nothing
+>
+> queryType2 :: ObjectType IO
+> queryType2 = ObjectType "Query" $ Schema.resolversToMap $ time :| []
 >
 > time :: Schema.Resolver IO
 > time = Schema.scalar "time" $ do
@@ -124,8 +130,11 @@ This will fail
 
 Now that we have two resolvers, we can define a schema which uses them both.
 
-> schema3 :: HashMap Text (NonEmpty (Schema.Resolver IO))
-> schema3 = HashMap.singleton "Query" $ hello :| [time]
+> schema3 :: Schema IO
+> schema3 = Schema queryType3 Nothing
+>
+> queryType3 :: ObjectType IO
+> queryType3 = ObjectType "Query" $ Schema.resolversToMap $ hello :| [time]
 >
 > query3 :: Text
 > query3 = "query timeAndHello { time hello }"

@@ -10,13 +10,16 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
-import Test.Hspec ( Spec
-                  , describe
-                  , it
-                  , shouldBe
-                  , shouldSatisfy
-                  , shouldNotSatisfy
-                  )
+import Test.Hspec
+    ( Spec
+    , describe
+    , it
+    , shouldBe
+    , shouldSatisfy
+    , shouldNotSatisfy
+    )
+import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type.Schema
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
@@ -47,11 +50,18 @@ hasErrors :: Value -> Bool
 hasErrors (Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
+toSchema :: Schema.Resolver IO -> Schema IO
+toSchema resolver = Schema { query = queryType, mutation = Nothing }
+  where
+    queryType = ObjectType "Query"
+        $ Schema.resolversToMap
+        $ resolver :| []
+
 spec :: Spec
 spec = do
     describe "Inline fragment executor" $ do
         it "chooses the first selection if the type matches" $ do
-            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) inlineQuery
+            actual <- graphql (toSchema $ garment "Hat") inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -62,7 +72,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "chooses the last selection if the type matches" $ do
-            actual <- graphql (HashMap.singleton "Query" $ garment "Shirt" :| []) inlineQuery
+            actual <- graphql (toSchema $ garment "Shirt") inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -73,7 +83,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "embeds inline fragments without type" $ do
-            let query = [r|{
+            let sourceQuery = [r|{
               garment {
                 circumference
                 ... {
@@ -83,7 +93,7 @@ spec = do
             }|]
                 resolvers = Schema.object "garment" $ return [circumference,  size]
 
-            actual <- graphql (HashMap.singleton "Query" $ resolvers :| []) query
+            actual <- graphql (toSchema resolvers) sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -95,18 +105,18 @@ spec = do
              in actual `shouldBe` expected
 
         it "evaluates fragments on Query" $ do
-            let query = [r|{
+            let sourceQuery = [r|{
               ... {
                 size
               }
             }|]
 
-            actual <- graphql (HashMap.singleton "Query" $ size :| []) query
+            actual <- graphql (toSchema size) sourceQuery
             actual `shouldNotSatisfy` hasErrors
 
     describe "Fragment spread executor" $ do
         it "evaluates fragment spreads" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 ...circumferenceFragment
               }
@@ -116,7 +126,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (HashMap.singleton "Query" $ circumference :| []) query
+            actual <- graphql (toSchema circumference) sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "circumference" .= (60 :: Int)
@@ -125,7 +135,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "evaluates nested fragments" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 garment {
                   ...circumferenceFragment
@@ -141,7 +151,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) query
+            actual <- graphql (toSchema $ garment "Hat") sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -152,7 +162,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "rejects recursive fragments" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 ...circumferenceFragment
               }
@@ -162,11 +172,11 @@ spec = do
               }
             |]
 
-            actual <- graphql (HashMap.singleton "Query" $ circumference :| []) query
+            actual <- graphql (toSchema circumference) sourceQuery
             actual `shouldSatisfy` hasErrors
 
         it "considers type condition" $ do
-            let query = [r|
+            let sourceQuery = [r|
               {
                 garment {
                   ...circumferenceFragment
@@ -187,29 +197,5 @@ spec = do
                             ]
                         ]
                     ]
-            actual <- graphql (HashMap.singleton "Query" $ garment "Hat" :| []) query
+            actual <- graphql (toSchema $ garment "Hat") sourceQuery
             actual `shouldBe` expected
-
-        it "test1" $ do
-            let query = [r|
-              {
-                garment {
-                  circumference
-                }
-              }
-            |]
-                expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
-                            [ "circumference" .= (60 :: Int)
-                            ]
-                        ]
-                    ]
-            actual <- graphql schema query
-            actual `shouldBe` expected
-          where
-            schema = HashMap.singleton "Query" $ garment' :| []
-            garment' = Schema.object "garment" $ return
-                [ circumference'
-                ]
-            circumference' = Schema.scalar "circumference" $ pure (60 :: Int)

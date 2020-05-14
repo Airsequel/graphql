@@ -11,7 +11,7 @@ module Test.StarWars.Data
     , getHuman
     , id_
     , homePlanet
-    , name
+    , name_
     , secretBackstory
     , typeName
     ) where
@@ -55,9 +55,9 @@ id_ :: Character -> ID
 id_ (Left  x) = _id_ . _droidChar $ x
 id_ (Right x) = _id_ . _humanChar $ x
 
-name :: Character -> Text
-name (Left  x) = _name . _droidChar $ x
-name (Right x) = _name . _humanChar $ x
+name_ :: Character -> Text
+name_ (Left  x) = _name . _droidChar $ x
+name_ (Right x) = _name . _humanChar $ x
 
 friends :: Character -> [ID]
 friends (Left  x) = _friends . _droidChar $ x
