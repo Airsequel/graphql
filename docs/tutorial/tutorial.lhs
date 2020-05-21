@@ -39,7 +39,9 @@ First we build a GraphQL schema.
 > schema1 = Schema queryType Nothing
 >
 > queryType :: ObjectType IO
-> queryType = ObjectType "Query" $ Schema.resolversToMap $ hello :| []
+> queryType = ObjectType "Query"
+>   $ Field Nothing (ScalarOutputType string) mempty
+>   <$> Schema.resolversToMap (hello :| [])
 >
 > hello :: Schema.Resolver IO
 > hello = Schema.scalar "hello" (return ("it's me" :: Text))
@@ -72,7 +74,9 @@ For this example, we're going to be using time.
 > schema2 = Schema queryType2 Nothing
 >
 > queryType2 :: ObjectType IO
-> queryType2 = ObjectType "Query" $ Schema.resolversToMap $ time :| []
+> queryType2 = ObjectType "Query"
+>   $ Field Nothing (ScalarOutputType string) mempty
+>   <$> Schema.resolversToMap (time :| [])
 >
 > time :: Schema.Resolver IO
 > time = Schema.scalar "time" $ do
@@ -134,7 +138,9 @@ Now that we have two resolvers, we can define a schema which uses them both.
 > schema3 = Schema queryType3 Nothing
 >
 > queryType3 :: ObjectType IO
-> queryType3 = ObjectType "Query" $ Schema.resolversToMap $ hello :| [time]
+> queryType3 = ObjectType "Query"
+>   $ Field Nothing (ScalarOutputType string) mempty
+>   <$> Schema.resolversToMap (hello :| [time])
 >
 > query3 :: Text
 > query3 = "query timeAndHello { time hello }"

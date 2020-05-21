@@ -25,8 +25,8 @@ schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
     queryType = ObjectType "Query"
-        $ Schema.resolversToMap
-        $ hero :| [human, droid]
+        $ Field Nothing (ScalarOutputType string) mempty
+        <$> Schema.resolversToMap (hero :| [human, droid])
 
 hero :: Schema.Resolver Identity
 hero = Schema.object "hero" $ do

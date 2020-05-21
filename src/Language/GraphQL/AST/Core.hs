@@ -3,7 +3,6 @@ module Language.GraphQL.AST.Core
     ( Alias
     , Arguments(..)
     , Directive(..)
-    , Document
     , Field(..)
     , Fragment(..)
     , Name
@@ -15,14 +14,10 @@ module Language.GraphQL.AST.Core
 
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
-import Data.List.NonEmpty (NonEmpty)
 import Data.Sequence (Seq)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST (Alias, Name, TypeCondition)
-
--- | GraphQL document is a non-empty list of operations.
-type Document = NonEmpty Operation
 
 -- | GraphQL has 3 operation types: queries, mutations and subscribtions.
 --

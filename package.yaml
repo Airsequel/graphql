@@ -31,6 +31,7 @@ dependencies:
 - containers
 - megaparsec
 - parser-combinators
+- scientific
 - text
 - transformers
 - unordered-containers

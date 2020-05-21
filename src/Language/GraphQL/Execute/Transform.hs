@@ -1,25 +1,28 @@
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | After the document is parsed, before getting executed the AST is
 --   transformed into a similar, simpler AST. This module is responsible for
 --   this transformation.
 module Language.GraphQL.Execute.Transform
-    ( document
+    ( Document(..)
+    , OperationDefinition(..)
+    , document
+    , operation
     ) where
 
-import Control.Arrow (first)
 import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
-import Language.GraphQL.AST.Document (Definition(..), Document)
 import qualified Language.GraphQL.Schema as Schema
 import qualified Language.GraphQL.Type.Directive as Directive
 
@@ -34,36 +37,56 @@ type TransformT a = StateT Replacement (ReaderT Schema.Subs Maybe) a
 liftJust :: forall a. a -> TransformT a
 liftJust = lift . lift . Just
 
+-- | GraphQL document is a non-empty list of operations.
+data Document = Document
+    (NonEmpty OperationDefinition)
+    (HashMap Full.Name Full.FragmentDefinition)
+
+data OperationDefinition = OperationDefinition
+    Full.OperationType
+    (Maybe Full.Name)
+    [Full.VariableDefinition]
+    [Full.Directive]
+    Full.SelectionSet
+
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
-document :: Schema.Subs -> Document -> Maybe Core.Document
-document subs document' =
-    flip runReaderT subs
-        $ evalStateT (collectFragments >> operations operationDefinitions)
-        $ Replacement HashMap.empty fragmentTable
+document :: Full.Document -> Maybe Document
+document ast =
+    let (operations, fragmentTable) = foldr defragment ([], HashMap.empty) ast
+     in Document <$> NonEmpty.nonEmpty operations <*> pure fragmentTable
   where
-    (fragmentTable, operationDefinitions) = foldr defragment mempty document'
-    defragment (ExecutableDefinition (Full.DefinitionOperation definition)) acc =
-        (definition :) <$> acc
-    defragment (ExecutableDefinition (Full.DefinitionFragment definition)) acc =
-        let (Full.FragmentDefinition name _ _ _) = definition
-         in first (HashMap.insert name definition) acc
+    defragment definition (operations, fragments')
+        | (Full.ExecutableDefinition executable) <- definition
+        , (Full.DefinitionOperation operation') <- executable =
+            (transform operation' : operations, fragments')
+        | (Full.ExecutableDefinition executable) <- definition
+        , (Full.DefinitionFragment fragment) <- executable
+        , (Full.FragmentDefinition name _ _ _) <- fragment =
+            (operations, HashMap.insert name fragment fragments')
     defragment _ acc = acc
+    transform = \case
+        Full.OperationDefinition type' name variables directives' selections ->
+            OperationDefinition type' name variables directives' selections
+        Full.SelectionSet selectionSet ->
+            OperationDefinition Full.Query Nothing mempty mempty selectionSet
 
 -- * Operation
 
-operations :: [Full.OperationDefinition] -> TransformT Core.Document
-operations operations' = do
-    coreOperations <- traverse operation operations'
-    lift . lift $ NonEmpty.nonEmpty coreOperations
-
-operation :: Full.OperationDefinition -> TransformT Core.Operation
-operation (Full.SelectionSet sels)
-    = operation $ Full.OperationDefinition Full.Query mempty mempty mempty sels
-operation (Full.OperationDefinition Full.Query name _vars _dirs sels)
-    = Core.Query name <$> appendSelection sels
-operation (Full.OperationDefinition Full.Mutation name _vars _dirs sels)
-    = Core.Mutation name <$> appendSelection sels
+operation
+    :: HashMap Full.Name Full.FragmentDefinition
+    -> Schema.Subs
+    -> OperationDefinition
+    -> Maybe Core.Operation
+operation fragmentTable subs operationDefinition = flip runReaderT subs
+    $ evalStateT (collectFragments >> transform operationDefinition)
+    $ Replacement HashMap.empty fragmentTable
+  where
+    transform :: OperationDefinition -> TransformT Core.Operation
+    transform (OperationDefinition Full.Query name _ _ sels) =
+        Core.Query name <$> appendSelection sels
+    transform (OperationDefinition Full.Mutation name _ _ sels) =
+        Core.Mutation name <$> appendSelection sels
 
 -- * Selection
 

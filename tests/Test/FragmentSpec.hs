@@ -6,7 +6,6 @@ module Test.FragmentSpec
 
 import Data.Aeson (Value(..), object, (.=))
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
@@ -50,12 +49,28 @@ hasErrors :: Value -> Bool
 hasErrors (Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
-toSchema :: Schema.Resolver IO -> Schema IO
-toSchema resolver = Schema { query = queryType, mutation = Nothing }
+shirtType :: ObjectType IO
+shirtType = ObjectType "Shirt"
+    $ HashMap.singleton resolverName
+    $ Field Nothing (ScalarOutputType string) mempty resolve
   where
+    (Schema.Resolver resolverName resolve) = size
+
+hatType :: ObjectType IO
+hatType = ObjectType "Hat"
+    $ HashMap.singleton resolverName
+    $ Field Nothing (ScalarOutputType int) mempty resolve
+  where
+    (Schema.Resolver resolverName resolve) = circumference
+
+toSchema :: Schema.Resolver IO -> Schema IO
+toSchema (Schema.Resolver resolverName resolve) = Schema
+    { query = queryType, mutation = Nothing }
+  where
+    unionMember = if resolverName == "Hat" then hatType else shirtType
     queryType = ObjectType "Query"
-        $ Schema.resolversToMap
-        $ resolver :| []
+        $ HashMap.singleton resolverName
+        $ Field Nothing (ObjectOutputType unionMember) mempty resolve
 
 spec :: Spec
 spec = do

@@ -7,7 +7,6 @@ module Test.DirectiveSpec
 import Data.Aeson (Value(..), object, (.=))
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
-import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Type.Definition
 import Language.GraphQL.Type.Schema (Schema(..))
 import Test.Hspec (Spec, describe, it, shouldBe)
@@ -16,11 +15,10 @@ import Text.RawString.QQ (r)
 experimentalResolver :: Schema IO
 experimentalResolver = Schema { query = queryType, mutation = Nothing }
   where
+    resolver = ValueResolver $ pure $ Number 5
     queryType = ObjectType "Query"
         $ HashMap.singleton "experimentalField"
-        $ Schema.ValueResolver
-        $ pure
-        $ Number 5
+        $ Field Nothing (ScalarOutputType int) mempty resolver
 
 emptyObject :: Value
 emptyObject = object

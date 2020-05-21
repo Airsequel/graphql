@@ -12,12 +12,30 @@ and this project adheres to
   contain a JSON value or another resolver, which is invoked during the
   execution. `FieldResolver` is executed in `ActionT` and the current `Field` is
   passed in the reader and not as an explicit argument.
+- `Execute.Transform.OperationDefinition` is almost the same as
+  `AST.Document.OperationDefinition`. It is used to unify operations in the
+  shorthand form and other operations.
+- `Execute.Transform.operation` has the prior responsibility of
+  `Execute.Transform.document`, but transforms only the chosen operation and not
+  the whole document. `Execute.Transform.document` translates
+  `AST.Document.Document` into `Execute.Transform.Document`.
 
 ### Added
-- `Type.Definition` and `Type.Schema` modules. Both contain the first types (but
-  not all yet) to describe a schema. Public functions that execute queries
+- `Type.Definition` contains input and the most output types.
+- `Type.Schema` describes a schema. Both public functions that execute queries
   accept a `Schema` now instead of a `HashMap`. The execution fails if the root
   operation doesn't match the root Query type in the schema.
+- `Execute.Coerce` defines a typeclass responsible for input, variable value
+  coercion. It decouples us a bit from JSON since any format can be used to pass
+  query variables. Execution functions accept (`HashMap Name a`) instead of
+  `Subs`, where a is an instance of `VariableValue`.
+
+### Removed
+- `AST.Core.Document`. Transforming the whole document is probably not
+  reasonable since a document can define multiple operations and we're
+  interested only in one of them. Therefore `Document` was modified and moved to
+  `Execute.Transform`. It contains only slightly modified AST used to pick the
+  operation.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed
