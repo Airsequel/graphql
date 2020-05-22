@@ -403,32 +403,38 @@ typeCondition = symbol "on" *> name
 
 value :: Parser Value
 value = Variable <$> variable
-    <|> Float    <$> try float
-    <|> Int      <$> integer
-    <|> Boolean  <$> booleanValue
-    <|> Null     <$  symbol "null"
-    <|> String   <$> blockString
-    <|> String   <$> string
-    <|> Enum     <$> try enumValue
-    <|> List     <$> listValue
-    <|> Object   <$> objectValue
+    <|> Float <$> try float
+    <|> Int <$> integer
+    <|> Boolean <$> booleanValue
+    <|> Null <$  symbol "null"
+    <|> String <$> blockString
+    <|> String <$> string
+    <|> Enum <$> try enumValue
+    <|> List <$> brackets (some value)
+    <|> Object <$> braces (some $ objectField value)
     <?> "value error!"
-  where
-    booleanValue :: Parser Bool
-    booleanValue = True  <$ symbol "true"
-               <|> False <$ symbol "false"
 
-    listValue :: Parser [Value]
-    listValue = brackets $ some value
+constValue :: Parser ConstValue
+constValue = ConstFloat <$> try float
+    <|> ConstInt <$> integer
+    <|> ConstBoolean <$> booleanValue
+    <|> ConstNull <$  symbol "null"
+    <|> ConstString <$> blockString
+    <|> ConstString <$> string
+    <|> ConstEnum <$> try enumValue
+    <|> ConstList <$> brackets (some constValue)
+    <|> ConstObject <$> braces (some $ objectField constValue)
+    <?> "value error!"
 
-    objectValue :: Parser [ObjectField]
-    objectValue = braces $ some objectField
+booleanValue :: Parser Bool
+booleanValue = True  <$ symbol "true"
+    <|> False <$ symbol "false"
 
 enumValue :: Parser Name
 enumValue = but (symbol "true") *> but (symbol "false") *> but (symbol "null") *> name
 
-objectField :: Parser ObjectField
-objectField = ObjectField <$> name <* colon <*> value
+objectField :: Parser a -> Parser (ObjectField a)
+objectField valueParser = ObjectField <$> name <* colon <*> valueParser
 
 -- * Variables
 
@@ -446,8 +452,8 @@ variableDefinition = VariableDefinition
 variable :: Parser Name
 variable = dollar *> name
 
-defaultValue :: Parser (Maybe Value)
-defaultValue = optional (equals *> value) <?> "DefaultValue"
+defaultValue :: Parser (Maybe ConstValue)
+defaultValue = optional (equals *> constValue) <?> "DefaultValue"
 
 -- * Input Types
 

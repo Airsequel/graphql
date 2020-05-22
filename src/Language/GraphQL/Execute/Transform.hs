@@ -1,5 +1,6 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 -- | After the document is parsed, before getting executed the AST is
@@ -7,24 +8,30 @@
 --   this transformation.
 module Language.GraphQL.Execute.Transform
     ( Document(..)
-    , OperationDefinition(..)
+    , QueryError(..)
     , document
-    , operation
+    , queryError
     ) where
 
 import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
+import Data.Foldable (find)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
+import Data.Text (Text)
+import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
+import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Schema as Schema
+import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Directive as Directive
+import Language.GraphQL.Type.Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
 data Replacement = Replacement
@@ -39,7 +46,7 @@ liftJust = lift . lift . Just
 
 -- | GraphQL document is a non-empty list of operations.
 data Document = Document
-    (NonEmpty OperationDefinition)
+    Core.Operation
     (HashMap Full.Name Full.FragmentDefinition)
 
 data OperationDefinition = OperationDefinition
@@ -49,12 +56,102 @@ data OperationDefinition = OperationDefinition
     [Full.Directive]
     Full.SelectionSet
 
+-- | Query error types.
+data QueryError
+    = OperationNotFound Text
+    | OperationNameRequired
+    | CoercionError
+    | TransformationError
+    | EmptyDocument
+
+queryError :: QueryError -> Text
+queryError (OperationNotFound operationName) = Text.unwords
+    ["Operation", operationName, "couldn't be found in the document."]
+queryError OperationNameRequired = "Missing operation name."
+queryError CoercionError = "Coercion error."
+queryError TransformationError = "Schema transformation error."
+queryError EmptyDocument =
+    "The document doesn't contain any executable operations."
+
+getOperation
+    :: Maybe Full.Name
+    -> NonEmpty OperationDefinition
+    -> Either QueryError OperationDefinition
+getOperation Nothing (operation' :| []) = pure operation'
+getOperation Nothing _ = Left OperationNameRequired
+getOperation (Just operationName) operations
+    | Just operation' <- find matchingName operations = pure operation'
+    | otherwise = Left $ OperationNotFound operationName
+  where
+    matchingName (OperationDefinition _ name _ _ _) =
+        name == Just operationName
+
+lookupInputType
+    :: Full.Type
+    -> HashMap.HashMap Full.Name (Definition.TypeDefinition m)
+    -> Maybe Definition.InputType
+lookupInputType (Full.TypeNamed name) types =
+    case HashMap.lookup name types of
+        Just (Definition.ScalarTypeDefinition scalarType) ->
+            Just $ Definition.ScalarInputType scalarType
+        Just (Definition.EnumTypeDefinition enumType) ->
+            Just $ Definition.EnumInputType enumType
+        Just (Definition.InputObjectTypeDefinition objectType) ->
+            Just $ Definition.ObjectInputType objectType
+        _ -> Nothing
+lookupInputType (Full.TypeList list) types
+    = Definition.ListInputType
+    <$> lookupInputType list types
+lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
+    case HashMap.lookup nonNull types of
+        Just (Definition.ScalarTypeDefinition scalarType) ->
+            Just $ Definition.NonNullScalarInputType scalarType
+        Just (Definition.EnumTypeDefinition enumType) ->
+            Just $ Definition.NonNullEnumInputType enumType
+        Just (Definition.InputObjectTypeDefinition objectType) ->
+            Just $ Definition.NonNullObjectInputType objectType
+        _ -> Nothing
+lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
+    = Definition.NonNullListInputType
+    <$> lookupInputType nonNull types
+
+coerceVariableValues :: (Monad m, VariableValue a)
+    => Schema m
+    -> OperationDefinition
+    -> HashMap.HashMap Full.Name a
+    -> Either QueryError Schema.Subs
+coerceVariableValues schema (OperationDefinition _ _ variables _ _) values =
+    let referencedTypes = collectReferencedTypes schema
+     in maybe (Left CoercionError) Right
+        $ foldr (coerceValue referencedTypes) (Just HashMap.empty) variables
+  where
+    coerceValue referencedTypes variableDefinition coercedValues = do
+        let Full.VariableDefinition variableName variableTypeName _defaultValue =
+                variableDefinition
+        variableType <- lookupInputType variableTypeName referencedTypes
+        value' <- HashMap.lookup variableName values
+        coercedValue <- coerceVariableValue variableType value'
+        HashMap.insert variableName coercedValue <$> coercedValues
+
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
-document :: Full.Document -> Maybe Document
-document ast =
+document :: (Monad m, VariableValue a)
+    => Schema m
+    -> Maybe Full.Name
+    -> HashMap Full.Name a
+    -> Full.Document
+    -> Either QueryError Document
+document schema operationName subs ast = do
     let (operations, fragmentTable) = foldr defragment ([], HashMap.empty) ast
-     in Document <$> NonEmpty.nonEmpty operations <*> pure fragmentTable
+    nonEmptyOperations <- maybe (Left EmptyDocument) Right
+        $ NonEmpty.nonEmpty operations
+    chosenOperation <- getOperation operationName nonEmptyOperations
+    coercedValues <- coerceVariableValues schema chosenOperation subs
+
+    maybe (Left TransformationError) Right
+        $ Document
+        <$> operation fragmentTable coercedValues chosenOperation
+        <*> pure fragmentTable
   where
     defragment definition (operations, fragments')
         | (Full.ExecutableDefinition executable) <- definition
@@ -186,5 +283,5 @@ value (Full.List l) =
 value (Full.Object o) =
     Core.Object . HashMap.fromList <$> traverse objectField o
 
-objectField :: Full.ObjectField -> TransformT (Core.Name, Core.Value)
+objectField :: Full.ObjectField Full.Value -> TransformT (Core.Name, Core.Value)
 objectField (Full.ObjectField name value') = (name,) <$> value value'

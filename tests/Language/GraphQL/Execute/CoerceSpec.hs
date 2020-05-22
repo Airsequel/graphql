@@ -6,14 +6,29 @@ module Language.GraphQL.Execute.CoerceSpec
 import Data.Aeson as Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (isNothing)
 import Data.Scientific (scientific)
+import qualified Data.Set as Set
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Execute.Coerce
+import Language.GraphQL.Schema
 import Language.GraphQL.Type.Definition
 import Prelude hiding (id)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+
+direction :: EnumType
+direction = EnumType "Direction" Nothing 
+    $ Set.fromList ["NORTH", "EAST", "SOUTH", "WEST"]
+
+coerceInputLiteral :: InputType -> Value -> Maybe Subs
+coerceInputLiteral input value = coerceInputLiterals
+    (HashMap.singleton "variableName" input)
+    (HashMap.singleton "variableName" value)
+
+lookupActual :: Maybe (HashMap Name Value) -> Maybe Value
+lookupActual = (HashMap.lookup "variableName" =<<)
 
 singletonInputObject :: InputType
 singletonInputObject = ObjectInputType type'
@@ -23,7 +38,7 @@ singletonInputObject = ObjectInputType type'
     field = InputField Nothing (ScalarInputType string) Nothing
 
 spec :: Spec
-spec =
+spec = do
     describe "ToGraphQL Aeson" $ do
         it "coerces strings" $
             let expected = Just (String "asdf")
@@ -86,3 +101,18 @@ spec =
                 actual = coerceVariableValue listType list
                 expected = Just $ List [String "asdf", String "qwer"]
              in actual `shouldBe` expected
+
+    describe "coerceInputLiterals" $ do
+        it "coerces enums" $
+            let expected = Just (Enum "NORTH")
+                actual = coerceInputLiteral
+                    (EnumInputType direction) (Enum "NORTH")
+             in lookupActual actual `shouldBe` expected
+        it "fails with non-existing enum value" $
+            let actual = coerceInputLiteral
+                    (EnumInputType direction) (Enum "NORTH_EAST")
+             in actual `shouldSatisfy` isNothing
+        it "coerces integers to IDs" $
+            let expected = Just (String "1234")
+                actual = coerceInputLiteral (ScalarInputType id) (Int 1234)
+             in lookupActual actual `shouldBe` expected

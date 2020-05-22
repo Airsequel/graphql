@@ -8,7 +8,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Parser
 import Test.Hspec (Spec, describe, it)
-import Test.Hspec.Megaparsec (shouldParse, shouldSucceedOn)
+import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
@@ -140,5 +140,12 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` [r|
             extend type Story {
               isHiddenLocally: Boolean
+            }
+        |]
+
+    it "rejects variables in DefaultValue" $
+        parse document "" `shouldFailOn` [r|
+            query ($book: String = "Zarathustra", $author: String = $book) {
+              title
             }
         |]

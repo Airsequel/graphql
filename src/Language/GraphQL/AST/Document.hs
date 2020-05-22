@@ -8,6 +8,7 @@ module Language.GraphQL.AST.Document
     ( Alias
     , Argument(..)
     , ArgumentsDefinition(..)
+    , ConstValue(..)
     , Definition(..)
     , Description(..)
     , Directive(..)
@@ -197,7 +198,7 @@ type TypeCondition = Name
 
 -- ** Input Values
 
--- | Input value.
+-- | Input value (literal or variable).
 data Value
     = Variable Name
     | Int Int32
@@ -207,18 +208,46 @@ data Value
     | Null
     | Enum Name
     | List [Value]
-    | Object [ObjectField]
+    | Object [ObjectField Value]
+    deriving (Eq, Show)
+
+-- | Constant input value.
+data ConstValue
+    = ConstInt Int32
+    | ConstFloat Double
+    | ConstString Text
+    | ConstBoolean Bool
+    | ConstNull
+    | ConstEnum Name
+    | ConstList [ConstValue]
+    | ConstObject [ObjectField ConstValue]
     deriving (Eq, Show)
 
 -- | Key-value pair.
 --
---   A list of 'ObjectField's represents a GraphQL object type.
-data ObjectField = ObjectField Name Value deriving (Eq, Show)
+-- A list of 'ObjectField's represents a GraphQL object type.
+data ObjectField a = ObjectField Name a
+    deriving (Eq, Show)
 
 -- ** Variables
 
 -- | Variable definition.
-data VariableDefinition = VariableDefinition Name Type (Maybe Value)
+--
+-- Each operation can include a list of variables:
+--
+-- @
+-- query (protagonist: String = "Zarathustra") {
+--   getAuthor(protagonist: $protagonist)
+-- }
+-- @
+--
+-- This query defines an optional variable @protagonist@ of type @String@,
+-- its default value is "Zarathustra". If no default value is defined and no
+-- value is provided, a variable can still be @null@ if its type is nullable.
+--
+-- Variables are usually passed along with the query, but not in the query
+-- itself. They make queries reusable.
+data VariableDefinition = VariableDefinition Name Type (Maybe ConstValue)
     deriving (Eq, Show)
 
 -- ** Type References
@@ -445,7 +474,7 @@ instance Monoid ArgumentsDefinition where
 --
 -- The input type "Point2D" contains two value definitions: "x" and "y".
 data InputValueDefinition
-    = InputValueDefinition Description Name Type (Maybe Value) [Directive]
+    = InputValueDefinition Description Name Type (Maybe ConstValue) [Directive]
     deriving (Eq, Show)
 
 -- ** Unions

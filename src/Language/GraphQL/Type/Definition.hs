@@ -193,18 +193,22 @@ pattern ListInputTypeDefinition listType <-
     , ScalarInputTypeDefinition
     #-}
 
+-- | Matches either 'ScalarOutputType' or 'NonNullScalarOutputType'.
 pattern ScalarOutputTypeDefinition :: forall m. ScalarType -> OutputType m
 pattern ScalarOutputTypeDefinition scalarType <-
     (isScalarOutputType -> Just scalarType)
 
+-- | Matches either 'EnumOutputType' or 'NonNullEnumOutputType'.
 pattern EnumOutputTypeDefinition :: forall m. EnumType -> OutputType m
 pattern EnumOutputTypeDefinition enumType <-
     (isEnumOutputType -> Just enumType)
 
+-- | Matches either 'ObjectOutputType' or 'NonNullObjectOutputType'.
 pattern ObjectOutputTypeDefinition :: forall m. ObjectType m -> OutputType m
 pattern ObjectOutputTypeDefinition objectType <-
     (isObjectOutputType -> Just objectType)
 
+-- | Matches either 'ListOutputType' or 'NonNullListOutputType'.
 pattern ListOutputTypeDefinition :: forall m. OutputType m -> OutputType m
 pattern ListOutputTypeDefinition listType <-
     (isListOutputType -> Just listType)

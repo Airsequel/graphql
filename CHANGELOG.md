@@ -7,14 +7,17 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+### Fixed
+- The parser rejects variables when parsing defaultValue (DefaultValue). The
+  specification defines default values as `Value` with `const` parameter and
+  constant cannot be variables. `AST.Document.ConstValue` was added,
+  `AST.Document.ObjectField` was modified.
+
 ### Changed
 - `Resolver` is now `Resolver Name FieldResolver` where `FieldResolver` can
   contain a JSON value or another resolver, which is invoked during the
   execution. `FieldResolver` is executed in `ActionT` and the current `Field` is
   passed in the reader and not as an explicit argument.
-- `Execute.Transform.OperationDefinition` is almost the same as
-  `AST.Document.OperationDefinition`. It is used to unify operations in the
-  shorthand form and other operations.
 - `Execute.Transform.operation` has the prior responsibility of
   `Execute.Transform.document`, but transforms only the chosen operation and not
   the whole document. `Execute.Transform.document` translates
