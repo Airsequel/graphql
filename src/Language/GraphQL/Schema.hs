@@ -8,9 +8,7 @@ module Language.GraphQL.Schema
     , object
     , resolve
     , resolversToMap
-    , scalar
     , wrappedObject
-    , wrappedScalar
     -- * AST Reexports
     , Field
     , Value(..)
@@ -50,42 +48,24 @@ resolversToMap = HashMap.fromList . toList . fmap toKV
 --   and the value is the variable value.
 type Subs = HashMap Name Value
 
--- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
-object :: Monad m => Name -> ActionT m [Resolver m] -> Resolver m
-object name = Resolver name
-    . Definition.NestingResolver
-    . fmap (Type.Named . resolversToMap)
-
 -- | Like 'object' but can be null or a list of objects.
 wrappedObject :: Monad m
     => Name
-    -> ActionT m (Type.Wrapping [Resolver m])
+    -> ActionT m (Type.Wrapping (Definition.FieldResolver m))
     -> Resolver m
-wrappedObject name = Resolver name
-    . Definition.NestingResolver
-    . (fmap . fmap) resolversToMap
+wrappedObject name = Resolver name . Definition.NestingResolver
 
--- | A scalar represents a primitive value, like a string or an integer.
-scalar :: (Monad m, Aeson.ToJSON a) => Name -> ActionT m a -> Resolver m
-scalar name = Resolver name . Definition.ValueResolver . fmap Aeson.toJSON
-
--- | Like 'scalar' but can be null or a list of scalars.
-wrappedScalar :: (Monad m, Aeson.ToJSON a)
-    => Name
-    -> ActionT m (Type.Wrapping a)
-    -> Resolver m
-wrappedScalar name = Resolver name . Definition.ValueResolver . fmap Aeson.toJSON
+-- | Create a new 'Resolver' with the given 'Name' from the given 'Resolver's.
+object :: Monad m
+    => [Resolver m]
+    -> Type.Wrapping (Definition.FieldResolver m)
+object = Type.O . resolversToMap
 
 resolveFieldValue :: Monad m => Field -> ActionT m a -> m (Either Text a)
 resolveFieldValue field@(Field _ _ args _) =
     flip runReaderT (Context {arguments=args, info=field})
     . runExceptT
     . runActionT
-
-convert :: Type.Wrapping Aeson.Value -> Aeson.Value
-convert Type.Null = Aeson.Null
-convert (Type.Named value) = value
-convert (Type.List value) = Aeson.toJSON value
 
 withField :: Monad m
     => Field
@@ -94,13 +74,21 @@ withField :: Monad m
 withField field (Definition.ValueResolver resolver) = do
     answer <- lift $ resolveFieldValue field resolver
     either (errmsg field) (pure . HashMap.singleton (aliasOrName field)) answer
-withField field@(Field _ _ _ seqSelection) (Definition.NestingResolver resolver) = do
+withField field (Definition.NestingResolver resolver) = do
     answer <- lift $ resolveFieldValue field resolver
     case answer of
-        Right result -> do
-            nestedFields <- traverse (`resolve` seqSelection) result
-            pure $ HashMap.singleton (aliasOrName field) $ convert nestedFields
+        Right result -> HashMap.singleton (aliasOrName field) <$> toJSON field result
         Left errorMessage -> errmsg field errorMessage
+
+toJSON :: Monad m => Field -> Type.Wrapping (Definition.FieldResolver m) -> CollectErrsT m Aeson.Value
+toJSON _ Type.Null = pure Aeson.Null
+toJSON _ (Type.I i) = pure $ Aeson.toJSON i
+toJSON _ (Type.B i) = pure $ Aeson.toJSON i
+toJSON _ (Type.F i) = pure $ Aeson.toJSON i
+toJSON _ (Type.E i) = pure $ Aeson.toJSON i
+toJSON _ (Type.S i) = pure $ Aeson.toJSON i
+toJSON field (Type.List list) = Aeson.toJSON <$> traverse (toJSON field) list
+toJSON (Field _ _ _ seqSelection) (Type.O map') = map' `resolve` seqSelection
 
 errmsg :: Monad m => Field -> Text -> CollectErrsT m (HashMap Text Aeson.Value)
 errmsg field errorMessage = do
@@ -127,6 +115,14 @@ resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
             if Right (Aeson.String typeCondition) == that
                 then fmap fold . traverse tryResolvers $ selections'
                 else pure mempty
+        | Just (Definition.NestingResolver resolver) <- lookupResolver "__typename" = do
+            let fakeField = Field Nothing "__typename" mempty mempty
+            that <- lift $ resolveFieldValue fakeField resolver
+            case that of
+                Right (Type.S typeCondition')
+                    | typeCondition' == typeCondition ->
+                        fmap fold . traverse tryResolvers $ selections'
+                _ -> pure mempty
         | otherwise = fmap fold . traverse tryResolvers $ selections'
 
 aliasOrName :: Field -> Text

@@ -6,38 +6,36 @@ module Test.RootOperationSpec
 
 import Data.Aeson ((.=), object)
 import qualified Data.HashMap.Strict as HashMap
-import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 import Language.GraphQL.Type.Definition
 import Language.GraphQL.Type.Schema
+import qualified Language.GraphQL.Type as Type
 
 hatType :: ObjectType IO
-hatType = ObjectType "Hat"
+hatType = ObjectType "Hat" Nothing
     $ HashMap.singleton resolverName
     $ Field Nothing (ScalarOutputType int) mempty resolve
   where
     (Schema.Resolver resolverName resolve) =
-        Schema.scalar "circumference" $ pure (60 :: Int)
+        Schema.wrappedObject "circumference" $ pure $ Type.I 60
 
 schema :: Schema IO
 schema = Schema
-    (ObjectType "Query" hatField)
-    (Just $ ObjectType "Mutation" incrementField)
+    (ObjectType "Query" Nothing hatField)
+    (Just $ ObjectType "Mutation" Nothing incrementField)
   where
-    queryResolvers = Schema.resolversToMap $ garment :| []
-    mutationResolvers = Schema.resolversToMap $ increment :| []
-    garment = Schema.object "garment" $ pure
-        [ Schema.scalar "circumference" $ pure (60 :: Int)
+    garment = NestingResolver
+        $ pure $ Schema.object
+        [ Schema.wrappedObject "circumference" $ pure $ Type.I 60
         ]
-    increment = Schema.scalar "incrementCircumference"
-        $ pure (61 :: Int)
-    incrementField = Field Nothing (ScalarOutputType int) mempty
-        <$> mutationResolvers
-    hatField = Field Nothing (ObjectOutputType hatType) mempty
-        <$> queryResolvers
+    incrementField = HashMap.singleton "incrementCircumference"
+        $ Field Nothing (ScalarOutputType int) mempty
+        $ NestingResolver $ pure $ Type.I 61
+    hatField = HashMap.singleton "garment"
+        $ Field Nothing (ObjectOutputType hatType) mempty garment
 
 spec :: Spec
 spec =

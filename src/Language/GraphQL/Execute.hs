@@ -54,7 +54,7 @@ document :: (Monad m, VariableValue a)
 document schema operationName subs document' =
     case Transform.document schema operationName subs document' of
         Left queryError -> pure $ singleError $ Transform.queryError queryError
-        Right (Transform.Document op _) -> operation schema op
+        Right (Transform.Document operation') -> operation schema operation'
 
 operation :: Monad m
     => Schema m
@@ -65,7 +65,8 @@ operation = schemaOperation
     resolve queryFields = runCollectErrs
         . flip Schema.resolve queryFields
         . fmap getResolver
-        . Definition.fields
+        . fields
+    fields (Definition.ObjectType _ _ objectFields) = objectFields
     lookupError = pure
         $ singleError "Root operation type couldn't be found in the schema."
     schemaOperation Schema {query} (AST.Core.Query _ fields') =

@@ -5,21 +5,23 @@ module Language.GraphQL.SchemaSpec
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as Sequence
-import Data.Text (Text)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Schema
+import qualified Language.GraphQL.Type as Type
+import Language.GraphQL.Type.Definition
 import Test.Hspec (Spec, describe, it, shouldBe)
 
 spec :: Spec
 spec =
     describe "resolve" $
         it "ignores invalid __typename" $ do
-            let resolver = object "__typename" $ pure
-                    [ scalar "field" $ pure ("T" :: Text)
+            let resolver = NestingResolver $ pure $ object
+                    [ wrappedObject "field" $ pure $ Type.S "T"
                     ]
-                schema = resolversToMap [resolver]
+                schema = HashMap.singleton "__typename" resolver
                 fields = Sequence.singleton
                     $ SelectionFragment
                     $ Fragment "T" Sequence.empty

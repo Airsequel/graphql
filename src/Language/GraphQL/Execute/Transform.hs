@@ -15,11 +15,12 @@ module Language.GraphQL.Execute.Transform
 
 import Control.Monad (foldM, unless)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Reader (ReaderT, asks, runReaderT)
-import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
+import Control.Monad.Trans.State (State, evalStateT, gets, modify)
 import Data.Foldable (find)
+import Data.Functor.Identity (Identity(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe (fromMaybe)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq, (<|), (><))
@@ -37,17 +38,13 @@ import Language.GraphQL.Type.Schema
 data Replacement = Replacement
     { fragments :: HashMap Core.Name Core.Fragment
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
+    , variableValues :: Schema.Subs
     }
 
-type TransformT a = StateT Replacement (ReaderT Schema.Subs Maybe) a
-
-liftJust :: forall a. a -> TransformT a
-liftJust = lift . lift . Just
+type TransformT a = State Replacement a
 
 -- | GraphQL document is a non-empty list of operations.
-data Document = Document
-    Core.Operation
-    (HashMap Full.Name Full.FragmentDefinition)
+newtype Document = Document Core.Operation
 
 data OperationDefinition = OperationDefinition
     Full.OperationType
@@ -120,18 +117,44 @@ coerceVariableValues :: (Monad m, VariableValue a)
     -> OperationDefinition
     -> HashMap.HashMap Full.Name a
     -> Either QueryError Schema.Subs
-coerceVariableValues schema (OperationDefinition _ _ variables _ _) values =
+coerceVariableValues schema operationDefinition variableValues' =
     let referencedTypes = collectReferencedTypes schema
+        OperationDefinition _ _ variableDefinitions _ _ = operationDefinition
+        coerceValue' = coerceValue referencedTypes
      in maybe (Left CoercionError) Right
-        $ foldr (coerceValue referencedTypes) (Just HashMap.empty) variables
+        $ foldr coerceValue' (Just HashMap.empty) variableDefinitions
   where
     coerceValue referencedTypes variableDefinition coercedValues = do
-        let Full.VariableDefinition variableName variableTypeName _defaultValue =
+        let Full.VariableDefinition variableName variableTypeName defaultValue =
                 variableDefinition
+        let defaultValue' = constValue <$> defaultValue
+        let value' = HashMap.lookup variableName variableValues'
+
         variableType <- lookupInputType variableTypeName referencedTypes
-        value' <- HashMap.lookup variableName values
-        coercedValue <- coerceVariableValue variableType value'
-        HashMap.insert variableName coercedValue <$> coercedValues
+        HashMap.insert variableName
+            <$> choose value' defaultValue' variableType
+            <*> coercedValues
+    choose Nothing defaultValue variableType
+        | Just _ <- defaultValue = defaultValue
+        | not (isNonNullInputType variableType) = Just Core.Null
+    choose (Just value') _ variableType
+        | Just coercedValue <- coerceVariableValue variableType value'
+        , not (isNonNullInputType variableType) || coercedValue /= Core.Null =
+            Just coercedValue
+    choose _ _ _ = Nothing
+
+constValue :: Full.ConstValue -> Core.Value
+constValue (Full.ConstInt i) = Core.Int i
+constValue (Full.ConstFloat f) = Core.Float f
+constValue (Full.ConstString x) = Core.String x
+constValue (Full.ConstBoolean b) = Core.Boolean b
+constValue Full.ConstNull = Core.Null
+constValue (Full.ConstEnum e) = Core.Enum e
+constValue (Full.ConstList l) = Core.List $ constValue <$> l
+constValue (Full.ConstObject o) =
+    Core.Object $ HashMap.fromList $ constObjectField <$> o
+  where
+    constObjectField (Full.ObjectField key value') = (key, constValue value')
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
@@ -148,10 +171,8 @@ document schema operationName subs ast = do
     chosenOperation <- getOperation operationName nonEmptyOperations
     coercedValues <- coerceVariableValues schema chosenOperation subs
 
-    maybe (Left TransformationError) Right
-        $ Document
-        <$> operation fragmentTable coercedValues chosenOperation
-        <*> pure fragmentTable
+    pure $ Document
+        $ operation fragmentTable coercedValues chosenOperation
   where
     defragment definition (operations, fragments')
         | (Full.ExecutableDefinition executable) <- definition
@@ -174,10 +195,11 @@ operation
     :: HashMap Full.Name Full.FragmentDefinition
     -> Schema.Subs
     -> OperationDefinition
-    -> Maybe Core.Operation
-operation fragmentTable subs operationDefinition = flip runReaderT subs
+    -> Core.Operation
+operation fragmentTable subs operationDefinition
+    = runIdentity
     $ evalStateT (collectFragments >> transform operationDefinition)
-    $ Replacement HashMap.empty fragmentTable
+    $ Replacement HashMap.empty fragmentTable subs
   where
     transform :: OperationDefinition -> TransformT Core.Operation
     transform (OperationDefinition Full.Query name _ _ sels) =
@@ -201,13 +223,15 @@ selection (Full.FragmentSpread name directives') =
     maybe (Left mempty) (Right . Core.SelectionFragment) <$> do
         spreadDirectives <- Directive.selection <$> directives directives'
         fragments' <- gets fragments
-        fragment <- maybe lookupDefinition liftJust (HashMap.lookup name fragments')
-        pure $ fragment <$ spreadDirectives
-  where
-    lookupDefinition = do
+
         fragmentDefinitions' <- gets fragmentDefinitions
-        found <- lift . lift $ HashMap.lookup name fragmentDefinitions'
-        fragmentDefinition found
+        case HashMap.lookup name fragments' of
+            Just definition -> lift $ pure $ definition <$ spreadDirectives
+            Nothing -> case HashMap.lookup name fragmentDefinitions' of
+                         Just definition -> do
+                             fragment <- fragmentDefinition definition
+                             lift $ pure $ fragment <$ spreadDirectives
+                         Nothing -> lift $ pure  Nothing
 selection (Full.InlineFragment type' directives' selections) = do
     fragmentDirectives <- Directive.selection <$> directives directives'
     case fragmentDirectives of
@@ -255,13 +279,13 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
     fragmentSelection <- appendSelection selections
     let newValue = Core.Fragment type' fragmentSelection
     modify $ insertFragment newValue
-    liftJust newValue
+    lift $ pure newValue
   where
-    deleteFragmentDefinition (Replacement fragments' fragmentDefinitions') =
-        Replacement fragments' $ HashMap.delete name fragmentDefinitions'
-    insertFragment newValue (Replacement fragments' fragmentDefinitions') =
+    deleteFragmentDefinition (Replacement fragments' fragmentDefinitions' subs) =
+        Replacement fragments' (HashMap.delete name fragmentDefinitions') subs
+    insertFragment newValue (Replacement fragments' fragmentDefinitions' subs) =
         let newFragments = HashMap.insert name newValue fragments'
-         in Replacement newFragments fragmentDefinitions'
+         in Replacement newFragments fragmentDefinitions' subs
 
 arguments :: [Full.Argument] -> TransformT Core.Arguments
 arguments = fmap Core.Arguments . foldM go HashMap.empty
@@ -271,7 +295,8 @@ arguments = fmap Core.Arguments . foldM go HashMap.empty
         return $ HashMap.insert name substitutedValue arguments'
 
 value :: Full.Value -> TransformT Core.Value
-value (Full.Variable name) = lift (asks $ HashMap.lookup name) >>= lift . lift
+value (Full.Variable name) =
+    gets $ fromMaybe Core.Null . HashMap.lookup name . variableValues
 value (Full.Int i) = pure $ Core.Int i
 value (Full.Float f) = pure $ Core.Float f
 value (Full.String x) = pure $ Core.String x

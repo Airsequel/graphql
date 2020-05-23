@@ -44,21 +44,21 @@ import Prelude hiding (id)
 --
 --   Almost all of the GraphQL types you define will be object types. Object
 --   types have a name, but most importantly describe their fields.
-data ObjectType m = ObjectType
-    { name :: Text
-    , fields :: HashMap Name (Field m)
-    }
+data ObjectType m = ObjectType Name (Maybe Text) (HashMap Name (Field m))
 
 -- | Output object field definition.
 data Field m = Field
-    (Maybe Text) (OutputType m) (HashMap Name Argument) (FieldResolver m)
+    (Maybe Text) -- ^ Description.
+    (OutputType m) -- ^ Field type.
+    (HashMap Name Argument) -- ^ Arguments.
+    (FieldResolver m) -- ^ Resolver.
 
 -- | Resolving a field can result in a leaf value or an object, which is
 -- represented as a list of nested resolvers, used to resolve the fields of that
 -- object.
 data FieldResolver m
     = ValueResolver (ActionT m Aeson.Value)
-    | NestingResolver (ActionT m (Type.Wrapping (HashMap Name (FieldResolver m))))
+    | NestingResolver (ActionT m (Type.Wrapping (FieldResolver m)))
 
 -- | Field argument definition.
 data Argument = Argument (Maybe Text) InputType (Maybe Value)

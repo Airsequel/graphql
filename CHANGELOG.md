@@ -12,6 +12,9 @@ and this project adheres to
   specification defines default values as `Value` with `const` parameter and
   constant cannot be variables. `AST.Document.ConstValue` was added,
   `AST.Document.ObjectField` was modified.
+- AST transformation should never fail.
+    * Missing variable are assumed to be null.
+    * Invalid (recusrive or non-existing) fragments should be skipped.
 
 ### Changed
 - `Resolver` is now `Resolver Name FieldResolver` where `FieldResolver` can
@@ -36,9 +39,12 @@ and this project adheres to
 ### Removed
 - `AST.Core.Document`. Transforming the whole document is probably not
   reasonable since a document can define multiple operations and we're
-  interested only in one of them. Therefore `Document` was modified and moved to
-  `Execute.Transform`. It contains only slightly modified AST used to pick the
-  operation.
+  interested only in one of them. Therefore `Document` was modified, moved to
+  `Execute.Transform` and made private.
+- `Schema.scalar`, `Schema.wrappedScalar`. They accepted everything can be
+  converted to JSON and JSON is not suitable as an internal representation for
+  GraphQL. E.g. GraphQL distinguishes between Floats and Integersa and we need
+  a way to represent objects as a "Field Name -> Resolver" map.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed

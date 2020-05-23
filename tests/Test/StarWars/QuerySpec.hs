@@ -39,7 +39,7 @@ spec = describe "Star Wars Query Tests" $ do
                 id
                 name
                 friends {
-                name
+                  name
                 }
             }
             }

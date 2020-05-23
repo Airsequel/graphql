@@ -62,7 +62,7 @@ collectReferencedTypes schema =
         let (EnumType typeName _ _) = enumType
          in collect Prelude.id typeName (EnumTypeDefinition enumType)
     traverseObjectType objectType foundTypes =
-        let (ObjectType typeName objectFields) = objectType
+        let (ObjectType typeName _ objectFields) = objectType
             element = ObjectTypeDefinition objectType
             traverser = flip (foldr visitFields) objectFields
          in collect traverser typeName element foundTypes

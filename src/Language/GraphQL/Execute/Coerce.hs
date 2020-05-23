@@ -4,6 +4,7 @@
 module Language.GraphQL.Execute.Coerce
     ( VariableValue(..)
     , coerceInputLiterals
+    , isNonNullInputType
     ) where
 
 import qualified Data.Aeson as Aeson
@@ -148,6 +149,7 @@ coerceInputLiterals variableTypes variableValues =
         . Text.Builder.toLazyText
         . Text.Builder.decimal
 
+-- | Checks whether the given input type is a non-null type.
 isNonNullInputType :: InputType -> Bool
 isNonNullInputType (NonNullScalarInputType _) = True
 isNonNullInputType (NonNullEnumInputType _) = True

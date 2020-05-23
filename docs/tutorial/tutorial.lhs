@@ -17,14 +17,15 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > import Control.Monad.IO.Class (liftIO)
 > import Data.Aeson (encode)
 > import Data.ByteString.Lazy.Char8 (putStrLn)
-> import Data.List.NonEmpty (NonEmpty(..))
+> import qualified Data.HashMap.Strict as HashMap
 > import Data.Text (Text)
+> import qualified Data.Text as Text
 > import Data.Time (getCurrentTime)
 >
 > import Language.GraphQL
-> import qualified Language.GraphQL.Schema as Schema
 > import Language.GraphQL.Type.Definition
 > import Language.GraphQL.Type.Schema
+> import qualified Language.GraphQL.Type as Type
 >
 > import Prelude hiding (putStrLn)
 
@@ -39,12 +40,12 @@ First we build a GraphQL schema.
 > schema1 = Schema queryType Nothing
 >
 > queryType :: ObjectType IO
-> queryType = ObjectType "Query"
->   $ Field Nothing (ScalarOutputType string) mempty
->   <$> Schema.resolversToMap (hello :| [])
+> queryType = ObjectType "Query" Nothing
+>   $ HashMap.singleton "hello"
+>   $ Field Nothing (ScalarOutputType string) mempty hello
 >
-> hello :: Schema.Resolver IO
-> hello = Schema.scalar "hello" (return ("it's me" :: Text))
+> hello :: FieldResolver IO
+> hello = NestingResolver $ pure $ Type.S "it's me"
 
 This defines a simple schema with one type and one field, that resolves to a fixed value.
 
@@ -74,14 +75,14 @@ For this example, we're going to be using time.
 > schema2 = Schema queryType2 Nothing
 >
 > queryType2 :: ObjectType IO
-> queryType2 = ObjectType "Query"
->   $ Field Nothing (ScalarOutputType string) mempty
->   <$> Schema.resolversToMap (time :| [])
+> queryType2 = ObjectType "Query" Nothing
+>   $ HashMap.singleton "time"
+>   $ Field Nothing (ScalarOutputType string) mempty time
 >
-> time :: Schema.Resolver IO
-> time = Schema.scalar "time" $ do
+> time :: FieldResolver IO
+> time = NestingResolver $ do
 >   t <- liftIO getCurrentTime
->   return $ show t
+>   pure $ Type.S $ Text.pack $ show t
 
 This defines a simple schema with one type and one field,
 which resolves to the current time.
@@ -138,9 +139,10 @@ Now that we have two resolvers, we can define a schema which uses them both.
 > schema3 = Schema queryType3 Nothing
 >
 > queryType3 :: ObjectType IO
-> queryType3 = ObjectType "Query"
->   $ Field Nothing (ScalarOutputType string) mempty
->   <$> Schema.resolversToMap (hello :| [time])
+> queryType3 = ObjectType "Query" Nothing $ HashMap.fromList
+>   [ ("hello", Field Nothing (ScalarOutputType string) mempty hello)
+>   , ("time", Field Nothing (ScalarOutputType string) mempty time)
+>   ]
 >
 > query3 :: Text
 > query3 = "query timeAndHello { time hello }"

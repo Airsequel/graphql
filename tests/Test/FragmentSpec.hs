@@ -9,12 +9,12 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
+import qualified Language.GraphQL.Type as Type
 import Test.Hspec
     ( Spec
     , describe
     , it
     , shouldBe
-    , shouldSatisfy
     , shouldNotSatisfy
     )
 import Language.GraphQL.Type.Definition
@@ -22,15 +22,16 @@ import Language.GraphQL.Type.Schema
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
-size = Schema.scalar "size" $ return ("L" :: Text)
+size = Schema.wrappedObject "size" $ pure $ Type.S "L"
 
 circumference :: Schema.Resolver IO
-circumference = Schema.scalar "circumference" $ return (60 :: Int)
+circumference = Schema.wrappedObject "circumference" $ pure $ Type.I 60
 
 garment :: Text -> Schema.Resolver IO
-garment typeName = Schema.object "garment" $ return
+garment typeName = Schema.wrappedObject "garment"
+    $ pure $ Schema.object
     [ if typeName == "Hat" then circumference else size
-    , Schema.scalar "__typename" $ return typeName
+    , Schema.wrappedObject "__typename" $ pure $ Type.S typeName
     ]
 
 inlineQuery :: Text
@@ -50,14 +51,14 @@ hasErrors (Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
 shirtType :: ObjectType IO
-shirtType = ObjectType "Shirt"
+shirtType = ObjectType "Shirt" Nothing
     $ HashMap.singleton resolverName
     $ Field Nothing (ScalarOutputType string) mempty resolve
   where
     (Schema.Resolver resolverName resolve) = size
 
 hatType :: ObjectType IO
-hatType = ObjectType "Hat"
+hatType = ObjectType "Hat" Nothing
     $ HashMap.singleton resolverName
     $ Field Nothing (ScalarOutputType int) mempty resolve
   where
@@ -68,7 +69,7 @@ toSchema (Schema.Resolver resolverName resolve) = Schema
     { query = queryType, mutation = Nothing }
   where
     unionMember = if resolverName == "Hat" then hatType else shirtType
-    queryType = ObjectType "Query"
+    queryType = ObjectType "Query" Nothing
         $ HashMap.singleton resolverName
         $ Field Nothing (ObjectOutputType unionMember) mempty resolve
 
@@ -106,7 +107,8 @@ spec = do
                 }
               }
             }|]
-                resolvers = Schema.object "garment" $ return [circumference,  size]
+                resolvers = Schema.wrappedObject "garment"
+                    $ pure $ Schema.object [circumference,  size]
 
             actual <- graphql (toSchema resolvers) sourceQuery
             let expected = object
@@ -177,7 +179,10 @@ spec = do
              in actual `shouldBe` expected
 
         it "rejects recursive fragments" $ do
-            let sourceQuery = [r|
+            let expected = object
+                    [ "data" .= object []
+                    ]
+                sourceQuery = [r|
               {
                 ...circumferenceFragment
               }
@@ -188,7 +193,7 @@ spec = do
             |]
 
             actual <- graphql (toSchema circumference) sourceQuery
-            actual `shouldSatisfy` hasErrors
+            actual `shouldBe` expected
 
         it "considers type condition" $ do
             let sourceQuery = [r|

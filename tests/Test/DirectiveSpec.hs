@@ -16,7 +16,7 @@ experimentalResolver :: Schema IO
 experimentalResolver = Schema { query = queryType, mutation = Nothing }
   where
     resolver = ValueResolver $ pure $ Number 5
-    queryType = ObjectType "Query"
+    queryType = ObjectType "Query" Nothing
         $ HashMap.singleton "experimentalField"
         $ Field Nothing (ScalarOutputType int) mempty resolver
 
