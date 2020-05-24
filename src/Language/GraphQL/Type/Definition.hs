@@ -8,7 +8,6 @@ module Language.GraphQL.Type.Definition
     ( Argument(..)
     , EnumType(..)
     , Field(..)
-    , FieldResolver(..)
     , InputField(..)
     , InputObjectType(..)
     , InputType(..)
@@ -31,13 +30,13 @@ module Language.GraphQL.Type.Definition
     , string
     ) where
 
-import qualified Data.Aeson as Aeson
 import Data.HashMap.Strict (HashMap)
 import Data.Set (Set)
 import Data.Text (Text)
-import Language.GraphQL.AST.Core (Name, Value)
+import Language.GraphQL.AST.Document (Name)
 import Language.GraphQL.Trans
-import qualified Language.GraphQL.Type as Type
+import qualified Language.GraphQL.Type.In as In
+import qualified Language.GraphQL.Type.Out as Out
 import Prelude hiding (id)
 
 -- | Object type definition.
@@ -51,17 +50,10 @@ data Field m = Field
     (Maybe Text) -- ^ Description.
     (OutputType m) -- ^ Field type.
     (HashMap Name Argument) -- ^ Arguments.
-    (FieldResolver m) -- ^ Resolver.
-
--- | Resolving a field can result in a leaf value or an object, which is
--- represented as a list of nested resolvers, used to resolve the fields of that
--- object.
-data FieldResolver m
-    = ValueResolver (ActionT m Aeson.Value)
-    | NestingResolver (ActionT m (Type.Wrapping (FieldResolver m)))
+    (ActionT m (Out.Value m)) -- ^ Resolver.
 
 -- | Field argument definition.
-data Argument = Argument (Maybe Text) InputType (Maybe Value)
+data Argument = Argument (Maybe Text) InputType (Maybe In.Value)
 
 -- | Scalar type definition.
 --
@@ -77,7 +69,7 @@ data ScalarType = ScalarType Name (Maybe Text)
 data EnumType = EnumType Name (Maybe Text) (Set Text)
 
 -- | Single field of an 'InputObjectType'.
-data InputField = InputField (Maybe Text) InputType (Maybe Value)
+data InputField = InputField (Maybe Text) InputType (Maybe In.Value)
 
 -- | Input object type definition.
 --

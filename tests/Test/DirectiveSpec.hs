@@ -8,6 +8,7 @@ import Data.Aeson (Value(..), object, (.=))
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
 import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema (Schema(..))
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
@@ -15,7 +16,7 @@ import Text.RawString.QQ (r)
 experimentalResolver :: Schema IO
 experimentalResolver = Schema { query = queryType, mutation = Nothing }
   where
-    resolver = ValueResolver $ pure $ Number 5
+    resolver = pure $ Out.Int 5
     queryType = ObjectType "Query" Nothing
         $ HashMap.singleton "experimentalField"
         $ Field Nothing (ScalarOutputType int) mempty resolver

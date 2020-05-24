@@ -9,7 +9,9 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
 import qualified Language.GraphQL.Schema as Schema
-import qualified Language.GraphQL.Type as Type
+import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Out as Out
+import Language.GraphQL.Type.Schema
 import Test.Hspec
     ( Spec
     , describe
@@ -17,21 +19,19 @@ import Test.Hspec
     , shouldBe
     , shouldNotSatisfy
     )
-import Language.GraphQL.Type.Definition
-import Language.GraphQL.Type.Schema
 import Text.RawString.QQ (r)
 
 size :: Schema.Resolver IO
-size = Schema.wrappedObject "size" $ pure $ Type.S "L"
+size = Schema.Resolver "size" $ pure $ Out.String "L"
 
 circumference :: Schema.Resolver IO
-circumference = Schema.wrappedObject "circumference" $ pure $ Type.I 60
+circumference = Schema.Resolver "circumference" $ pure $ Out.Int 60
 
 garment :: Text -> Schema.Resolver IO
-garment typeName = Schema.wrappedObject "garment"
+garment typeName = Schema.Resolver "garment"
     $ pure $ Schema.object
     [ if typeName == "Hat" then circumference else size
-    , Schema.wrappedObject "__typename" $ pure $ Type.S typeName
+    , Schema.Resolver "__typename" $ pure $ Out.String typeName
     ]
 
 inlineQuery :: Text
@@ -107,7 +107,7 @@ spec = do
                 }
               }
             }|]
-                resolvers = Schema.wrappedObject "garment"
+                resolvers = Schema.Resolver "garment"
                     $ pure $ Schema.object [circumference,  size]
 
             actual <- graphql (toSchema resolvers) sourceQuery

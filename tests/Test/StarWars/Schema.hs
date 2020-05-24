@@ -15,7 +15,8 @@ import Data.Maybe (catMaybes)
 import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
-import qualified Language.GraphQL.Type as Type
+import qualified Language.GraphQL.Type.In as In
+import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 import Test.StarWars.Data
 
@@ -30,45 +31,45 @@ schema = Schema { query = queryType, mutation = Nothing }
         , ("droid", Field Nothing (ScalarOutputType string) mempty droid)
         ]
 
-hero :: FieldResolver Identity
-hero = NestingResolver $ do
+hero :: ActionT Identity (Out.Value Identity)
+hero = do
   episode <- argument "episode"
   pure $ character $ case episode of
-      Schema.Enum "NEWHOPE" -> getHero 4
-      Schema.Enum "EMPIRE" -> getHero 5
-      Schema.Enum "JEDI" -> getHero 6
+      In.Enum "NEWHOPE" -> getHero 4
+      In.Enum "EMPIRE" -> getHero 5
+      In.Enum "JEDI" -> getHero 6
       _ -> artoo
 
-human :: FieldResolver Identity
-human = NestingResolver $ do
+human :: ActionT Identity (Out.Value Identity)
+human = do
     id' <- argument "id"
     case id' of
-        Schema.String i -> do
+        In.String i -> do
             humanCharacter <- lift $ return $ getHuman i >>= Just
             case humanCharacter of
-                Nothing -> pure Type.Null
+                Nothing -> pure Out.Null
                 Just e -> pure $ character e
         _ -> ActionT $ throwE "Invalid arguments."
 
-droid :: FieldResolver Identity
-droid = NestingResolver $ do
+droid :: ActionT Identity (Out.Value Identity)
+droid = do
     id' <- argument "id"
     case id' of
-        Schema.String i -> getDroid i >>= pure . character
+        In.String i -> getDroid i >>= pure . character
         _ -> ActionT $ throwE "Invalid arguments."
 
-character :: Character -> Type.Wrapping (FieldResolver Identity)
+character :: Character -> Out.Value Identity
 character char = Schema.object
-    [ Schema.wrappedObject "id" $ pure $ Type.S $ id_ char
-    , Schema.wrappedObject "name" $ pure $ Type.S $ name_ char
-    , Schema.wrappedObject "friends"
-        $ pure
-        $ Type.List
-        $ fmap character
-        $ getFriends char
-    , Schema.wrappedObject "appearsIn" $ pure
-        $ Type.List $ Type.E <$> catMaybes (getEpisode <$> appearsIn char)
-    , Schema.wrappedObject "secretBackstory" $ Type.S <$> secretBackstory char
-    , Schema.wrappedObject "homePlanet" $ pure $ Type.S $ either mempty homePlanet char
-    , Schema.wrappedObject "__typename" $ pure $ Type.S $ typeName char
+    [ Schema.Resolver "id" $ pure $ Out.String $ id_ char
+    , Schema.Resolver "name" $ pure $ Out.String $ name_ char
+    , Schema.Resolver "friends"
+        $ pure $ Out.List $ fmap character $ getFriends char
+    , Schema.Resolver "appearsIn" $ pure
+        $ Out.List $ Out.Enum <$> catMaybes (getEpisode <$> appearsIn char)
+    , Schema.Resolver "secretBackstory" $ Out.String
+        <$> secretBackstory char
+    , Schema.Resolver "homePlanet" $ pure $ Out.String
+        $ either mempty homePlanet char
+    , Schema.Resolver "__typename" $ pure $ Out.String
+        $ typeName char
     ]

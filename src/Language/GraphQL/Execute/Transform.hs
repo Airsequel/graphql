@@ -32,6 +32,7 @@ import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Schema as Schema
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Directive as Directive
+import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Type.Schema
 
 -- | Associates a fragment name with a list of 'Core.Field's.
@@ -136,23 +137,23 @@ coerceVariableValues schema operationDefinition variableValues' =
             <*> coercedValues
     choose Nothing defaultValue variableType
         | Just _ <- defaultValue = defaultValue
-        | not (isNonNullInputType variableType) = Just Core.Null
+        | not (isNonNullInputType variableType) = Just In.Null
     choose (Just value') _ variableType
         | Just coercedValue <- coerceVariableValue variableType value'
-        , not (isNonNullInputType variableType) || coercedValue /= Core.Null =
+        , not (isNonNullInputType variableType) || coercedValue /= In.Null =
             Just coercedValue
     choose _ _ _ = Nothing
 
-constValue :: Full.ConstValue -> Core.Value
-constValue (Full.ConstInt i) = Core.Int i
-constValue (Full.ConstFloat f) = Core.Float f
-constValue (Full.ConstString x) = Core.String x
-constValue (Full.ConstBoolean b) = Core.Boolean b
-constValue Full.ConstNull = Core.Null
-constValue (Full.ConstEnum e) = Core.Enum e
-constValue (Full.ConstList l) = Core.List $ constValue <$> l
+constValue :: Full.ConstValue -> In.Value
+constValue (Full.ConstInt i) = In.Int i
+constValue (Full.ConstFloat f) = In.Float f
+constValue (Full.ConstString x) = In.String x
+constValue (Full.ConstBoolean b) = In.Boolean b
+constValue Full.ConstNull = In.Null
+constValue (Full.ConstEnum e) = In.Enum e
+constValue (Full.ConstList l) = In.List $ constValue <$> l
 constValue (Full.ConstObject o) =
-    Core.Object $ HashMap.fromList $ constObjectField <$> o
+    In.Object $ HashMap.fromList $ constObjectField <$> o
   where
     constObjectField (Full.ObjectField key value') = (key, constValue value')
 
@@ -294,19 +295,19 @@ arguments = fmap Core.Arguments . foldM go HashMap.empty
         substitutedValue <- value value'
         return $ HashMap.insert name substitutedValue arguments'
 
-value :: Full.Value -> TransformT Core.Value
+value :: Full.Value -> TransformT In.Value
 value (Full.Variable name) =
-    gets $ fromMaybe Core.Null . HashMap.lookup name . variableValues
-value (Full.Int i) = pure $ Core.Int i
-value (Full.Float f) = pure $ Core.Float f
-value (Full.String x) = pure $ Core.String x
-value (Full.Boolean b) = pure $ Core.Boolean b
-value Full.Null = pure   Core.Null
-value (Full.Enum e) = pure $ Core.Enum e
+    gets $ fromMaybe In.Null . HashMap.lookup name . variableValues
+value (Full.Int i) = pure $ In.Int i
+value (Full.Float f) = pure $ In.Float f
+value (Full.String x) = pure $ In.String x
+value (Full.Boolean b) = pure $ In.Boolean b
+value Full.Null = pure   In.Null
+value (Full.Enum e) = pure $ In.Enum e
 value (Full.List l) =
-    Core.List <$> traverse value l
+    In.List <$> traverse value l
 value (Full.Object o) =
-    Core.Object . HashMap.fromList <$> traverse objectField o
+    In.Object . HashMap.fromList <$> traverse objectField o
 
-objectField :: Full.ObjectField Full.Value -> TransformT (Core.Name, Core.Value)
+objectField :: Full.ObjectField Full.Value -> TransformT (Core.Name, In.Value)
 objectField (Full.ObjectField name value') = (name,) <$> value value'

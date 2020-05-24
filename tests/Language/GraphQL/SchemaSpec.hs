@@ -10,16 +10,15 @@ import qualified Data.Sequence as Sequence
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Schema
-import qualified Language.GraphQL.Type as Type
-import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, describe, it, shouldBe)
 
 spec :: Spec
 spec =
     describe "resolve" $
         it "ignores invalid __typename" $ do
-            let resolver = NestingResolver $ pure $ object
-                    [ wrappedObject "field" $ pure $ Type.S "T"
+            let resolver = pure $ object
+                    [ Resolver "field" $ pure $ Out.String "T"
                     ]
                 schema = HashMap.singleton "__typename" resolver
                 fields = Sequence.singleton

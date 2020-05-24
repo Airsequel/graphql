@@ -15,6 +15,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Language.GraphQL.AST.Core
+import qualified Language.GraphQL.Type.In as In
 import Prelude hiding (lookup)
 
 -- | Resolution context holds resolver arguments.
@@ -55,11 +56,11 @@ instance Monad m => MonadPlus (ActionT m) where
     mplus = (<|>)
 
 -- | Retrieves an argument by its name. If the argument with this name couldn't
---   be found, returns 'Value.Null' (i.e. the argument is assumed to
+--   be found, returns 'In.Null' (i.e. the argument is assumed to
 --   be optional then).
-argument :: Monad m => Name -> ActionT m Value
+argument :: Monad m => Name -> ActionT m In.Value
 argument argumentName = do
     argumentValue <- ActionT $ lift $ asks $ lookup . arguments
-    pure $ fromMaybe Null argumentValue
+    pure $ fromMaybe In.Null argumentValue
   where
     lookup (Arguments argumentMap) = HashMap.lookup argumentName argumentMap

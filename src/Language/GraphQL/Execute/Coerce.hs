@@ -15,7 +15,8 @@ import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
 import Data.Scientific (toBoundedInteger, toRealFloat)
-import Language.GraphQL.AST.Core
+import Language.GraphQL.AST.Document (Name)
+import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Schema
 import Language.GraphQL.Type.Definition
 
@@ -46,26 +47,26 @@ class VariableValue a where
     coerceVariableValue
         :: InputType -- ^ Expected type (variable type given in the query).
         -> a -- ^ Variable value being coerced.
-        -> Maybe Value -- ^ Coerced value on success, 'Nothing' otherwise.
+        -> Maybe In.Value -- ^ Coerced value on success, 'Nothing' otherwise.
 
 instance VariableValue Aeson.Value where
-    coerceVariableValue _ Aeson.Null = Just Null
+    coerceVariableValue _ Aeson.Null = Just In.Null
     coerceVariableValue (ScalarInputTypeDefinition scalarType) value
-        | (Aeson.String stringValue) <- value = Just $ String stringValue
-        | (Aeson.Bool booleanValue) <- value = Just $ Boolean booleanValue
+        | (Aeson.String stringValue) <- value = Just $ In.String stringValue
+        | (Aeson.Bool booleanValue) <- value = Just $ In.Boolean booleanValue
         | (Aeson.Number numberValue) <- value
         , (ScalarType "Float" _) <- scalarType =
-            Just $ Float $ toRealFloat numberValue
+            Just $ In.Float $ toRealFloat numberValue
         | (Aeson.Number numberValue) <- value = -- ID or Int
-            Int <$> toBoundedInteger numberValue
+            In.Int <$> toBoundedInteger numberValue
     coerceVariableValue (EnumInputTypeDefinition _) (Aeson.String stringValue) =
-        Just $ Enum stringValue
+        Just $ In.Enum stringValue
     coerceVariableValue (ObjectInputTypeDefinition objectType) value
         | (Aeson.Object objectValue) <- value = do
             let (InputObjectType _ _ inputFields) = objectType
             (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
             if HashMap.null newObjectValue
-                then Just $ Object resultMap
+                then Just $ In.Object resultMap
                 else Nothing
       where
         foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues
@@ -81,7 +82,7 @@ instance VariableValue Aeson.Value where
                         pure (newObjectValue, insert coerced)
                     Nothing -> Just (objectValue, resultMap)
     coerceVariableValue (ListInputTypeDefinition listType) value
-        | (Aeson.Array arrayValue) <- value = List
+        | (Aeson.Array arrayValue) <- value = In.List
             <$> foldr foldVector (Just []) arrayValue
         | otherwise = coerceVariableValue listType value
       where
@@ -95,7 +96,7 @@ instance VariableValue Aeson.Value where
 --   corresponding types.
 coerceInputLiterals
     :: HashMap Name InputType
-    -> HashMap Name Value
+    -> HashMap Name In.Value
     -> Maybe Subs
 coerceInputLiterals variableTypes variableValues =
     foldWithKey operator variableTypes
@@ -105,34 +106,34 @@ coerceInputLiterals variableTypes variableValues =
         <$> (lookupVariable variableName >>= coerceInputLiteral variableType)
         <*> resultMap
     coerceInputLiteral (ScalarInputType type') value
-        | (String stringValue) <- value
-        , (ScalarType "String" _) <- type' = Just $ String stringValue
-        | (Boolean booleanValue) <- value
-        , (ScalarType "Boolean" _) <- type' = Just $ Boolean booleanValue
-        | (Int intValue) <- value
-        , (ScalarType "Int" _) <- type' = Just $ Int intValue
-        | (Float floatValue) <- value
-        , (ScalarType "Float" _) <- type' = Just $ Float floatValue
-        | (Int intValue) <- value
+        | (In.String stringValue) <- value
+        , (ScalarType "String" _) <- type' = Just $ In.String stringValue
+        | (In.Boolean booleanValue) <- value
+        , (ScalarType "Boolean" _) <- type' = Just $ In.Boolean booleanValue
+        | (In.Int intValue) <- value
+        , (ScalarType "Int" _) <- type' = Just $ In.Int intValue
+        | (In.Float floatValue) <- value
+        , (ScalarType "Float" _) <- type' = Just $ In.Float floatValue
+        | (In.Int intValue) <- value
         , (ScalarType "Float" _) <- type' =
-            Just $ Float $ fromIntegral intValue
-        | (String stringValue) <- value
-        , (ScalarType "ID" _) <- type' = Just $ String stringValue
-        | (Int intValue) <- value
+            Just $ In.Float $ fromIntegral intValue
+        | (In.String stringValue) <- value
+        , (ScalarType "ID" _) <- type' = Just $ In.String stringValue
+        | (In.Int intValue) <- value
         , (ScalarType "ID" _) <- type' = Just $ decimal intValue
-    coerceInputLiteral (EnumInputType type') (Enum enumValue)
-        | member enumValue type' = Just $ Enum enumValue
-    coerceInputLiteral (ObjectInputType type') (Object _) = 
+    coerceInputLiteral (EnumInputType type') (In.Enum enumValue)
+        | member enumValue type' = Just $ In.Enum enumValue
+    coerceInputLiteral (ObjectInputType type') (In.Object _) = 
         let (InputObjectType _ _ inputFields) = type'
-            in Object <$> foldWithKey matchFieldValues inputFields
+            in In.Object <$> foldWithKey matchFieldValues inputFields
     coerceInputLiteral _ _ = Nothing
     member value (EnumType _ _ members) = Set.member value members
     matchFieldValues fieldName (InputField _ type' defaultValue) resultMap =
         case lookupVariable fieldName of
-            Just Null
+            Just In.Null
                 | isNonNullInputType type' -> Nothing
                 | otherwise ->
-                    HashMap.insert fieldName Null <$> resultMap
+                    HashMap.insert fieldName In.Null <$> resultMap
             Just variableValue -> HashMap.insert fieldName
                 <$> coerceInputLiteral type' variableValue
                 <*> resultMap
@@ -144,7 +145,7 @@ coerceInputLiterals variableTypes variableValues =
                 | otherwise -> resultMap
     lookupVariable = flip HashMap.lookup variableValues
     foldWithKey f = HashMap.foldrWithKey f (Just HashMap.empty)
-    decimal = String
+    decimal = In.String
         . Text.Lazy.toStrict
         . Text.Builder.toLazyText
         . Text.Builder.decimal

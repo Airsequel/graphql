@@ -6,6 +6,7 @@ module Language.GraphQL.Type.Directive
 
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL.AST.Core
+import qualified Language.GraphQL.Type.In as In
 
 -- | Directive processing status.
 data Status
@@ -36,7 +37,7 @@ skip = handle skip'
   where
     skip' directive'@(Directive "skip" (Arguments arguments)) =
         case HashMap.lookup "if" arguments of
-            (Just (Boolean True)) -> Skip
+            (Just (In.Boolean True)) -> Skip
             _ -> Include directive'
     skip' directive' = Continue directive'
 
@@ -45,6 +46,6 @@ include = handle include'
   where
     include' directive'@(Directive "include" (Arguments arguments)) =
         case HashMap.lookup "if" arguments of
-            (Just (Boolean True)) -> Include directive'
+            (Just (In.Boolean True)) -> Include directive'
             _ -> Skip
     include' directive' = Continue directive'

@@ -11,8 +11,8 @@ import qualified Language.GraphQL.Schema as Schema
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
-import qualified Language.GraphQL.Type as Type
 
 hatType :: ObjectType IO
 hatType = ObjectType "Hat" Nothing
@@ -20,20 +20,19 @@ hatType = ObjectType "Hat" Nothing
     $ Field Nothing (ScalarOutputType int) mempty resolve
   where
     (Schema.Resolver resolverName resolve) =
-        Schema.wrappedObject "circumference" $ pure $ Type.I 60
+        Schema.Resolver "circumference" $ pure $ Out.Int 60
 
 schema :: Schema IO
 schema = Schema
     (ObjectType "Query" Nothing hatField)
     (Just $ ObjectType "Mutation" Nothing incrementField)
   where
-    garment = NestingResolver
-        $ pure $ Schema.object
-        [ Schema.wrappedObject "circumference" $ pure $ Type.I 60
+    garment = pure $ Schema.object
+        [ Schema.Resolver "circumference" $ pure $ Out.Int 60
         ]
     incrementField = HashMap.singleton "incrementCircumference"
         $ Field Nothing (ScalarOutputType int) mempty
-        $ NestingResolver $ pure $ Type.I 61
+        $ pure $ Out.Int 61
     hatField = HashMap.singleton "garment"
         $ Field Nothing (ObjectOutputType hatType) mempty garment
 

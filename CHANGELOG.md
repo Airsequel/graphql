@@ -10,27 +10,32 @@ and this project adheres to
 ### Fixed
 - The parser rejects variables when parsing defaultValue (DefaultValue). The
   specification defines default values as `Value` with `const` parameter and
-  constant cannot be variables. `AST.Document.ConstValue` was added,
+  constants cannot be variables. `AST.Document.ConstValue` was added,
   `AST.Document.ObjectField` was modified.
 - AST transformation should never fail.
     * Missing variable are assumed to be null.
     * Invalid (recusrive or non-existing) fragments should be skipped.
 
 ### Changed
-- `Resolver` is now `Resolver Name FieldResolver` where `FieldResolver` can
-  contain a JSON value or another resolver, which is invoked during the
-  execution. `FieldResolver` is executed in `ActionT` and the current `Field` is
-  passed in the reader and not as an explicit argument.
+- `Schema.Resolver` cannot return arbitrary JSON anymore, but only
+  `Type.Out.Value`.
+- `Schema.object` takes an array of field resolvers (name, value pairs) and
+  returns a resolver (just the function). There is no need in special functions
+  to construct field resolvers anymore, they can be constructed with just
+  `Resolver "fieldName" $ pure $ object [...]`.
 - `Execute.Transform.operation` has the prior responsibility of
   `Execute.Transform.document`, but transforms only the chosen operation and not
   the whole document. `Execute.Transform.document` translates
   `AST.Document.Document` into `Execute.Transform.Document`.
+- `AST.Core.Value` was moved into `Type.In`. Input values are used only in the
+  execution and type system, it is not a part of the parsing tree.
 
 ### Added
 - `Type.Definition` contains input and the most output types.
 - `Type.Schema` describes a schema. Both public functions that execute queries
   accept a `Schema` now instead of a `HashMap`. The execution fails if the root
   operation doesn't match the root Query type in the schema.
+- `Type.In` and `Type.Out`.
 - `Execute.Coerce` defines a typeclass responsible for input, variable value
   coercion. It decouples us a bit from JSON since any format can be used to pass
   query variables. Execution functions accept (`HashMap Name a`) instead of
@@ -45,6 +50,8 @@ and this project adheres to
   converted to JSON and JSON is not suitable as an internal representation for
   GraphQL. E.g. GraphQL distinguishes between Floats and Integersa and we need
   a way to represent objects as a "Field Name -> Resolver" map.
+- `Schema.wrappedObject`. `Schema.object` creates now wrapped objects.
+- `Type` module. Superseded by `Type.Out`.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed

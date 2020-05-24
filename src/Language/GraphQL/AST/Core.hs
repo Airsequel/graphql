@@ -9,15 +9,13 @@ module Language.GraphQL.AST.Core
     , Operation(..)
     , Selection(..)
     , TypeCondition
-    , Value(..)
     ) where
 
-import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq)
-import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST (Alias, Name, TypeCondition)
+import qualified Language.GraphQL.Type.In as In
 
 -- | GraphQL has 3 operation types: queries, mutations and subscribtions.
 --
@@ -33,7 +31,7 @@ data Field
     deriving (Eq, Show)
 
 -- | Argument list.
-newtype Arguments = Arguments (HashMap Name Value)
+newtype Arguments = Arguments (HashMap Name In.Value)
     deriving (Eq, Show)
 
 instance Semigroup Arguments where
@@ -56,18 +54,3 @@ data Selection
     = SelectionFragment Fragment
     | SelectionField Field
     deriving (Eq, Show)
-
--- | Represents accordingly typed GraphQL values.
-data Value
-    = Int Int32
-    | Float Double -- ^ GraphQL Float is double precision
-    | String Text
-    | Boolean Bool
-    | Null
-    | Enum Name
-    | List [Value]
-    | Object (HashMap Name Value)
-    deriving (Eq, Show)
-
-instance IsString Value where
-    fromString = String . fromString

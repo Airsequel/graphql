@@ -15,6 +15,7 @@ import Language.GraphQL.AST.Core
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Schema
 import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.In as In
 import Prelude hiding (id)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
@@ -22,12 +23,12 @@ direction :: EnumType
 direction = EnumType "Direction" Nothing 
     $ Set.fromList ["NORTH", "EAST", "SOUTH", "WEST"]
 
-coerceInputLiteral :: InputType -> Value -> Maybe Subs
+coerceInputLiteral :: InputType -> In.Value -> Maybe Subs
 coerceInputLiteral input value = coerceInputLiterals
     (HashMap.singleton "variableName" input)
     (HashMap.singleton "variableName" value)
 
-lookupActual :: Maybe (HashMap Name Value) -> Maybe Value
+lookupActual :: Maybe (HashMap Name In.Value) -> Maybe In.Value
 lookupActual = (HashMap.lookup "variableName" =<<)
 
 singletonInputObject :: InputType
@@ -41,22 +42,22 @@ spec :: Spec
 spec = do
     describe "ToGraphQL Aeson" $ do
         it "coerces strings" $
-            let expected = Just (String "asdf")
+            let expected = Just (In.String "asdf")
                 actual = coerceVariableValue
                     (ScalarInputType string) (Aeson.String "asdf")
              in actual `shouldBe` expected
         it "coerces non-null strings" $
-            let expected = Just (String "asdf")
+            let expected = Just (In.String "asdf")
                 actual = coerceVariableValue
                     (NonNullScalarInputType string) (Aeson.String "asdf")
              in actual `shouldBe` expected
         it "coerces booleans" $
-            let expected = Just (Boolean True)
+            let expected = Just (In.Boolean True)
                 actual = coerceVariableValue
                     (ScalarInputType boolean) (Aeson.Bool True)
              in actual `shouldBe` expected
         it "coerces zero to an integer" $
-            let expected = Just (Int 0)
+            let expected = Just (In.Int 0)
                 actual = coerceVariableValue
                     (ScalarInputType int) (Aeson.Number 0)
              in actual `shouldBe` expected
@@ -65,24 +66,24 @@ spec = do
                     (ScalarInputType int) (Aeson.Number $ scientific 14 (-1))
              in actual `shouldSatisfy` isNothing
         it "coerces float numbers" $
-            let expected = Just (Float 1.4)
+            let expected = Just (In.Float 1.4)
                 actual = coerceVariableValue
                     (ScalarInputType float) (Aeson.Number $ scientific 14 (-1))
              in actual `shouldBe` expected
         it "coerces IDs" $
-            let expected = Just (String "1234")
+            let expected = Just (In.String "1234")
                 actual = coerceVariableValue
                     (ScalarInputType id) (Aeson.String "1234")
              in actual `shouldBe` expected
         it "coerces input objects" $
             let actual = coerceVariableValue singletonInputObject
                     $ Aeson.object ["field" .= ("asdf" :: Aeson.Value)]
-                expected = Just $ Object $ HashMap.singleton "field" "asdf"
+                expected = Just $ In.Object $ HashMap.singleton "field" "asdf"
              in actual `shouldBe` expected
         it "skips the field if it is missing in the variables" $
             let actual = coerceVariableValue
                     singletonInputObject Aeson.emptyObject
-                expected = Just $ Object HashMap.empty
+                expected = Just $ In.Object HashMap.empty
              in actual `shouldBe` expected
         it "fails if input object value contains extra fields" $
             let actual = coerceVariableValue singletonInputObject
@@ -94,25 +95,25 @@ spec = do
              in actual `shouldSatisfy` isNothing
         it "preserves null" $
             let actual = coerceVariableValue (ScalarInputType id) Aeson.Null
-             in actual `shouldBe` Just Null
+             in actual `shouldBe` Just In.Null
         it "preserves list order" $
             let list = Aeson.toJSONList ["asdf" :: Aeson.Value, "qwer"]
                 listType = (ListInputType $ ScalarInputType string)
                 actual = coerceVariableValue listType list
-                expected = Just $ List [String "asdf", String "qwer"]
+                expected = Just $ In.List [In.String "asdf", In.String "qwer"]
              in actual `shouldBe` expected
 
     describe "coerceInputLiterals" $ do
         it "coerces enums" $
-            let expected = Just (Enum "NORTH")
+            let expected = Just (In.Enum "NORTH")
                 actual = coerceInputLiteral
-                    (EnumInputType direction) (Enum "NORTH")
+                    (EnumInputType direction) (In.Enum "NORTH")
              in lookupActual actual `shouldBe` expected
         it "fails with non-existing enum value" $
             let actual = coerceInputLiteral
-                    (EnumInputType direction) (Enum "NORTH_EAST")
+                    (EnumInputType direction) (In.Enum "NORTH_EAST")
              in actual `shouldSatisfy` isNothing
         it "coerces integers to IDs" $
-            let expected = Just (String "1234")
-                actual = coerceInputLiteral (ScalarInputType id) (Int 1234)
+            let expected = Just (In.String "1234")
+                actual = coerceInputLiteral (ScalarInputType id) (In.Int 1234)
              in lookupActual actual `shouldBe` expected
