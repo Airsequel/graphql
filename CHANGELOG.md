@@ -29,13 +29,17 @@ and this project adheres to
   `AST.Document.Document` into `Execute.Transform.Document`.
 - `AST.Core.Value` was moved into `Type.In`. Input values are used only in the
   execution and type system, it is not a part of the parsing tree.
+- `Type` module is superseded by `Type.Out`. This module contains now only
+  exports from other module that complete `Type.In` and `Type.Out` exports.
 
 ### Added
-- `Type.Definition` contains input and the most output types.
+- `Type.Definition` contains base type system definition, e.g. Enums and
+  Scalars.
 - `Type.Schema` describes a schema. Both public functions that execute queries
   accept a `Schema` now instead of a `HashMap`. The execution fails if the root
   operation doesn't match the root Query type in the schema.
-- `Type.In` and `Type.Out`.
+- `Type.In` and `Type.Out` contain definitions for input and the most output
+  types.
 - `Execute.Coerce` defines a typeclass responsible for input, variable value
   coercion. It decouples us a bit from JSON since any format can be used to pass
   query variables. Execution functions accept (`HashMap Name a`) instead of
@@ -51,7 +55,6 @@ and this project adheres to
   GraphQL. E.g. GraphQL distinguishes between Floats and Integersa and we need
   a way to represent objects as a "Field Name -> Resolver" map.
 - `Schema.wrappedObject`. `Schema.object` creates now wrapped objects.
-- `Type` module. Superseded by `Type.Out`.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed

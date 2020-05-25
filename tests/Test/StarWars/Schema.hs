@@ -25,10 +25,10 @@ import Test.StarWars.Data
 schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
-    queryType = ObjectType "Query" Nothing $ HashMap.fromList
-        [ ("hero", Field Nothing (ScalarOutputType string) mempty hero)
-        , ("human", Field Nothing (ScalarOutputType string) mempty human)
-        , ("droid", Field Nothing (ScalarOutputType string) mempty droid)
+    queryType = Out.ObjectType "Query" Nothing $ HashMap.fromList
+        [ ("hero", Out.Field Nothing (Out.NamedScalarType string) mempty hero)
+        , ("human", Out.Field Nothing (Out.NamedScalarType string) mempty human)
+        , ("droid", Out.Field Nothing (Out.NamedScalarType string) mempty droid)
         ]
 
 hero :: ActionT Identity (Out.Value Identity)
@@ -55,7 +55,7 @@ droid :: ActionT Identity (Out.Value Identity)
 droid = do
     id' <- argument "id"
     case id' of
-        In.String i -> getDroid i >>= pure . character
+        In.String i -> character <$> getDroid i
         _ -> ActionT $ throwE "Invalid arguments."
 
 character :: Character -> Out.Value Identity
@@ -63,7 +63,7 @@ character char = Schema.object
     [ Schema.Resolver "id" $ pure $ Out.String $ id_ char
     , Schema.Resolver "name" $ pure $ Out.String $ name_ char
     , Schema.Resolver "friends"
-        $ pure $ Out.List $ fmap character $ getFriends char
+        $ pure $ Out.List $ character <$> getFriends char
     , Schema.Resolver "appearsIn" $ pure
         $ Out.List $ Out.Enum <$> catMaybes (getEpisode <$> appearsIn char)
     , Schema.Resolver "secretBackstory" $ Out.String

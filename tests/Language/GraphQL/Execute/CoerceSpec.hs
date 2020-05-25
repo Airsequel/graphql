@@ -23,7 +23,7 @@ direction :: EnumType
 direction = EnumType "Direction" Nothing 
     $ Set.fromList ["NORTH", "EAST", "SOUTH", "WEST"]
 
-coerceInputLiteral :: InputType -> In.Value -> Maybe Subs
+coerceInputLiteral :: In.Type -> In.Value -> Maybe Subs
 coerceInputLiteral input value = coerceInputLiterals
     (HashMap.singleton "variableName" input)
     (HashMap.singleton "variableName" value)
@@ -31,12 +31,12 @@ coerceInputLiteral input value = coerceInputLiterals
 lookupActual :: Maybe (HashMap Name In.Value) -> Maybe In.Value
 lookupActual = (HashMap.lookup "variableName" =<<)
 
-singletonInputObject :: InputType
-singletonInputObject = ObjectInputType type'
+singletonInputObject :: In.Type
+singletonInputObject = In.NamedInputObjectType type'
   where
-    type' = InputObjectType "ObjectName" Nothing inputFields
+    type' = In.InputObjectType "ObjectName" Nothing inputFields
     inputFields = HashMap.singleton "field" field
-    field = InputField Nothing (ScalarInputType string) Nothing
+    field = In.InputField Nothing (In.NamedScalarType string) Nothing
 
 spec :: Spec
 spec = do
@@ -44,36 +44,36 @@ spec = do
         it "coerces strings" $
             let expected = Just (In.String "asdf")
                 actual = coerceVariableValue
-                    (ScalarInputType string) (Aeson.String "asdf")
+                    (In.NamedScalarType string) (Aeson.String "asdf")
              in actual `shouldBe` expected
         it "coerces non-null strings" $
             let expected = Just (In.String "asdf")
                 actual = coerceVariableValue
-                    (NonNullScalarInputType string) (Aeson.String "asdf")
+                    (In.NonNullScalarType string) (Aeson.String "asdf")
              in actual `shouldBe` expected
         it "coerces booleans" $
             let expected = Just (In.Boolean True)
                 actual = coerceVariableValue
-                    (ScalarInputType boolean) (Aeson.Bool True)
+                    (In.NamedScalarType boolean) (Aeson.Bool True)
              in actual `shouldBe` expected
         it "coerces zero to an integer" $
             let expected = Just (In.Int 0)
                 actual = coerceVariableValue
-                    (ScalarInputType int) (Aeson.Number 0)
+                    (In.NamedScalarType int) (Aeson.Number 0)
              in actual `shouldBe` expected
         it "rejects fractional if an integer is expected" $
             let actual = coerceVariableValue
-                    (ScalarInputType int) (Aeson.Number $ scientific 14 (-1))
+                    (In.NamedScalarType int) (Aeson.Number $ scientific 14 (-1))
              in actual `shouldSatisfy` isNothing
         it "coerces float numbers" $
             let expected = Just (In.Float 1.4)
                 actual = coerceVariableValue
-                    (ScalarInputType float) (Aeson.Number $ scientific 14 (-1))
+                    (In.NamedScalarType float) (Aeson.Number $ scientific 14 (-1))
              in actual `shouldBe` expected
         it "coerces IDs" $
             let expected = Just (In.String "1234")
                 actual = coerceVariableValue
-                    (ScalarInputType id) (Aeson.String "1234")
+                    (In.NamedScalarType id) (Aeson.String "1234")
              in actual `shouldBe` expected
         it "coerces input objects" $
             let actual = coerceVariableValue singletonInputObject
@@ -94,11 +94,11 @@ spec = do
                     ]
              in actual `shouldSatisfy` isNothing
         it "preserves null" $
-            let actual = coerceVariableValue (ScalarInputType id) Aeson.Null
+            let actual = coerceVariableValue (In.NamedScalarType id) Aeson.Null
              in actual `shouldBe` Just In.Null
         it "preserves list order" $
             let list = Aeson.toJSONList ["asdf" :: Aeson.Value, "qwer"]
-                listType = (ListInputType $ ScalarInputType string)
+                listType = (In.ListType $ In.NamedScalarType string)
                 actual = coerceVariableValue listType list
                 expected = Just $ In.List [In.String "asdf", In.String "qwer"]
              in actual `shouldBe` expected
@@ -107,13 +107,13 @@ spec = do
         it "coerces enums" $
             let expected = Just (In.Enum "NORTH")
                 actual = coerceInputLiteral
-                    (EnumInputType direction) (In.Enum "NORTH")
+                    (In.NamedEnumType direction) (In.Enum "NORTH")
              in lookupActual actual `shouldBe` expected
         it "fails with non-existing enum value" $
             let actual = coerceInputLiteral
-                    (EnumInputType direction) (In.Enum "NORTH_EAST")
+                    (In.NamedEnumType direction) (In.Enum "NORTH_EAST")
              in actual `shouldSatisfy` isNothing
         it "coerces integers to IDs" $
             let expected = Just (In.String "1234")
-                actual = coerceInputLiteral (ScalarInputType id) (In.Int 1234)
+                actual = coerceInputLiteral (In.NamedScalarType id) (In.Int 1234)
              in lookupActual actual `shouldBe` expected

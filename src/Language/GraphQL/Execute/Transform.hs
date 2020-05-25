@@ -30,7 +30,6 @@ import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.AST.Core as Core
 import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Schema as Schema
-import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Directive as Directive
 import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Type.Schema
@@ -86,31 +85,31 @@ getOperation (Just operationName) operations
 
 lookupInputType
     :: Full.Type
-    -> HashMap.HashMap Full.Name (Definition.TypeDefinition m)
-    -> Maybe Definition.InputType
+    -> HashMap.HashMap Full.Name (Type m)
+    -> Maybe In.Type
 lookupInputType (Full.TypeNamed name) types =
     case HashMap.lookup name types of
-        Just (Definition.ScalarTypeDefinition scalarType) ->
-            Just $ Definition.ScalarInputType scalarType
-        Just (Definition.EnumTypeDefinition enumType) ->
-            Just $ Definition.EnumInputType enumType
-        Just (Definition.InputObjectTypeDefinition objectType) ->
-            Just $ Definition.ObjectInputType objectType
+        Just (ScalarType scalarType) ->
+            Just $ In.NamedScalarType scalarType
+        Just (EnumType enumType) ->
+            Just $ In.NamedEnumType enumType
+        Just (InputObjectType objectType) ->
+            Just $ In.NamedInputObjectType objectType
         _ -> Nothing
 lookupInputType (Full.TypeList list) types
-    = Definition.ListInputType
+    = In.ListType
     <$> lookupInputType list types
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
     case HashMap.lookup nonNull types of
-        Just (Definition.ScalarTypeDefinition scalarType) ->
-            Just $ Definition.NonNullScalarInputType scalarType
-        Just (Definition.EnumTypeDefinition enumType) ->
-            Just $ Definition.NonNullEnumInputType enumType
-        Just (Definition.InputObjectTypeDefinition objectType) ->
-            Just $ Definition.NonNullObjectInputType objectType
+        Just (ScalarType scalarType) ->
+            Just $ In.NonNullScalarType scalarType
+        Just (EnumType enumType) ->
+            Just $ In.NonNullEnumType enumType
+        Just (InputObjectType objectType) ->
+            Just $ In.NonNullInputObjectType objectType
         _ -> Nothing
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
-    = Definition.NonNullListInputType
+    = In.NonNullListType
     <$> lookupInputType nonNull types
 
 coerceVariableValues :: (Monad m, VariableValue a)
@@ -137,10 +136,10 @@ coerceVariableValues schema operationDefinition variableValues' =
             <*> coercedValues
     choose Nothing defaultValue variableType
         | Just _ <- defaultValue = defaultValue
-        | not (isNonNullInputType variableType) = Just In.Null
+        | not (In.isNonNullType variableType) = Just In.Null
     choose (Just value') _ variableType
         | Just coercedValue <- coerceVariableValue variableType value'
-        , not (isNonNullInputType variableType) || coercedValue /= In.Null =
+        , not (In.isNonNullType variableType) || coercedValue /= In.Null =
             Just coercedValue
     choose _ _ _ = Nothing
 

@@ -4,7 +4,6 @@
 module Language.GraphQL.Execute.Coerce
     ( VariableValue(..)
     , coerceInputLiterals
-    , isNonNullInputType
     ) where
 
 import qualified Data.Aeson as Aeson
@@ -45,13 +44,13 @@ class VariableValue a where
     -- If a value cannot be coerced without losing information, 'Nothing' should
     -- be returned, the coercion will fail then and the query won't be executed.
     coerceVariableValue
-        :: InputType -- ^ Expected type (variable type given in the query).
+        :: In.Type -- ^ Expected type (variable type given in the query).
         -> a -- ^ Variable value being coerced.
         -> Maybe In.Value -- ^ Coerced value on success, 'Nothing' otherwise.
 
 instance VariableValue Aeson.Value where
     coerceVariableValue _ Aeson.Null = Just In.Null
-    coerceVariableValue (ScalarInputTypeDefinition scalarType) value
+    coerceVariableValue (In.ScalarBaseType scalarType) value
         | (Aeson.String stringValue) <- value = Just $ In.String stringValue
         | (Aeson.Bool booleanValue) <- value = Just $ In.Boolean booleanValue
         | (Aeson.Number numberValue) <- value
@@ -59,11 +58,11 @@ instance VariableValue Aeson.Value where
             Just $ In.Float $ toRealFloat numberValue
         | (Aeson.Number numberValue) <- value = -- ID or Int
             In.Int <$> toBoundedInteger numberValue
-    coerceVariableValue (EnumInputTypeDefinition _) (Aeson.String stringValue) =
+    coerceVariableValue (In.EnumBaseType _) (Aeson.String stringValue) =
         Just $ In.Enum stringValue
-    coerceVariableValue (ObjectInputTypeDefinition objectType) value
+    coerceVariableValue (In.InputObjectBaseType objectType) value
         | (Aeson.Object objectValue) <- value = do
-            let (InputObjectType _ _ inputFields) = objectType
+            let (In.InputObjectType _ _ inputFields) = objectType
             (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
             if HashMap.null newObjectValue
                 then Just $ In.Object resultMap
@@ -73,7 +72,7 @@ instance VariableValue Aeson.Value where
             $ Just (objectValue, HashMap.empty)
         matchFieldValues _ _ Nothing = Nothing
         matchFieldValues fieldName inputField (Just (objectValue, resultMap)) =
-            let (InputField _ fieldType _) = inputField
+            let (In.InputField _ fieldType _) = inputField
                 insert = flip (HashMap.insert fieldName) resultMap
                 newObjectValue = HashMap.delete fieldName objectValue
              in case HashMap.lookup fieldName objectValue of
@@ -81,7 +80,7 @@ instance VariableValue Aeson.Value where
                         coerced <- coerceVariableValue fieldType variableValue
                         pure (newObjectValue, insert coerced)
                     Nothing -> Just (objectValue, resultMap)
-    coerceVariableValue (ListInputTypeDefinition listType) value
+    coerceVariableValue (In.ListBaseType listType) value
         | (Aeson.Array arrayValue) <- value = In.List
             <$> foldr foldVector (Just []) arrayValue
         | otherwise = coerceVariableValue listType value
@@ -95,7 +94,7 @@ instance VariableValue Aeson.Value where
 -- | Coerces operation arguments according to the input coercion rules for the
 --   corresponding types.
 coerceInputLiterals
-    :: HashMap Name InputType
+    :: HashMap Name In.Type
     -> HashMap Name In.Value
     -> Maybe Subs
 coerceInputLiterals variableTypes variableValues =
@@ -105,7 +104,7 @@ coerceInputLiterals variableTypes variableValues =
         HashMap.insert variableName
         <$> (lookupVariable variableName >>= coerceInputLiteral variableType)
         <*> resultMap
-    coerceInputLiteral (ScalarInputType type') value
+    coerceInputLiteral (In.NamedScalarType type') value
         | (In.String stringValue) <- value
         , (ScalarType "String" _) <- type' = Just $ In.String stringValue
         | (In.Boolean booleanValue) <- value
@@ -121,17 +120,17 @@ coerceInputLiterals variableTypes variableValues =
         , (ScalarType "ID" _) <- type' = Just $ In.String stringValue
         | (In.Int intValue) <- value
         , (ScalarType "ID" _) <- type' = Just $ decimal intValue
-    coerceInputLiteral (EnumInputType type') (In.Enum enumValue)
+    coerceInputLiteral (In.NamedEnumType type') (In.Enum enumValue)
         | member enumValue type' = Just $ In.Enum enumValue
-    coerceInputLiteral (ObjectInputType type') (In.Object _) = 
-        let (InputObjectType _ _ inputFields) = type'
+    coerceInputLiteral (In.NamedInputObjectType type') (In.Object _) = 
+        let (In.InputObjectType _ _ inputFields) = type'
             in In.Object <$> foldWithKey matchFieldValues inputFields
     coerceInputLiteral _ _ = Nothing
     member value (EnumType _ _ members) = Set.member value members
-    matchFieldValues fieldName (InputField _ type' defaultValue) resultMap =
+    matchFieldValues fieldName (In.InputField _ type' defaultValue) resultMap =
         case lookupVariable fieldName of
             Just In.Null
-                | isNonNullInputType type' -> Nothing
+                | In.isNonNullType type' -> Nothing
                 | otherwise ->
                     HashMap.insert fieldName In.Null <$> resultMap
             Just variableValue -> HashMap.insert fieldName
@@ -141,7 +140,7 @@ coerceInputLiterals variableTypes variableValues =
                 | Just value <- defaultValue ->
                     HashMap.insert fieldName value <$> resultMap
                 | Nothing <- defaultValue
-                , isNonNullInputType type' -> Nothing
+                , In.isNonNullType type' -> Nothing
                 | otherwise -> resultMap
     lookupVariable = flip HashMap.lookup variableValues
     foldWithKey f = HashMap.foldrWithKey f (Just HashMap.empty)
@@ -149,11 +148,3 @@ coerceInputLiterals variableTypes variableValues =
         . Text.Lazy.toStrict
         . Text.Builder.toLazyText
         . Text.Builder.decimal
-
--- | Checks whether the given input type is a non-null type.
-isNonNullInputType :: InputType -> Bool
-isNonNullInputType (NonNullScalarInputType _) = True
-isNonNullInputType (NonNullEnumInputType _) = True
-isNonNullInputType (NonNullObjectInputType _) = True
-isNonNullInputType (NonNullListInputType _) = True
-isNonNullInputType _ = False

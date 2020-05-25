@@ -23,9 +23,9 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > import Data.Time (getCurrentTime)
 >
 > import Language.GraphQL
-> import Language.GraphQL.Type.Definition
-> import Language.GraphQL.Type.Schema
-> import qualified Language.GraphQL.Type as Type
+> import Language.GraphQL.Trans
+> import Language.GraphQL.Type
+> import qualified Language.GraphQL.Type.Out as Out
 >
 > import Prelude hiding (putStrLn)
 
@@ -42,10 +42,10 @@ First we build a GraphQL schema.
 > queryType :: ObjectType IO
 > queryType = ObjectType "Query" Nothing
 >   $ HashMap.singleton "hello"
->   $ Field Nothing (ScalarOutputType string) mempty hello
+>   $ Field Nothing (Out.NamedScalarType string) mempty hello
 >
-> hello :: FieldResolver IO
-> hello = NestingResolver $ pure $ Type.S "it's me"
+> hello :: ActionT IO (Out.Value IO)
+> hello = pure $ Out.String "it's me"
 
 This defines a simple schema with one type and one field, that resolves to a fixed value.
 
@@ -77,12 +77,12 @@ For this example, we're going to be using time.
 > queryType2 :: ObjectType IO
 > queryType2 = ObjectType "Query" Nothing
 >   $ HashMap.singleton "time"
->   $ Field Nothing (ScalarOutputType string) mempty time
+>   $ Field Nothing (Out.NamedScalarType string) mempty time
 >
-> time :: FieldResolver IO
-> time = NestingResolver $ do
+> time :: ActionT IO (Out.Value IO)
+> time = do
 >   t <- liftIO getCurrentTime
->   pure $ Type.S $ Text.pack $ show t
+>   pure $ Out.String $ Text.pack $ show t
 
 This defines a simple schema with one type and one field,
 which resolves to the current time.
@@ -140,8 +140,8 @@ Now that we have two resolvers, we can define a schema which uses them both.
 >
 > queryType3 :: ObjectType IO
 > queryType3 = ObjectType "Query" Nothing $ HashMap.fromList
->   [ ("hello", Field Nothing (ScalarOutputType string) mempty hello)
->   , ("time", Field Nothing (ScalarOutputType string) mempty time)
+>   [ ("hello", Field Nothing (Out.NamedScalarType string) mempty hello)
+>   , ("time", Field Nothing (Out.NamedScalarType string) mempty time)
 >   ]
 >
 > query3 :: Text

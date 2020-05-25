@@ -16,7 +16,7 @@ import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
 import qualified Language.GraphQL.Schema as Schema
-import qualified Language.GraphQL.Type.Definition as Definition
+import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
 -- | The substitution is applied to the document, and the resolvers are applied
@@ -66,7 +66,7 @@ operation = schemaOperation
         . flip Schema.resolve queryFields
         . fmap getResolver
         . fields
-    fields (Definition.ObjectType _ _ objectFields) = objectFields
+    fields (Out.ObjectType _ _ objectFields) = objectFields
     lookupError = pure
         $ singleError "Root operation type couldn't be found in the schema."
     schemaOperation Schema {query} (AST.Core.Query _ fields') =
@@ -75,4 +75,4 @@ operation = schemaOperation
         resolve fields' mutation
     schemaOperation Schema {mutation = Nothing} (AST.Core.Mutation _ _) =
         lookupError
-    getResolver (Definition.Field _ _ _ resolver) = resolver
+    getResolver (Out.Field _ _ _ resolver) = resolver
