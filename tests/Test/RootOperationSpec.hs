@@ -15,7 +15,7 @@ import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
 hatType :: Out.ObjectType IO
-hatType = Out.ObjectType "Hat" Nothing
+hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.singleton resolverName
     $ Out.Field Nothing (Out.NamedScalarType int) mempty resolve
   where
@@ -24,8 +24,8 @@ hatType = Out.ObjectType "Hat" Nothing
 
 schema :: Schema IO
 schema = Schema
-    (Out.ObjectType "Query" Nothing hatField)
-    (Just $ Out.ObjectType "Mutation" Nothing incrementField)
+    (Out.ObjectType "Query" Nothing [] hatField)
+    (Just $ Out.ObjectType "Mutation" Nothing [] incrementField)
   where
     garment = pure $ Schema.object
         [ Schema.Resolver "circumference" $ pure $ Out.Int 60

@@ -51,14 +51,14 @@ hasErrors (Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
 shirtType :: Out.ObjectType IO
-shirtType = Out.ObjectType "Shirt" Nothing
+shirtType = Out.ObjectType "Shirt" Nothing []
     $ HashMap.singleton resolverName
     $ Out.Field Nothing (Out.NamedScalarType string) mempty resolve
   where
     (Schema.Resolver resolverName resolve) = size
 
 hatType :: Out.ObjectType IO
-hatType = Out.ObjectType "Hat" Nothing
+hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.singleton resolverName
     $ Out.Field Nothing (Out.NamedScalarType int) mempty resolve
   where
@@ -69,7 +69,7 @@ toSchema (Schema.Resolver resolverName resolve) = Schema
     { query = queryType, mutation = Nothing }
   where
     unionMember = if resolverName == "Hat" then hatType else shirtType
-    queryType = Out.ObjectType "Query" Nothing
+    queryType = Out.ObjectType "Query" Nothing []
         $ HashMap.singleton resolverName
         $ Out.Field Nothing (Out.NamedObjectType unionMember) mempty resolve
 

@@ -9,14 +9,18 @@
 -- with 'Language.GraphQL.Type.In'.
 module Language.GraphQL.Type.Out
     ( Field(..)
+    , InterfaceType(..)
     , ObjectType(..)
     , Type(..)
+    , UnionType(..)
     , Value(..)
     , isNonNullType
     , pattern EnumBaseType
+    , pattern InterfaceBaseType
     , pattern ListBaseType
     , pattern ObjectBaseType
     , pattern ScalarBaseType
+    , pattern UnionBaseType
     ) where
 
 import Data.HashMap.Strict (HashMap)
@@ -34,7 +38,22 @@ import qualified Language.GraphQL.Type.In as In
 --
 --   Almost all of the GraphQL types you define will be object types. Object
 --   types have a name, but most importantly describe their fields.
-data ObjectType m = ObjectType Name (Maybe Text) (HashMap Name (Field m))
+data ObjectType m = ObjectType
+    Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
+
+-- | Interface Type Definition.
+--
+-- When a field can return one of a heterogeneous set of types, a Interface type
+-- is used to describe what types are possible, and what fields are in common
+-- across all types.
+data InterfaceType m = InterfaceType
+    Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
+
+-- | Union Type Definition.
+--
+-- When a field can return one of a heterogeneous set of types, a Union type is
+-- used to describe what types are possible.
+data UnionType m = UnionType Name (Maybe Text) [ObjectType m]
 
 -- | Output object field definition.
 data Field m = Field
@@ -48,10 +67,14 @@ data Type m
     = NamedScalarType ScalarType
     | NamedEnumType EnumType
     | NamedObjectType (ObjectType m)
+    | NamedInterfaceType (InterfaceType m)
+    | NamedUnionType (UnionType m)
     | ListType (Type m)
     | NonNullScalarType ScalarType
     | NonNullEnumType EnumType
     | NonNullObjectType (ObjectType m)
+    | NonNullInterfaceType (InterfaceType m)
+    | NonNullUnionType (UnionType m)
     | NonNullListType (Type m)
 
 -- | GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
@@ -108,11 +131,26 @@ pattern EnumBaseType enumType <- (isEnumType -> Just enumType)
 pattern ObjectBaseType :: forall m. ObjectType m -> Type m
 pattern ObjectBaseType objectType <- (isObjectType -> Just objectType)
 
+-- | Matches either 'NamedInterfaceType' or 'NonNullInterfaceType'.
+pattern InterfaceBaseType :: forall m. InterfaceType m -> Type m
+pattern InterfaceBaseType interfaceType <-
+    (isInterfaceType -> Just interfaceType)
+
+-- | Matches either 'NamedUnionType' or 'NonNullUnionType'.
+pattern UnionBaseType :: forall m. UnionType m -> Type m
+pattern UnionBaseType unionType <- (isUnionType -> Just unionType)
+
 -- | Matches either 'ListType' or 'NonNullListType'.
 pattern ListBaseType :: forall m. Type m -> Type m
 pattern ListBaseType listType <- (isListType -> Just listType)
 
-{-# COMPLETE ScalarBaseType, EnumBaseType, ObjectBaseType, ListBaseType #-}
+{-# COMPLETE ScalarBaseType
+    , EnumBaseType
+    , ObjectBaseType
+    , ListBaseType
+    , InterfaceBaseType
+    , UnionBaseType
+    #-}
 
 isScalarType :: forall m. Type m -> Maybe ScalarType
 isScalarType (NamedScalarType outputType) = Just outputType
@@ -129,6 +167,16 @@ isEnumType (NamedEnumType outputType) = Just outputType
 isEnumType (NonNullEnumType outputType) = Just outputType
 isEnumType _ = Nothing
 
+isInterfaceType :: forall m. Type m -> Maybe (InterfaceType m)
+isInterfaceType (NamedInterfaceType interfaceType) = Just interfaceType
+isInterfaceType (NonNullInterfaceType interfaceType) = Just interfaceType
+isInterfaceType _ = Nothing
+
+isUnionType :: forall m. Type m -> Maybe (UnionType m)
+isUnionType (NamedUnionType unionType) = Just unionType
+isUnionType (NonNullUnionType unionType) = Just unionType
+isUnionType _ = Nothing
+
 isListType :: forall m. Type m -> Maybe (Type m)
 isListType (ListType outputType) = Just outputType
 isListType (NonNullListType outputType) = Just outputType
@@ -139,5 +187,7 @@ isNonNullType :: forall m. Type m -> Bool
 isNonNullType (NonNullScalarType _) = True
 isNonNullType (NonNullEnumType _) = True
 isNonNullType (NonNullObjectType _) = True
+isNonNullType (NonNullInterfaceType _) = True
+isNonNullType (NonNullUnionType _) = True
 isNonNullType (NonNullListType _) = True
 isNonNullType _ = False

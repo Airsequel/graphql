@@ -25,7 +25,7 @@ import Test.StarWars.Data
 schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
-    queryType = Out.ObjectType "Query" Nothing $ HashMap.fromList
+    queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
         [ ("hero", Out.Field Nothing (Out.NamedScalarType string) mempty hero)
         , ("human", Out.Field Nothing (Out.NamedScalarType string) mempty human)
         , ("droid", Out.Field Nothing (Out.NamedScalarType string) mempty droid)

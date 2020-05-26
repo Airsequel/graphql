@@ -20,6 +20,8 @@ data Type m
     | EnumType Definition.EnumType
     | ObjectType (Out.ObjectType m)
     | InputObjectType In.InputObjectType
+    | InterfaceType (Out.InterfaceType m)
+    | UnionType (Out.UnionType m)
 
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the
@@ -39,10 +41,9 @@ collectReferencedTypes schema =
     let queryTypes = traverseObjectType (query schema) HashMap.empty
      in maybe queryTypes (`traverseObjectType` queryTypes) $ mutation schema
   where
-    collect traverser typeName element foundTypes =
-        let newMap = HashMap.insert typeName element foundTypes
-         in maybe (traverser newMap) (const foundTypes)
-            $ HashMap.lookup typeName foundTypes
+    collect traverser typeName element foundTypes
+        | HashMap.member typeName foundTypes = foundTypes
+        | otherwise = traverser $ HashMap.insert typeName element foundTypes
     visitFields (Out.Field _ outputType arguments _) foundTypes
         = traverseOutputType outputType
         $ foldr visitArguments foundTypes arguments
@@ -63,6 +64,12 @@ collectReferencedTypes schema =
          in collect Prelude.id typeName (EnumType enumType)
     traverseOutputType (Out.ObjectBaseType objectType) =
         traverseObjectType objectType
+    traverseOutputType (Out.InterfaceBaseType interfaceType) =
+        traverseInterfaceType interfaceType
+    traverseOutputType (Out.UnionBaseType unionType) =
+        let (Out.UnionType typeName _ types) = unionType
+            traverser = flip (foldr traverseObjectType) types
+         in collect traverser typeName (UnionType unionType)
     traverseOutputType (Out.ListBaseType listType) =
         traverseOutputType listType
     traverseOutputType (Out.ScalarBaseType scalarType) =
@@ -72,7 +79,15 @@ collectReferencedTypes schema =
         let (Definition.EnumType typeName _ _) = enumType
          in collect Prelude.id typeName (EnumType enumType)
     traverseObjectType objectType foundTypes =
-        let (Out.ObjectType typeName _ objectFields) = objectType
+        let (Out.ObjectType typeName _ interfaces fields) = objectType
             element = ObjectType objectType
-            traverser = flip (foldr visitFields) objectFields
+            traverser = polymorphicTypeTraverser interfaces fields
          in collect traverser typeName element foundTypes
+    traverseInterfaceType interfaceType foundTypes =
+        let (Out.InterfaceType typeName _ interfaces fields) = interfaceType
+            element = InterfaceType interfaceType
+            traverser = polymorphicTypeTraverser interfaces fields
+         in collect traverser typeName element foundTypes
+    polymorphicTypeTraverser interfaces fields
+        = flip (foldr visitFields) fields
+        . flip (foldr traverseInterfaceType) interfaces

@@ -40,7 +40,7 @@ First we build a GraphQL schema.
 > schema1 = Schema queryType Nothing
 >
 > queryType :: ObjectType IO
-> queryType = ObjectType "Query" Nothing
+> queryType = ObjectType "Query" Nothing []
 >   $ HashMap.singleton "hello"
 >   $ Field Nothing (Out.NamedScalarType string) mempty hello
 >
@@ -75,7 +75,7 @@ For this example, we're going to be using time.
 > schema2 = Schema queryType2 Nothing
 >
 > queryType2 :: ObjectType IO
-> queryType2 = ObjectType "Query" Nothing
+> queryType2 = ObjectType "Query" Nothing []
 >   $ HashMap.singleton "time"
 >   $ Field Nothing (Out.NamedScalarType string) mempty time
 >
@@ -139,7 +139,7 @@ Now that we have two resolvers, we can define a schema which uses them both.
 > schema3 = Schema queryType3 Nothing
 >
 > queryType3 :: ObjectType IO
-> queryType3 = ObjectType "Query" Nothing $ HashMap.fromList
+> queryType3 = ObjectType "Query" Nothing [] $ HashMap.fromList
 >   [ ("hello", Field Nothing (Out.NamedScalarType string) mempty hello)
 >   , ("time", Field Nothing (Out.NamedScalarType string) mempty time)
 >   ]

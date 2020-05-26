@@ -3,7 +3,9 @@ module Language.GraphQL.Type
     ( In.InputField(..)
     , In.InputObjectType(..)
     , Out.Field(..)
+    , Out.InterfaceType(..)
     , Out.ObjectType(..)
+    , Out.UnionType(..)
     , module Language.GraphQL.Type.Definition
     , module Language.GraphQL.Type.Schema
     ) where

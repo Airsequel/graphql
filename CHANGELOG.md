@@ -23,10 +23,8 @@ and this project adheres to
   returns a resolver (just the function). There is no need in special functions
   to construct field resolvers anymore, they can be constructed with just
   `Resolver "fieldName" $ pure $ object [...]`.
-- `Execute.Transform.operation` has the prior responsibility of
-  `Execute.Transform.document`, but transforms only the chosen operation and not
-  the whole document. `Execute.Transform.document` translates
-  `AST.Document.Document` into `Execute.Transform.Document`.
+- `AST.Core.Document` was modified to contain only slightly modified AST and
+  moved into `Execute.Transform.Document`.
 - `AST.Core.Value` was moved into `Type.In`. Input values are used only in the
   execution and type system, it is not a part of the parsing tree.
 - `Type` module is superseded by `Type.Out`. This module contains now only
@@ -38,18 +36,18 @@ and this project adheres to
 - `Type.Schema` describes a schema. Both public functions that execute queries
   accept a `Schema` now instead of a `HashMap`. The execution fails if the root
   operation doesn't match the root Query type in the schema.
-- `Type.In` and `Type.Out` contain definitions for input and the most output
-  types.
+- `Type.In` and `Type.Out` contain definitions for input and output types.
 - `Execute.Coerce` defines a typeclass responsible for input, variable value
   coercion. It decouples us a bit from JSON since any format can be used to pass
   query variables. Execution functions accept (`HashMap Name a`) instead of
   `Subs`, where a is an instance of `VariableValue`.
 
 ### Removed
-- `AST.Core.Document`. Transforming the whole document is probably not
+- `Execute.Transform.document`. Transforming the whole document is probably not
   reasonable since a document can define multiple operations and we're
-  interested only in one of them. Therefore `Document` was modified, moved to
-  `Execute.Transform` and made private.
+  interested only in one of them. `Execute.Transform.operation` has the prior
+  responsibility of `Execute.Transform.document`, but transforms only the
+  chosen operation and not the whole document.
 - `Schema.scalar`, `Schema.wrappedScalar`. They accepted everything can be
   converted to JSON and JSON is not suitable as an internal representation for
   GraphQL. E.g. GraphQL distinguishes between Floats and Integersa and we need
