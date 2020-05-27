@@ -4,6 +4,8 @@
 module Language.GraphQL.Type.Definition
     ( EnumType(..)
     , ScalarType(..)
+    , Subs
+    , Value(..)
     , boolean
     , float
     , id
@@ -11,10 +13,32 @@ module Language.GraphQL.Type.Definition
     , string
     ) where
 
+import Data.Int (Int32)
+import Data.HashMap.Strict (HashMap)
 import Data.Set (Set)
+import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST.Document (Name)
 import Prelude hiding (id)
+
+-- | Represents accordingly typed GraphQL values.
+data Value
+    = Int Int32
+    | Float Double -- ^ GraphQL Float is double precision.
+    | String Text
+    | Boolean Bool
+    | Null
+    | Enum Name
+    | List [Value] -- ^ Arbitrary nested list.
+    | Object (HashMap Name Value)
+    deriving (Eq, Show)
+
+instance IsString Value where
+    fromString = String . fromString
+
+-- | Contains variables for the query. The key of the map is a variable name,
+--   and the value is the variable value.
+type Subs = HashMap Name Value
 
 -- | Scalar type definition.
 --

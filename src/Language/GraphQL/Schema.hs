@@ -5,27 +5,24 @@
 -- functions for defining and manipulating schemas.
 module Language.GraphQL.Schema
     ( Resolver(..)
-    , Subs
-    , object
     , resolve
-    , resolversToMap
     ) where
 
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
-import Data.Foldable (fold, toList)
-import Data.Maybe (fromMaybe)
 import qualified Data.Aeson as Aeson
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Sequence (Seq)
+import qualified Data.Map.Strict as Map
+import Data.Sequence (Seq(..))
 import Data.Text (Text)
-import qualified Data.Text as T
-import Language.GraphQL.AST.Core
+import qualified Data.Text as Text
+import Language.GraphQL.AST.Document (Name)
 import Language.GraphQL.Error
+import Language.GraphQL.Execute.Execution
+import Language.GraphQL.Execute.Transform
 import Language.GraphQL.Trans
-import qualified Language.GraphQL.Type.In as In
+import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.Out as Out
 
 -- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
@@ -35,82 +32,74 @@ import qualified Language.GraphQL.Type.Out as Out
 -- Resolving a field can result in a leaf value or an object, which is
 -- represented as a list of nested resolvers, used to resolve the fields of that
 -- object.
-data Resolver m = Resolver Name (ActionT m (Out.Value m))
+data Resolver m = Resolver Name (ActionT m Value)
 
--- | Converts resolvers to a map.
-resolversToMap :: (Foldable f, Functor f)
-    => forall m
-    . f (Resolver m)
-    -> HashMap Text (ActionT m (Out.Value m))
-resolversToMap = HashMap.fromList . toList . fmap toKV
-  where
-    toKV (Resolver name r) = (name, r)
-
--- | Contains variables for the query. The key of the map is a variable name,
---   and the value is the variable value.
-type Subs = HashMap Name In.Value
-
--- | Create a new 'Resolver' with the given 'Name' from the given
--- Resolver's.
-object :: Monad m => [Resolver m] -> Out.Value m
-object = Out.Object . resolversToMap
-
-resolveFieldValue :: Monad m => Field -> ActionT m a -> m (Either Text a)
-resolveFieldValue field@(Field _ _ args _) =
-    flip runReaderT (Context {arguments=args, info=field})
+resolveFieldValue :: Monad m => Value -> Field m -> ActionT m a -> m (Either Text a)
+resolveFieldValue result (Field _ _ args _) =
+    flip runReaderT (Context {arguments=args, values=result})
     . runExceptT
     . runActionT
 
-withField :: Monad m
-    => Field
-    -> ActionT m (Out.Value m)
-    -> CollectErrsT m Aeson.Object
-withField field resolver = do
-    answer <- lift $ resolveFieldValue field resolver
+executeField :: Monad m
+    => Value
+    -> Out.Field m
+    -> Field m
+    -> CollectErrsT m Aeson.Value
+executeField prev (Out.Field _ fieldType _ resolver) field = do
+    answer <- lift $ resolveFieldValue prev field resolver
     case answer of
-        Right result -> HashMap.singleton (aliasOrName field)
-            <$> toJSON field result
-        Left errorMessage -> errmsg field errorMessage
+        Right result -> completeValue fieldType field result
+        Left errorMessage -> errmsg errorMessage
 
-toJSON :: Monad m => Field -> Out.Value m -> CollectErrsT m Aeson.Value
-toJSON _ Out.Null = pure Aeson.Null
-toJSON _ (Out.Int integer) = pure $ Aeson.toJSON integer
-toJSON _ (Out.Boolean boolean) = pure $ Aeson.Bool boolean
-toJSON _ (Out.Float float) = pure $ Aeson.toJSON float
-toJSON _ (Out.Enum enum) = pure $ Aeson.String enum
-toJSON _ (Out.String string) = pure $ Aeson.String string
-toJSON field (Out.List list) = Aeson.toJSON <$> traverse (toJSON field) list
-toJSON (Field _ _ _ seqSelection) (Out.Object map') =
-    map' `resolve` seqSelection
+completeValue :: Monad m
+    => Out.Type m
+    -> Field m
+    -> Value
+    -> CollectErrsT m Aeson.Value
+completeValue _ _ Null = pure Aeson.Null
+completeValue _ _ (Int integer) = pure $ Aeson.toJSON integer
+completeValue _ _ (Boolean boolean') = pure $ Aeson.Bool boolean'
+completeValue _ _ (Float float') = pure $ Aeson.toJSON float'
+completeValue _ _ (Enum enum) = pure $ Aeson.String enum
+completeValue _ _ (String string') = pure $ Aeson.String string'
+completeValue (Out.ObjectBaseType objectType) (Field _ _ _ seqSelection) result =
+    resolve result objectType seqSelection
+completeValue (Out.ListBaseType listType) selectionField (List list) =
+    Aeson.toJSON <$> traverse (completeValue listType selectionField) list
+completeValue _ _ _ = errmsg "Value completion failed."
 
-errmsg :: Monad m => Field -> Text -> CollectErrsT m (HashMap Text Aeson.Value)
-errmsg field errorMessage = do
-    addErrMsg errorMessage
-    pure $ HashMap.singleton (aliasOrName field) Aeson.Null
+errmsg :: Monad m => Text -> CollectErrsT m Aeson.Value
+errmsg errorMessage = addErrMsg errorMessage >> pure Aeson.Null
 
 -- | Takes a list of 'Resolver's and a list of 'Field's and applies each
 -- 'Resolver' to each 'Field'. Resolves into a value containing the
 -- resolved 'Field', or a null value and error information.
-resolve :: Monad m
-    => HashMap Text (ActionT m (Out.Value m))
-    -> Seq Selection
+resolve :: Monad m -- executeSelectionSet
+    => Value
+    -> Out.ObjectType m
+    -> Seq (Selection m)
     -> CollectErrsT m Aeson.Value
-resolve resolvers = fmap (Aeson.toJSON . fold) . traverse tryResolvers
+resolve result objectType@(Out.ObjectType _ _ _ resolvers) selectionSet = do
+    resolvedValues <- Map.traverseMaybeWithKey forEach
+        $ collectFields objectType selectionSet
+    pure $ Aeson.toJSON resolvedValues
   where
+    forEach _responseKey (field :<| _) =
+        tryResolvers field >>= lift . pure . pure
+    forEach _ _ = pure Nothing
     lookupResolver = flip HashMap.lookup resolvers
-    tryResolvers (SelectionField fld@(Field _ name _ _))
-        | (Just resolver) <- lookupResolver name = withField fld resolver
-        | otherwise = errmsg fld $ T.unwords ["field", name, "not resolved."]
-    tryResolvers (SelectionFragment (Fragment typeCondition selections'))
-        | Just resolver <- lookupResolver "__typename" = do
-            let fakeField = Field Nothing "__typename" mempty mempty
-            that <- lift $ resolveFieldValue fakeField resolver
+    tryResolvers fld@(Field _ name _ _)
+        | Just typeField <- lookupResolver name =
+            executeField result typeField fld
+        | otherwise = errmsg $ Text.unwords ["field", name, "not resolved."]
+    {-tryResolvers (Out.SelectionFragment (Out.Fragment typeCondition selections'))
+        | Just (Out.Field _ _ _ resolver) <- lookupResolver "__typename" = do
+            let fakeField = Out.Field Nothing "__typename" mempty mempty
+            that <- lift $ resolveFieldValue result fakeField resolver
             case that of
-                Right (Out.String typeCondition')
-                    | typeCondition' == typeCondition ->
+                Right (String typeCondition')
+                    | (Out.CompositeObjectType (Out.ObjectType n _ _ _)) <- typeCondition
+                    , typeCondition' == n ->
                         fmap fold . traverse tryResolvers $ selections'
                 _ -> pure mempty
-        | otherwise = fmap fold . traverse tryResolvers $ selections'
-
-aliasOrName :: Field -> Text
-aliasOrName (Field alias name _ _) = fromMaybe name alias
+        | otherwise = fmap fold . traverse tryResolvers $ selections'-}

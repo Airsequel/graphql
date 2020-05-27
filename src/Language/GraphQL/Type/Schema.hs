@@ -2,14 +2,15 @@
 
 -- | Schema Definition.
 module Language.GraphQL.Type.Schema
-    ( Schema(..)
+    ( CompositeType(..)
+    , Schema(..)
     , Type(..)
     , collectReferencedTypes
     ) where
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Language.GraphQL.AST.Core (Name)
+import Language.GraphQL.AST.Document (Name)
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -22,6 +23,12 @@ data Type m
     | InputObjectType In.InputObjectType
     | InterfaceType (Out.InterfaceType m)
     | UnionType (Out.UnionType m)
+
+-- | These types may describe the parent context of a selection set.
+data CompositeType m
+    = CompositeUnionType (Out.UnionType m)
+    | CompositeObjectType (Out.ObjectType m)
+    | CompositeInterfaceType (Out.InterfaceType m)
 
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the

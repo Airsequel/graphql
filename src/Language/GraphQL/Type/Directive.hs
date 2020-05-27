@@ -1,12 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Language.GraphQL.Type.Directive
-    ( selection
+    ( Directive(..)
+    , selection
     ) where
 
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL.AST.Core
-import qualified Language.GraphQL.Type.In as In
+import Language.GraphQL.Type.Definition
+
+-- | Directive.
+data Directive = Directive Name Arguments
+    deriving (Eq, Show)
 
 -- | Directive processing status.
 data Status
@@ -37,7 +42,7 @@ skip = handle skip'
   where
     skip' directive'@(Directive "skip" (Arguments arguments)) =
         case HashMap.lookup "if" arguments of
-            (Just (In.Boolean True)) -> Skip
+            (Just (Boolean True)) -> Skip
             _ -> Include directive'
     skip' directive' = Continue directive'
 
@@ -46,6 +51,6 @@ include = handle include'
   where
     include' directive'@(Directive "include" (Arguments arguments)) =
         case HashMap.lookup "if" arguments of
-            (Just (In.Boolean True)) -> Include directive'
+            (Just (Boolean True)) -> Include directive'
             _ -> Skip
     include' directive' = Continue directive'

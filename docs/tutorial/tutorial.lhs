@@ -44,8 +44,8 @@ First we build a GraphQL schema.
 >   $ HashMap.singleton "hello"
 >   $ Field Nothing (Out.NamedScalarType string) mempty hello
 >
-> hello :: ActionT IO (Out.Value IO)
-> hello = pure $ Out.String "it's me"
+> hello :: ActionT IO Value
+> hello = pure $ String "it's me"
 
 This defines a simple schema with one type and one field, that resolves to a fixed value.
 
@@ -79,10 +79,10 @@ For this example, we're going to be using time.
 >   $ HashMap.singleton "time"
 >   $ Field Nothing (Out.NamedScalarType string) mempty time
 >
-> time :: ActionT IO (Out.Value IO)
+> time :: ActionT IO Value
 > time = do
 >   t <- liftIO getCurrentTime
->   pure $ Out.String $ Text.pack $ show t
+>   pure $ String $ Text.pack $ show t
 
 This defines a simple schema with one type and one field,
 which resolves to the current time.

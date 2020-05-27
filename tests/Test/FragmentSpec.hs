@@ -4,11 +4,11 @@ module Test.FragmentSpec
     ( spec
     ) where
 
-import Data.Aeson (Value(..), object, (.=))
+import Data.Aeson (object, (.=))
+import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
-import qualified Language.GraphQL.Schema as Schema
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
@@ -21,18 +21,19 @@ import Test.Hspec
     )
 import Text.RawString.QQ (r)
 
-size :: Schema.Resolver IO
-size = Schema.Resolver "size" $ pure $ Out.String "L"
+size :: (Text, Value)
+size = ("size", String "L")
 
-circumference :: Schema.Resolver IO
-circumference = Schema.Resolver "circumference" $ pure $ Out.Int 60
+circumference :: (Text, Value)
+circumference = ("circumference", Int 60)
 
-garment :: Text -> Schema.Resolver IO
-garment typeName = Schema.Resolver "garment"
-    $ pure $ Schema.object
-    [ if typeName == "Hat" then circumference else size
-    , Schema.Resolver "__typename" $ pure $ Out.String typeName
-    ]
+garment :: Text -> (Text, Value)
+garment typeName =
+    ("garment",  Object $ HashMap.fromList
+        [ if typeName == "Hat" then circumference else size
+        , ("__typename", String typeName)
+        ]
+    )
 
 inlineQuery :: Text
 inlineQuery = [r|{
@@ -46,38 +47,46 @@ inlineQuery = [r|{
   }
 }|]
 
-hasErrors :: Value -> Bool
-hasErrors (Object object') = HashMap.member "errors" object'
+hasErrors :: Aeson.Value -> Bool
+hasErrors (Aeson.Object object') = HashMap.member "errors" object'
 hasErrors _ = True
 
 shirtType :: Out.ObjectType IO
 shirtType = Out.ObjectType "Shirt" Nothing []
-    $ HashMap.singleton resolverName
-    $ Out.Field Nothing (Out.NamedScalarType string) mempty resolve
-  where
-    (Schema.Resolver resolverName resolve) = size
+    $ HashMap.fromList
+        [ ("size", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ snd size)
+        , ("circumference", Out.Field Nothing (Out.NamedScalarType int) mempty $ pure $ snd circumference)
+        , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Shirt")
+        ]
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
-    $ HashMap.singleton resolverName
-    $ Out.Field Nothing (Out.NamedScalarType int) mempty resolve
-  where
-    (Schema.Resolver resolverName resolve) = circumference
+    $ HashMap.fromList
+        [ ("size", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ snd size)
+        , ("circumference", Out.Field Nothing (Out.NamedScalarType int) mempty $ pure $ snd circumference)
+        , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Hat")
+        ]
 
-toSchema :: Schema.Resolver IO -> Schema IO
-toSchema (Schema.Resolver resolverName resolve) = Schema
+toSchema :: Text -> (Text, Value) -> Schema IO
+toSchema t (_, resolve) = Schema
     { query = queryType, mutation = Nothing }
   where
-    unionMember = if resolverName == "Hat" then hatType else shirtType
-    queryType = Out.ObjectType "Query" Nothing []
-        $ HashMap.singleton resolverName
-        $ Out.Field Nothing (Out.NamedObjectType unionMember) mempty resolve
+    unionMember = if t == "Hat" then hatType else shirtType
+    queryType =
+        case t of
+            "circumference" -> hatType
+            "size" -> shirtType
+            _ -> Out.ObjectType "Query" Nothing []
+                $ HashMap.fromList
+                    [ ("garment", Out.Field Nothing (Out.NamedObjectType unionMember) mempty $ pure resolve)
+                    , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Shirt")
+                    ]
 
 spec :: Spec
 spec = do
     describe "Inline fragment executor" $ do
         it "chooses the first selection if the type matches" $ do
-            actual <- graphql (toSchema $ garment "Hat") inlineQuery
+            actual <- graphql (toSchema "Hat" $ garment "Hat") inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -88,7 +97,7 @@ spec = do
              in actual `shouldBe` expected
 
         it "chooses the last selection if the type matches" $ do
-            actual <- graphql (toSchema $ garment "Shirt") inlineQuery
+            actual <- graphql (toSchema "Shirt" $ garment "Shirt") inlineQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -107,10 +116,9 @@ spec = do
                 }
               }
             }|]
-                resolvers = Schema.Resolver "garment"
-                    $ pure $ Schema.object [circumference,  size]
+                resolvers = ("garment", Object $ HashMap.fromList [circumference,  size])
 
-            actual <- graphql (toSchema resolvers) sourceQuery
+            actual <- graphql (toSchema "garment" resolvers) sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -128,7 +136,7 @@ spec = do
               }
             }|]
 
-            actual <- graphql (toSchema size) sourceQuery
+            actual <- graphql (toSchema "size" size) sourceQuery
             actual `shouldNotSatisfy` hasErrors
 
     describe "Fragment spread executor" $ do
@@ -143,7 +151,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (toSchema circumference) sourceQuery
+            actual <- graphql (toSchema "circumference" circumference) sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "circumference" .= (60 :: Int)
@@ -168,7 +176,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (toSchema $ garment "Hat") sourceQuery
+            actual <- graphql (toSchema "Hat" $ garment "Hat") sourceQuery
             let expected = object
                     [ "data" .= object
                         [ "garment" .= object
@@ -192,7 +200,7 @@ spec = do
               }
             |]
 
-            actual <- graphql (toSchema circumference) sourceQuery
+            actual <- graphql (toSchema "circumference" circumference) sourceQuery
             actual `shouldBe` expected
 
         it "considers type condition" $ do
@@ -217,5 +225,5 @@ spec = do
                             ]
                         ]
                     ]
-            actual <- graphql (toSchema $ garment "Hat") sourceQuery
+            actual <- graphql (toSchema "Hat" $ garment "Hat") sourceQuery
             actual `shouldBe` expected

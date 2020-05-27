@@ -1,5 +1,4 @@
 {-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -13,7 +12,6 @@ module Language.GraphQL.Type.Out
     , ObjectType(..)
     , Type(..)
     , UnionType(..)
-    , Value(..)
     , isNonNullType
     , pattern EnumBaseType
     , pattern InterfaceBaseType
@@ -24,12 +22,8 @@ module Language.GraphQL.Type.Out
     ) where
 
 import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
-import Data.Int (Int32)
-import Data.String (IsString(..))
 import Data.Text (Text)
-import qualified Data.Text as Text
-import Language.GraphQL.AST.Document (Name)
+import Language.GraphQL.AST.Core
 import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
@@ -60,9 +54,13 @@ data Field m = Field
     (Maybe Text) -- ^ Description.
     (Type m) -- ^ Field type.
     (HashMap Name In.Argument) -- ^ Arguments.
-    (ActionT m (Value m)) -- ^ Resolver.
+    (ActionT m Value) -- ^ Resolver.
 
 -- | These types may be used as output types as the result of fields.
+--
+-- GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
+-- type can wrap other wrapping or named types. Wrapping types are lists and
+-- Non-Null types (named types are nullable by default).
 data Type m
     = NamedScalarType ScalarType
     | NamedEnumType EnumType
@@ -76,48 +74,6 @@ data Type m
     | NonNullInterfaceType (InterfaceType m)
     | NonNullUnionType (UnionType m)
     | NonNullListType (Type m)
-
--- | GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
--- type can wrap other wrapping or named types. Wrapping types are lists and
--- Non-Null types (named types are nullable by default).
---
--- This 'Value' type doesn\'t reflect this distinction exactly but it is used
--- in the resolvers to take into account that the returned value can be nullable
--- or an (arbitrary nested) list.
-data Value m
-    = Int Int32
-    | Float Double
-    | String Text
-    | Boolean Bool
-    | Null
-    | Enum Name
-    | List [Value m] -- ^ Arbitrary nested list.
-    | Object (HashMap Name (ActionT m (Value m)))
-
-instance IsString (Value m) where
-    fromString = String . fromString
-
-instance Show (Value m) where
-    show (Int integer) = "Int " ++ show integer
-    show (Float float') = "Float " ++ show float'
-    show (String text) = Text.unpack $ "String " <> text
-    show (Boolean True) = "Boolean True"
-    show (Boolean False) = "Boolean False"
-    show Null = "Null"
-    show (Enum enum) = Text.unpack $ "Enum " <> enum
-    show (List list) = show list
-    show (Object object) = Text.unpack
-        $ "Object [" <> Text.intercalate ", " (HashMap.keys object) <> "]"
-
-instance Eq (Value m) where
-    (Int this) == (Int that) = this == that
-    (Float this) == (Float that) = this == that
-    (String this) == (String that) = this == that
-    (Boolean this) == (Boolean that) = this == that
-    (Enum this) == (Enum that) = this == that
-    (List this) == (List that) = this == that
-    (Object this) == (Object that) = HashMap.keys this == HashMap.keys that
-    _ == _ = False
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
 pattern ScalarBaseType :: forall m. ScalarType -> Type m

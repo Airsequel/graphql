@@ -1,8 +1,8 @@
 -- | Monad transformer stack used by the @GraphQL@ resolvers.
 module Language.GraphQL.Trans
-    ( ActionT(..)
+    ( argument
+    , ActionT(..)
     , Context(..)
-    , argument
     ) where
 
 import Control.Applicative (Alternative(..))
@@ -15,13 +15,13 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Language.GraphQL.AST.Core
-import qualified Language.GraphQL.Type.In as In
+import Language.GraphQL.Type.Definition
 import Prelude hiding (lookup)
 
 -- | Resolution context holds resolver arguments.
 data Context = Context
     { arguments :: Arguments
-    , info :: Field
+    , values :: Value
     }
 
 -- | Monad transformer stack used by the resolvers to provide error handling
@@ -56,11 +56,11 @@ instance Monad m => MonadPlus (ActionT m) where
     mplus = (<|>)
 
 -- | Retrieves an argument by its name. If the argument with this name couldn't
---   be found, returns 'In.Null' (i.e. the argument is assumed to
+--   be found, returns 'Null' (i.e. the argument is assumed to
 --   be optional then).
-argument :: Monad m => Name -> ActionT m In.Value
+argument :: Monad m => Name -> ActionT m Value
 argument argumentName = do
     argumentValue <- ActionT $ lift $ asks $ lookup . arguments
-    pure $ fromMaybe In.Null argumentValue
+    pure $ fromMaybe Null argumentValue
   where
     lookup (Arguments argumentMap) = HashMap.lookup argumentName argumentMap

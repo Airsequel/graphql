@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NamedFieldPuns #-}
-
 -- | This module provides functions to execute a @GraphQL@ request.
 module Language.GraphQL.Execute
     ( execute
@@ -8,14 +5,15 @@ module Language.GraphQL.Execute
     ) where
 
 import qualified Data.Aeson as Aeson
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
-import Language.GraphQL.AST.Document
-import qualified Language.GraphQL.AST.Core as AST.Core
+import Language.GraphQL.AST.Document (Document, Name)
 import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
+import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Schema as Schema
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
@@ -56,22 +54,18 @@ executeRequest :: (Monad m, VariableValue a)
 executeRequest schema operationName subs document =
     case Transform.document schema operationName subs document of
         Left queryError -> pure $ singleError $ Transform.queryError queryError
-        Right (Transform.Document rootObjectType operation)
-          | (AST.Core.Query _ fields) <- operation ->
-              executeOperation rootObjectType fields
-          | (AST.Core.Mutation _ fields) <- operation ->
-              executeOperation rootObjectType fields
+        Right (Transform.Document types' rootObjectType operation)
+          | (Transform.Query _ fields) <- operation ->
+              executeOperation types' rootObjectType fields
+          | (Transform.Mutation _ fields) <- operation ->
+              executeOperation types' rootObjectType fields
 
 -- This is actually executeMutation, but we don't distinguish between queries
 -- and mutations yet.
 executeOperation :: Monad m
-    => Out.ObjectType m
-    -> Seq AST.Core.Selection
+    => HashMap Name (Type m)
+    -> Out.ObjectType m
+    -> Seq (Transform.Selection m)
     -> m Aeson.Value
-executeOperation (Out.ObjectType _ _ _ objectFields) fields
-    = runCollectErrs
-    $ flip Schema.resolve fields
-    $ fmap getResolver
-    $ objectFields
-  where
-    getResolver (Out.Field _ _ _ resolver) = resolver
+executeOperation types' objectType fields =
+    runCollectErrs types' $ Schema.resolve Null objectType fields

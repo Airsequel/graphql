@@ -40,6 +40,7 @@ dependencies:
 library:
   source-dirs: src
   other-modules:
+  - Language.GraphQL.Execute.Execution
   - Language.GraphQL.Execute.Transform
   - Language.GraphQL.Type.Directive
 

@@ -18,17 +18,14 @@ and this project adheres to
 
 ### Changed
 - `Schema.Resolver` cannot return arbitrary JSON anymore, but only
-  `Type.Out.Value`.
-- `Schema.object` takes an array of field resolvers (name, value pairs) and
-  returns a resolver (just the function). There is no need in special functions
-  to construct field resolvers anymore, they can be constructed with just
-  `Resolver "fieldName" $ pure $ object [...]`.
-- `AST.Core.Document` was modified to contain only slightly modified AST and
-  moved into `Execute.Transform.Document`.
-- `AST.Core.Value` was moved into `Type.In`. Input values are used only in the
-  execution and type system, it is not a part of the parsing tree.
+  `Type.Definition.Value`.
+- `AST.Core.Value` was moved into `Type.Definition`. These values are used only
+  in the execution and type system, it is not a part of the parsing tree.
 - `Type` module is superseded by `Type.Out`. This module contains now only
   exports from other module that complete `Type.In` and `Type.Out` exports.
+- `Error.CollectErrsT` contains the new `Resolution` data structure.
+  `Resolution` represents the state used by the executor. It contains all types
+  defined in the schema and collects the thrown errors.
 
 ### Added
 - `Type.Definition` contains base type system definition, e.g. Enums and
@@ -43,16 +40,18 @@ and this project adheres to
   `Subs`, where a is an instance of `VariableValue`.
 
 ### Removed
-- `Execute.Transform.document`. Transforming the whole document is probably not
-  reasonable since a document can define multiple operations and we're
-  interested only in one of them. `Execute.Transform.operation` has the prior
-  responsibility of `Execute.Transform.document`, but transforms only the
-  chosen operation and not the whole document.
 - `Schema.scalar`, `Schema.wrappedScalar`. They accepted everything can be
   converted to JSON and JSON is not suitable as an internal representation for
-  GraphQL. E.g. GraphQL distinguishes between Floats and Integersa and we need
-  a way to represent objects as a "Field Name -> Resolver" map.
-- `Schema.wrappedObject`. `Schema.object` creates now wrapped objects.
+  GraphQL. E.g. GraphQL distinguishes between Floats and Integers.
+- `Schema.wrappedObject`, `Schema.object`, `Schema.resolversToMap`. There is no
+  need in special functions to construct field resolvers anymore, resolvers are
+  normal functions attached to the fields in the schema representation.
+- `Error.runAppendErrs` isn't used anywhere.
+- `AST.Core`: `Document`, `Directive`, `Field`, `Fragment`, `Selection`, `Alias`
+  `TypeCondition` were modified, moved into `Execute.Transform.Document` and
+  made private. These types describe intermediate representation used by the
+  executor internally. Moving was required to avoid cyclic dependencies between
+  the executor and type system.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed

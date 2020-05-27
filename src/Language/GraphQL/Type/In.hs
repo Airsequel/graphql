@@ -10,7 +10,6 @@ module Language.GraphQL.Type.In
     , InputField(..)
     , InputObjectType(..)
     , Type(..)
-    , Value(..)
     , isNonNullType
     , pattern EnumBaseType
     , pattern ListBaseType
@@ -19,8 +18,6 @@ module Language.GraphQL.Type.In
     ) where
 
 import Data.HashMap.Strict (HashMap)
-import Data.Int (Int32)
-import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST.Document (Name)
 import Language.GraphQL.Type.Definition
@@ -36,6 +33,10 @@ data InputObjectType = InputObjectType
     Name (Maybe Text) (HashMap Name InputField)
 
 -- | These types may be used as input types for arguments and directives.
+--
+-- GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
+-- type can wrap other wrapping or named types. Wrapping types are lists and
+-- Non-Null types (named types are nullable by default).
 data Type
     = NamedScalarType ScalarType
     | NamedEnumType EnumType
@@ -45,21 +46,6 @@ data Type
     | NonNullEnumType EnumType
     | NonNullInputObjectType InputObjectType
     | NonNullListType Type
-
--- | Represents accordingly typed GraphQL values.
-data Value
-    = Int Int32
-    | Float Double -- ^ GraphQL Float is double precision
-    | String Text
-    | Boolean Bool
-    | Null
-    | Enum Name
-    | List [Value]
-    | Object (HashMap Name Value)
-    deriving (Eq, Show)
-
-instance IsString Value where
-    fromString = String . fromString
 
 -- | Field argument definition.
 data Argument = Argument (Maybe Text) Type (Maybe Value)

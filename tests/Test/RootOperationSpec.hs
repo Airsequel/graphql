@@ -7,7 +7,6 @@ module Test.RootOperationSpec
 import Data.Aeson ((.=), object)
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
-import qualified Language.GraphQL.Schema as Schema
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
 import Language.GraphQL.Type.Definition
@@ -16,23 +15,21 @@ import Language.GraphQL.Type.Schema
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
-    $ HashMap.singleton resolverName
-    $ Out.Field Nothing (Out.NamedScalarType int) mempty resolve
-  where
-    (Schema.Resolver resolverName resolve) =
-        Schema.Resolver "circumference" $ pure $ Out.Int 60
+    $ HashMap.singleton "circumference"
+    $ Out.Field Nothing (Out.NamedScalarType int) mempty
+    $ pure $ Int 60
 
 schema :: Schema IO
 schema = Schema
     (Out.ObjectType "Query" Nothing [] hatField)
     (Just $ Out.ObjectType "Mutation" Nothing [] incrementField)
   where
-    garment = pure $ Schema.object
-        [ Schema.Resolver "circumference" $ pure $ Out.Int 60
+    garment = pure $ Object $ HashMap.fromList
+        [ ("circumference", Int 60)
         ]
     incrementField = HashMap.singleton "incrementCircumference"
         $ Out.Field Nothing (Out.NamedScalarType int) mempty
-        $ pure $ Out.Int 61
+        $ pure $ Int 61
     hatField = HashMap.singleton "garment"
         $ Out.Field Nothing (Out.NamedObjectType hatType) mempty garment
 
