@@ -17,8 +17,8 @@ and this project adheres to
     * Invalid (recusrive or non-existing) fragments should be skipped.
 
 ### Changed
-- `Schema.Resolver` cannot return arbitrary JSON anymore, but only
-  `Type.Definition.Value`.
+- `Schema.Resolver` was moved to `Type.Out`, it is a field and resolver function
+  pair.
 - `AST.Core.Value` was moved into `Type.Definition`. These values are used only
   in the execution and type system, it is not a part of the parsing tree.
 - `Type` module is superseded by `Type.Out`. This module contains now only
@@ -46,6 +46,7 @@ and this project adheres to
 - `Schema.wrappedObject`, `Schema.object`, `Schema.resolversToMap`. There is no
   need in special functions to construct field resolvers anymore, resolvers are
   normal functions attached to the fields in the schema representation.
+- `Schema.resolve` is superseded by `Execute.Execution`.
 - `Error.runAppendErrs` isn't used anywhere.
 - `AST.Core`: `Document`, `Directive`, `Field`, `Fragment`, `Selection`, `Alias`
   `TypeCondition` were modified, moved into `Execute.Transform.Document` and

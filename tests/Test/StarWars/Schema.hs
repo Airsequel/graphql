@@ -24,32 +24,51 @@ schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
-        [ ("hero", Out.Field Nothing (Out.NamedObjectType heroObject) mempty hero)
-        , ("human", Out.Field Nothing (Out.NamedObjectType heroObject) mempty human)
-        , ("droid", Out.Field Nothing (Out.NamedObjectType droidObject) mempty droid)
+        [ ("hero", Out.Resolver (Out.Field Nothing (Out.NamedObjectType heroObject) mempty) hero)
+        , ("human", Out.Resolver (Out.Field Nothing (Out.NamedObjectType heroObject) mempty) human)
+        , ("droid", Out.Resolver (Out.Field Nothing (Out.NamedObjectType droidObject) mempty) droid)
         ]
 
 heroObject :: Out.ObjectType Identity
 heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
-    [ ("id", Out.Field Nothing (Out.NamedScalarType id) mempty (idField "id"))
-    , ("name", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "name"))
-    , ("friends", Out.Field Nothing (Out.ListType $ Out.NamedObjectType heroObject) mempty (idField "friends"))
-    , ("appearsIn", Out.Field Nothing (Out.ListType $ Out.NamedScalarType int) mempty (idField "appearsIn"))
-    , ("homePlanet", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "homePlanet"))
-    , ("secretBackstory", Out.Field Nothing (Out.NamedScalarType string) mempty (String <$> secretBackstory))
-    , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "__typename"))
+    [ ("id", Out.Resolver idFieldType (idField "id"))
+    , ("name", Out.Resolver nameFieldType (idField "name"))
+    , ("friends", Out.Resolver friendsFieldType (idField "friends"))
+    , ("appearsIn", Out.Resolver appearsInFieldType (idField "appearsIn"))
+    , ("homePlanet", Out.Resolver homePlanetFieldType (idField "homePlanet"))
+    , ("secretBackstory", Out.Resolver secretBackstoryFieldType (String <$> secretBackstory))
+    , ("__typename", Out.Resolver (Out.Field Nothing (Out.NamedScalarType string) mempty) (idField "__typename"))
     ]
+  where
+    homePlanetFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
 
 droidObject :: Out.ObjectType Identity
 droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
-    [ ("id", Out.Field Nothing (Out.NamedScalarType id) mempty (idField "id"))
-    , ("name", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "name"))
-    , ("friends", Out.Field Nothing (Out.ListType $ Out.NamedObjectType droidObject) mempty (idField "friends"))
-    , ("appearsIn", Out.Field Nothing (Out.ListType $ Out.NamedScalarType int) mempty (idField "appearsIn"))
-    , ("primaryFunction", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "primaryFunction"))
-    , ("secretBackstory", Out.Field Nothing (Out.NamedScalarType string) mempty (String <$> secretBackstory))
-    , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty (idField "__typename"))
+    [ ("id", Out.Resolver idFieldType (idField "id"))
+    , ("name", Out.Resolver nameFieldType (idField "name"))
+    , ("friends", Out.Resolver friendsFieldType (idField "friends"))
+    , ("appearsIn", Out.Resolver appearsInFieldType (idField "appearsIn"))
+    , ("primaryFunction", Out.Resolver primaryFunctionFieldType (idField "primaryFunction"))
+    , ("secretBackstory", Out.Resolver secretBackstoryFieldType (String <$> secretBackstory))
+    , ("__typename", Out.Resolver (Out.Field Nothing (Out.NamedScalarType string) mempty) (idField "__typename"))
     ]
+  where
+    primaryFunctionFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+
+idFieldType :: Out.Field Identity
+idFieldType = Out.Field Nothing (Out.NamedScalarType id) mempty
+
+nameFieldType :: Out.Field Identity
+nameFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+
+friendsFieldType :: Out.Field Identity
+friendsFieldType = Out.Field Nothing (Out.ListType $ Out.NamedObjectType droidObject) mempty
+
+appearsInFieldType :: Out.Field Identity
+appearsInFieldType = Out.Field Nothing (Out.ListType $ Out.NamedScalarType int) mempty
+
+secretBackstoryFieldType :: Out.Field Identity
+secretBackstoryFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
 
 idField :: Text -> ActionT Identity Value
 idField f = do

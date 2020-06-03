@@ -11,10 +11,10 @@ import Data.Sequence (Seq(..))
 import Data.Text (Text)
 import Language.GraphQL.AST.Document (Document, Name)
 import Language.GraphQL.Execute.Coerce
+import Language.GraphQL.Execute.Execution
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
 import Language.GraphQL.Type.Definition
-import qualified Language.GraphQL.Schema as Schema
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
@@ -68,4 +68,4 @@ executeOperation :: Monad m
     -> Seq (Transform.Selection m)
     -> m Aeson.Value
 executeOperation types' objectType fields =
-    runCollectErrs types' $ Schema.resolve Null objectType fields
+    runCollectErrs types' $ executeSelectionSet Null objectType fields

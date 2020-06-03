@@ -16,7 +16,7 @@ import Language.GraphQL.Type.Schema
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.singleton "circumference"
-    $ Out.Field Nothing (Out.NamedScalarType int) mempty
+    $ Out.Resolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
     $ pure $ Int 60
 
 schema :: Schema IO
@@ -28,10 +28,10 @@ schema = Schema
         [ ("circumference", Int 60)
         ]
     incrementField = HashMap.singleton "incrementCircumference"
-        $ Out.Field Nothing (Out.NamedScalarType int) mempty
+        $ Out.Resolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
         $ pure $ Int 61
     hatField = HashMap.singleton "garment"
-        $ Out.Field Nothing (Out.NamedObjectType hatType) mempty garment
+        $ Out.Resolver (Out.Field Nothing (Out.NamedObjectType hatType) mempty) garment
 
 spec :: Spec
 spec =

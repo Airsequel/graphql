@@ -54,32 +54,38 @@ hasErrors _ = True
 shirtType :: Out.ObjectType IO
 shirtType = Out.ObjectType "Shirt" Nothing []
     $ HashMap.fromList
-        [ ("size", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ snd size)
-        , ("circumference", Out.Field Nothing (Out.NamedScalarType int) mempty $ pure $ snd circumference)
-        , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Shirt")
+        [ ("size", Out.Resolver sizeFieldType $ pure $ snd size)
+        , ("circumference", Out.Resolver circumferenceFieldType $ pure $ snd circumference)
         ]
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.fromList
-        [ ("size", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ snd size)
-        , ("circumference", Out.Field Nothing (Out.NamedScalarType int) mempty $ pure $ snd circumference)
-        , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Hat")
+        [ ("size", Out.Resolver sizeFieldType $ pure $ snd size)
+        , ("circumference", Out.Resolver circumferenceFieldType $ pure $ snd circumference)
         ]
+
+circumferenceFieldType :: Out.Field IO
+circumferenceFieldType = Out.Field Nothing (Out.NamedScalarType int) mempty
+
+sizeFieldType :: Out.Field IO
+sizeFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
 
 toSchema :: Text -> (Text, Value) -> Schema IO
 toSchema t (_, resolve) = Schema
     { query = queryType, mutation = Nothing }
   where
     unionMember = if t == "Hat" then hatType else shirtType
+    typeNameField = Out.Field Nothing (Out.NamedScalarType string) mempty
+    garmentField = Out.Field Nothing (Out.NamedObjectType unionMember) mempty
     queryType =
         case t of
             "circumference" -> hatType
             "size" -> shirtType
             _ -> Out.ObjectType "Query" Nothing []
                 $ HashMap.fromList
-                    [ ("garment", Out.Field Nothing (Out.NamedObjectType unionMember) mempty $ pure resolve)
-                    , ("__typename", Out.Field Nothing (Out.NamedScalarType string) mempty $ pure $ String "Shirt")
+                    [ ("garment", Out.Resolver garmentField $ pure resolve)
+                    , ("__typename", Out.Resolver typeNameField $ pure $ String "Shirt")
                     ]
 
 spec :: Spec

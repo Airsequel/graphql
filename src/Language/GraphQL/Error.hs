@@ -29,6 +29,7 @@ import Text.Megaparsec
     , unPos
     )
 
+-- | Executor context.
 data Resolution m = Resolution
     { errors :: [Aeson.Value]
     , types :: HashMap Name (Type m)

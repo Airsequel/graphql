@@ -1,8 +1,10 @@
 {-# LANGUAGE ExplicitForAll #-}
 
--- | Schema Definition.
+-- | This module provides a representation of a @GraphQL@ Schema in addition to
+-- functions for defining and manipulating schemas.
 module Language.GraphQL.Type.Schema
-    ( CompositeType(..)
+    ( AbstractType(..)
+    , CompositeType(..)
     , Schema(..)
     , Type(..)
     , collectReferencedTypes
@@ -30,6 +32,11 @@ data CompositeType m
     | CompositeObjectType (Out.ObjectType m)
     | CompositeInterfaceType (Out.InterfaceType m)
 
+-- | These types may describe the parent context of a selection set.
+data AbstractType m
+    = AbstractUnionType (Out.UnionType m)
+    | AbstractInterfaceType (Out.InterfaceType m)
+
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the
 --   validator and executor.
@@ -51,7 +58,7 @@ collectReferencedTypes schema =
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes
         | otherwise = traverser $ HashMap.insert typeName element foundTypes
-    visitFields (Out.Field _ outputType arguments _) foundTypes
+    visitFields (Out.Field _ outputType arguments) foundTypes
         = traverseOutputType outputType
         $ foldr visitArguments foundTypes arguments
     visitArguments (In.Argument _ inputType _) = traverseInputType inputType
@@ -86,15 +93,17 @@ collectReferencedTypes schema =
         let (Definition.EnumType typeName _ _) = enumType
          in collect Prelude.id typeName (EnumType enumType)
     traverseObjectType objectType foundTypes =
-        let (Out.ObjectType typeName _ interfaces fields) = objectType
+        let (Out.ObjectType typeName _ interfaces resolvers) = objectType
             element = ObjectType objectType
-            traverser = polymorphicTypeTraverser interfaces fields
+            fields = extractObjectField <$> resolvers
+            traverser = polymorphicTraverser interfaces fields
          in collect traverser typeName element foundTypes
     traverseInterfaceType interfaceType foundTypes =
         let (Out.InterfaceType typeName _ interfaces fields) = interfaceType
             element = InterfaceType interfaceType
-            traverser = polymorphicTypeTraverser interfaces fields
+            traverser = polymorphicTraverser interfaces fields
          in collect traverser typeName element foundTypes
-    polymorphicTypeTraverser interfaces fields
+    polymorphicTraverser interfaces fields
         = flip (foldr visitFields) fields
         . flip (foldr traverseInterfaceType) interfaces
+    extractObjectField (Out.Resolver field _) = field

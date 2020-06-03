@@ -42,7 +42,10 @@ First we build a GraphQL schema.
 > queryType :: ObjectType IO
 > queryType = ObjectType "Query" Nothing []
 >   $ HashMap.singleton "hello"
->   $ Field Nothing (Out.NamedScalarType string) mempty hello
+>   $ Out.Resolver helloField hello
+>
+> helloField :: Field IO
+> helloField = Field Nothing (Out.NamedScalarType string) mempty
 >
 > hello :: ActionT IO Value
 > hello = pure $ String "it's me"
@@ -77,7 +80,10 @@ For this example, we're going to be using time.
 > queryType2 :: ObjectType IO
 > queryType2 = ObjectType "Query" Nothing []
 >   $ HashMap.singleton "time"
->   $ Field Nothing (Out.NamedScalarType string) mempty time
+>   $ Out.Resolver timeField time
+>
+> timeField :: Field IO
+> timeField = Field Nothing (Out.NamedScalarType string) mempty
 >
 > time :: ActionT IO Value
 > time = do
@@ -140,8 +146,8 @@ Now that we have two resolvers, we can define a schema which uses them both.
 >
 > queryType3 :: ObjectType IO
 > queryType3 = ObjectType "Query" Nothing [] $ HashMap.fromList
->   [ ("hello", Field Nothing (Out.NamedScalarType string) mempty hello)
->   , ("time", Field Nothing (Out.NamedScalarType string) mempty time)
+>   [ ("hello", Out.Resolver helloField hello)
+>   , ("time", Out.Resolver timeField time)
 >   ]
 >
 > query3 :: Text
