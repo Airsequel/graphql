@@ -11,10 +11,12 @@ import Data.Functor.Identity (Identity)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import qualified Data.Set as Set
 import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema
+import Language.GraphQL.Type.Schema (Schema(..))
 import Test.StarWars.Data
 import Prelude hiding (id)
 
@@ -24,10 +26,17 @@ schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
-        [ ("hero", Out.Resolver (Out.Field Nothing (Out.NamedObjectType heroObject) mempty) hero)
-        , ("human", Out.Resolver (Out.Field Nothing (Out.NamedObjectType heroObject) mempty) human)
-        , ("droid", Out.Resolver (Out.Field Nothing (Out.NamedObjectType droidObject) mempty) droid)
+        [ ("hero", Out.Resolver heroField hero)
+        , ("human", Out.Resolver humanField human)
+        , ("droid", Out.Resolver droidField droid)
         ]
+    heroField = Out.Field Nothing (Out.NamedObjectType heroObject)
+        $ HashMap.singleton "episode"
+        $ In.Argument Nothing (In.NamedEnumType episodeEnum) Nothing
+    humanField = Out.Field Nothing (Out.NamedObjectType heroObject)
+        $ HashMap.singleton "id"
+        $ In.Argument Nothing (In.NonNullScalarType string) Nothing
+    droidField = Out.Field Nothing (Out.NamedObjectType droidObject) mempty
 
 heroObject :: Out.ObjectType Identity
 heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
@@ -75,6 +84,10 @@ idField f = do
     v <- ActionT $ lift $ asks values
     let (Object v') = v
     pure $ v' HashMap.! f
+
+episodeEnum :: EnumType
+episodeEnum = EnumType "Episode" Nothing
+    $ Set.fromList ["NEW_HOPE", "EMPIRE", "JEDI"]
 
 hero :: ActionT Identity Value
 hero = do

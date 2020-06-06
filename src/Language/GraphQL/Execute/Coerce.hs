@@ -1,20 +1,22 @@
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Types and functions used for input and result coercion.
 module Language.GraphQL.Execute.Coerce
     ( VariableValue(..)
-    , coerceInputLiterals
+    , coerceInputLiteral
+    , matchFieldValues
     ) where
 
 import qualified Data.Aeson as Aeson
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Set as Set
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
+import qualified Data.Set as Set
 import Data.Scientific (toBoundedInteger, toRealFloat)
-import Language.GraphQL.AST.Document (Name)
+import Language.GraphQL.AST.Core
 import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Type.Definition
 
@@ -67,10 +69,10 @@ instance VariableValue Aeson.Value where
                 then Just $ Object resultMap
                 else Nothing
       where
-        foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues
+        foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues'
             $ Just (objectValue, HashMap.empty)
-        matchFieldValues _ _ Nothing = Nothing
-        matchFieldValues fieldName inputField (Just (objectValue, resultMap)) =
+        matchFieldValues' _ _ Nothing = Nothing
+        matchFieldValues' fieldName inputField (Just (objectValue, resultMap)) =
             let (In.InputField _ fieldType _) = inputField
                 insert = flip (HashMap.insert fieldName) resultMap
                 newObjectValue = HashMap.delete fieldName objectValue
@@ -90,60 +92,67 @@ instance VariableValue Aeson.Value where
             pure $ coerced : list 
     coerceVariableValue _ _ = Nothing
 
--- | Coerces operation arguments according to the input coercion rules for the
---   corresponding types.
-coerceInputLiterals
-    :: HashMap Name In.Type
-    -> HashMap Name Value
-    -> Maybe Subs
-coerceInputLiterals variableTypes variableValues =
-    foldWithKey operator variableTypes
+-- | Looks up a value by name in the given map, coerces it and inserts into the
+-- result map. If the coercion fails, returns 'Nothing'. If the value isn't
+-- given, but a default value is known, inserts the default value into the
+-- result map. Otherwise it fails with 'Nothing' if the Input Type is a
+-- Non-Nullable type, or returns the unchanged, original map.
+matchFieldValues :: forall a
+    . (In.Type -> a -> Maybe Value)
+    -> HashMap Name a
+    -> Name
+    -> In.Type
+    -> Maybe Value
+    -> Maybe (HashMap Name Value)
+    -> Maybe (HashMap Name Value)
+matchFieldValues coerce values' fieldName type' defaultValue resultMap =
+    case HashMap.lookup fieldName values' of
+        Just variableValue -> coerceRuntimeValue $ coerce type' variableValue
+        Nothing
+            | Just value <- defaultValue ->
+                HashMap.insert fieldName value <$> resultMap
+            | Nothing <- defaultValue
+            , In.isNonNullType type' -> Nothing
+            | otherwise -> resultMap
   where
-    operator variableName variableType resultMap =
-        HashMap.insert variableName
-        <$> (lookupVariable variableName >>= coerceInputLiteral variableType)
-        <*> resultMap
-    coerceInputLiteral (In.NamedScalarType type') value
-        | (String stringValue) <- value
-        , (ScalarType "String" _) <- type' = Just $ String stringValue
-        | (Boolean booleanValue) <- value
-        , (ScalarType "Boolean" _) <- type' = Just $ Boolean booleanValue
-        | (Int intValue) <- value
-        , (ScalarType "Int" _) <- type' = Just $ Int intValue
-        | (Float floatValue) <- value
-        , (ScalarType "Float" _) <- type' = Just $ Float floatValue
-        | (Int intValue) <- value
-        , (ScalarType "Float" _) <- type' =
-            Just $ Float $ fromIntegral intValue
-        | (String stringValue) <- value
-        , (ScalarType "ID" _) <- type' = Just $ String stringValue
-        | (Int intValue) <- value
-        , (ScalarType "ID" _) <- type' = Just $ decimal intValue
-    coerceInputLiteral (In.NamedEnumType type') (Enum enumValue)
-        | member enumValue type' = Just $ Enum enumValue
-    coerceInputLiteral (In.NamedInputObjectType type') (Object _) = 
-        let (In.InputObjectType _ _ inputFields) = type'
-            in Object <$> foldWithKey matchFieldValues inputFields
-    coerceInputLiteral _ _ = Nothing
-    member value (EnumType _ _ members) = Set.member value members
-    matchFieldValues fieldName (In.InputField _ type' defaultValue) resultMap =
-        case lookupVariable fieldName of
-            Just Null
-                | In.isNonNullType type' -> Nothing
-                | otherwise ->
-                    HashMap.insert fieldName Null <$> resultMap
-            Just variableValue -> HashMap.insert fieldName
-                <$> coerceInputLiteral type' variableValue
-                <*> resultMap
-            Nothing
-                | Just value <- defaultValue ->
-                    HashMap.insert fieldName value <$> resultMap
-                | Nothing <- defaultValue
-                , In.isNonNullType type' -> Nothing
-                | otherwise -> resultMap
-    lookupVariable = flip HashMap.lookup variableValues
-    foldWithKey f = HashMap.foldrWithKey f (Just HashMap.empty)
+    coerceRuntimeValue (Just Null)
+        | In.isNonNullType type' = Nothing
+    coerceRuntimeValue coercedValue =
+        HashMap.insert fieldName <$> coercedValue <*> resultMap
+
+-- | Coerces operation arguments according to the input coercion rules for the
+-- corresponding types.
+coerceInputLiteral :: In.Type -> Value -> Maybe Value
+coerceInputLiteral (In.ScalarBaseType type') value
+    | (String stringValue) <- value
+    , (ScalarType "String" _) <- type' = Just $ String stringValue
+    | (Boolean booleanValue) <- value
+    , (ScalarType "Boolean" _) <- type' = Just $ Boolean booleanValue
+    | (Int intValue) <- value
+    , (ScalarType "Int" _) <- type' = Just $ Int intValue
+    | (Float floatValue) <- value
+    , (ScalarType "Float" _) <- type' = Just $ Float floatValue
+    | (Int intValue) <- value
+    , (ScalarType "Float" _) <- type' =
+        Just $ Float $ fromIntegral intValue
+    | (String stringValue) <- value
+    , (ScalarType "ID" _) <- type' = Just $ String stringValue
+    | (Int intValue) <- value
+    , (ScalarType "ID" _) <- type' = Just $ decimal intValue
+  where
     decimal = String
         . Text.Lazy.toStrict
         . Text.Builder.toLazyText
         . Text.Builder.decimal
+coerceInputLiteral (In.EnumBaseType type') (Enum enumValue)
+    | member enumValue type' = Just $ Enum enumValue
+  where
+    member value (EnumType _ _ members) = Set.member value members
+coerceInputLiteral (In.InputObjectBaseType type') (Object values) = 
+    let (In.InputObjectType _ _ inputFields) = type'
+        in Object
+            <$> HashMap.foldrWithKey (matchFieldValues' values) (Just HashMap.empty) inputFields
+  where
+    matchFieldValues' values' fieldName (In.InputField _ inputFieldType defaultValue) =
+        matchFieldValues coerceInputLiteral values' fieldName inputFieldType defaultValue
+coerceInputLiteral _ _ = Nothing

@@ -15,6 +15,8 @@ and this project adheres to
 - AST transformation should never fail.
     * Missing variable are assumed to be null.
     * Invalid (recusrive or non-existing) fragments should be skipped.
+- Argument value coercion.
+- Variable value coercion.
 
 ### Changed
 - `Schema.Resolver` was moved to `Type.Out`, it is a field and resolver function

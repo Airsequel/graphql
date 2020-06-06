@@ -18,11 +18,12 @@
 -- the original AST.
 module Language.GraphQL.Execute.Transform
     ( Document(..)
-    , Fragment(..)
-    , QueryError(..)
-    , Operation(..)
-    , Selection(..)
     , Field(..)
+    , Fragment(..)
+    , Input(..)
+    , Operation(..)
+    , QueryError(..)
+    , Selection(..)
     , document
     , queryError
     ) where
@@ -34,6 +35,7 @@ import Data.Foldable (find)
 import Data.Functor.Identity (Identity(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Int (Int32)
 import Data.Maybe (fromMaybe)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
@@ -43,19 +45,18 @@ import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Execute.Coerce
+import Language.GraphQL.Type.Directive (Directive(..))
 import qualified Language.GraphQL.Type.Directive as Directive
-import Language.GraphQL.Type.Definition (Subs, Value(..))
-import qualified Language.GraphQL.AST.Core as Core
+import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
-import qualified Language.GraphQL.Type.Directive as Core
 import Language.GraphQL.Type.Schema
 
--- | Associates a fragment name with a list of 'Core.Field's.
+-- | Associates a fragment name with a list of 'Field's.
 data Replacement m = Replacement
     { fragments :: HashMap Full.Name (Fragment m)
     , fragmentDefinitions :: FragmentDefinitions
-    , variableValues :: Subs
+    , variableValues :: Definition.Subs
     , types :: HashMap Full.Name (Type m)
     }
 
@@ -78,7 +79,8 @@ data Operation m
     | Mutation (Maybe Text) (Seq (Selection m))
 
 -- | Single GraphQL field.
-data Field m = Field (Maybe Full.Name) Full.Name Arguments (Seq (Selection m))
+data Field m = Field
+    (Maybe Full.Name) Full.Name (HashMap Full.Name Input) (Seq (Selection m))
 
 -- | Contains the operation to be executed along with its root type.
 data Document m = Document
@@ -99,6 +101,18 @@ data QueryError
     | TransformationError
     | EmptyDocument
     | UnsupportedRootOperation
+
+data Input
+    = Int Int32
+    | Float Double
+    | String Text
+    | Boolean Bool
+    | Null
+    | Enum Name
+    | List [Definition.Value]
+    | Object (HashMap Name Input)
+    | Variable Definition.Value
+    deriving (Eq, Show)
 
 queryError :: QueryError -> Text
 queryError (OperationNotFound operationName) = Text.unwords
@@ -158,41 +172,33 @@ coerceVariableValues :: VariableValue a
     . HashMap Full.Name (Type m)
     -> OperationDefinition
     -> HashMap.HashMap Full.Name a
-    -> Either QueryError Subs
-coerceVariableValues types operationDefinition variableValues' =
+    -> Either QueryError Definition.Subs
+coerceVariableValues types operationDefinition variableValues =
     let OperationDefinition _ _ variableDefinitions _ _ = operationDefinition
      in maybe (Left CoercionError) Right
-        $ foldr coerceValue (Just HashMap.empty) variableDefinitions
+        $ foldr forEach (Just HashMap.empty) variableDefinitions
   where
-    coerceValue variableDefinition coercedValues = do
+    forEach variableDefinition coercedValues = do
         let Full.VariableDefinition variableName variableTypeName defaultValue =
                 variableDefinition
         let defaultValue' = constValue <$> defaultValue
-        let value' = HashMap.lookup variableName variableValues'
-
         variableType <- lookupInputType variableTypeName types
-        HashMap.insert variableName
-            <$> choose value' defaultValue' variableType
-            <*> coercedValues
-    choose Nothing defaultValue variableType
-        | Just _ <- defaultValue = defaultValue
-        | not (In.isNonNullType variableType) = Just Null
-    choose (Just value') _ variableType
-        | Just coercedValue <- coerceVariableValue variableType value'
-        , not (In.isNonNullType variableType) || coercedValue /= Null =
-            Just coercedValue
-    choose _ _ _ = Nothing
 
-constValue :: Full.ConstValue -> Value
-constValue (Full.ConstInt i) = Int i
-constValue (Full.ConstFloat f) = Float f
-constValue (Full.ConstString x) = String x
-constValue (Full.ConstBoolean b) = Boolean b
-constValue Full.ConstNull = Null
-constValue (Full.ConstEnum e) = Enum e
-constValue (Full.ConstList l) = List $ constValue <$> l
+        matchFieldValues coerceVariableValue' variableValues variableName variableType defaultValue' coercedValues
+    coerceVariableValue' variableType value'
+        = coerceVariableValue variableType value'
+        >>= coerceInputLiteral variableType
+
+constValue :: Full.ConstValue -> Definition.Value
+constValue (Full.ConstInt i) = Definition.Int i
+constValue (Full.ConstFloat f) = Definition.Float f
+constValue (Full.ConstString x) = Definition.String x
+constValue (Full.ConstBoolean b) = Definition.Boolean b
+constValue Full.ConstNull = Definition.Null
+constValue (Full.ConstEnum e) = Definition.Enum e
+constValue (Full.ConstList l) = Definition.List $ constValue <$> l
 constValue (Full.ConstObject o) =
-    Object $ HashMap.fromList $ constObjectField <$> o
+    Definition.Object $ HashMap.fromList $ constObjectField <$> o
   where
     constObjectField (Full.ObjectField key value') = (key, constValue value')
 
@@ -271,11 +277,15 @@ selection
     ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
 selection (Full.Field alias name arguments' directives' selections) =
     maybe (Left mempty) (Right . SelectionField) <$> do
-        fieldArguments <- arguments arguments'
+        fieldArguments <- foldM go HashMap.empty arguments'
         fieldSelections <- appendSelection selections
         fieldDirectives <- Directive.selection <$> directives directives'
         let field' = Field alias name fieldArguments fieldSelections
         pure $ field' <$ fieldDirectives
+  where
+    go arguments (Full.Argument name' value') =
+        inputField arguments name' value'
+
 selection (Full.FragmentSpread name directives') =
     maybe (Left mempty) (Right . SelectionFragment) <$> do
         spreadDirectives <- Directive.selection <$> directives directives'
@@ -320,11 +330,15 @@ appendSelection = foldM go mempty
     append acc (Left list) = list >< acc
     append acc (Right one) = one <| acc
 
-directives :: [Full.Directive] ->  State (Replacement m) [Core.Directive]
+directives :: [Full.Directive] ->  State (Replacement m) [Directive]
 directives = traverse directive
   where
-    directive (Full.Directive directiveName directiveArguments) =
-        Core.Directive directiveName <$> arguments directiveArguments
+    directive (Full.Directive directiveName directiveArguments)
+        = Directive directiveName . Arguments
+        <$> foldM go HashMap.empty directiveArguments
+    go arguments (Full.Argument name value') = do
+        substitutedValue <- value value'
+        return $ HashMap.insert name substitutedValue arguments
 
 -- * Fragment replacement
 
@@ -371,27 +385,45 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
         let newFragments = HashMap.insert name newValue fragments
          in replacement{ fragments = newFragments }
 
-arguments :: [Full.Argument] -> State (Replacement m) Core.Arguments
-arguments = fmap Core.Arguments . foldM go HashMap.empty
-  where
-    go arguments' (Full.Argument name value') = do
-        substitutedValue <- value value'
-        return $ HashMap.insert name substitutedValue arguments'
-
-value :: Full.Value -> State (Replacement m) Value
+value :: forall m. Full.Value -> State (Replacement m) Definition.Value
 value (Full.Variable name) =
-    gets $ fromMaybe Null . HashMap.lookup name . variableValues
-value (Full.Int i) = pure $ Int i
-value (Full.Float f) = pure $ Float f
-value (Full.String x) = pure $ String x
-value (Full.Boolean b) = pure $ Boolean b
-value Full.Null = pure   Null
-value (Full.Enum e) = pure $ Enum e
-value (Full.List l) = List <$> traverse value l
+    gets (fromMaybe Definition.Null . HashMap.lookup name . variableValues)
+value (Full.Int i) = pure $ Definition.Int i
+value (Full.Float f) = pure $ Definition.Float f
+value (Full.String x) = pure $ Definition.String x
+value (Full.Boolean b) = pure $ Definition.Boolean b
+value Full.Null = pure Definition.Null
+value (Full.Enum e) = pure $ Definition.Enum e
+value (Full.List l) = Definition.List <$> traverse value l
 value (Full.Object o) =
-    Object . HashMap.fromList <$> traverse objectField o
+    Definition.Object . HashMap.fromList <$> traverse objectField o
+  where
+    objectField (Full.ObjectField name value') = (name,) <$> value value'
 
-objectField
-    :: Full.ObjectField Full.Value
-    -> State (Replacement m) (Full.Name, Value)
-objectField (Full.ObjectField name value') = (name,) <$> value value'
+input :: forall m. Full.Value -> State (Replacement m) (Maybe Input)
+input (Full.Variable name) =
+    gets (fmap Variable . HashMap.lookup name . variableValues)
+input (Full.Int i) = pure $ pure $ Int i
+input (Full.Float f) = pure $ pure $ Float f
+input (Full.String x) = pure $ pure $ String x
+input (Full.Boolean b) = pure $ pure $ Boolean b
+input Full.Null = pure $ pure Null
+input (Full.Enum e) = pure $ pure $ Enum e
+input (Full.List list) = pure . List <$> traverse value list
+input (Full.Object object) = do
+    objectFields <- foldM objectField HashMap.empty object
+    pure $ pure $ Object objectFields
+  where
+    objectField resultMap (Full.ObjectField name value') =
+        inputField resultMap name value'
+
+inputField :: forall m
+    . HashMap Full.Name Input
+    -> Full.Name
+    -> Full.Value
+    -> State (Replacement m) (HashMap Full.Name Input)
+inputField resultMap name value' = do
+    objectFieldValue <-  input value'
+    case objectFieldValue of
+        Just fieldValue -> pure $ HashMap.insert name fieldValue resultMap
+        Nothing -> pure resultMap

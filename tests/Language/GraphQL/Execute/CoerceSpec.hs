@@ -6,12 +6,10 @@ module Language.GraphQL.Execute.CoerceSpec
 import Data.Aeson as Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (isNothing)
 import Data.Scientific (scientific)
 import qualified Data.Set as Set
-import Language.GraphQL.AST.Document (Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
@@ -22,14 +20,6 @@ direction :: EnumType
 direction = EnumType "Direction" Nothing 
     $ Set.fromList ["NORTH", "EAST", "SOUTH", "WEST"]
 
-coerceInputLiteral :: In.Type -> Value -> Maybe Subs
-coerceInputLiteral input value = coerceInputLiterals
-    (HashMap.singleton "variableName" input)
-    (HashMap.singleton "variableName" value)
-
-lookupActual :: Maybe (HashMap Name Value) -> Maybe Value
-lookupActual = (HashMap.lookup "variableName" =<<)
-
 singletonInputObject :: In.Type
 singletonInputObject = In.NamedInputObjectType type'
   where
@@ -39,7 +29,7 @@ singletonInputObject = In.NamedInputObjectType type'
 
 spec :: Spec
 spec = do
-    describe "ToGraphQL Aeson" $ do
+    describe "VariableValue Aeson" $ do
         it "coerces strings" $
             let expected = Just (String "asdf")
                 actual = coerceVariableValue
@@ -107,7 +97,7 @@ spec = do
             let expected = Just (Enum "NORTH")
                 actual = coerceInputLiteral
                     (In.NamedEnumType direction) (Enum "NORTH")
-             in lookupActual actual `shouldBe` expected
+             in actual `shouldBe` expected
         it "fails with non-existing enum value" $
             let actual = coerceInputLiteral
                     (In.NamedEnumType direction) (Enum "NORTH_EAST")
@@ -115,4 +105,4 @@ spec = do
         it "coerces integers to IDs" $
             let expected = Just (String "1234")
                 actual = coerceInputLiteral (In.NamedScalarType id) (Int 1234)
-             in lookupActual actual `shouldBe` expected
+             in actual `shouldBe` expected
