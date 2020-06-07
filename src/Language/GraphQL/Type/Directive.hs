@@ -6,6 +6,7 @@ module Language.GraphQL.Type.Directive
     ) where
 
 import qualified Data.HashMap.Strict as HashMap
+import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Type.Definition
 

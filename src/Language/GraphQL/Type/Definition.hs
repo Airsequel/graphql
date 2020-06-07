@@ -3,6 +3,7 @@
 -- | Types that can be used as both input and output types.
 module Language.GraphQL.Type.Definition
     ( EnumType(..)
+    , EnumValue(..)
     , ScalarType(..)
     , Subs
     , Value(..)
@@ -15,7 +16,6 @@ module Language.GraphQL.Type.Definition
 
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
-import Data.Set (Set)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import Language.GraphQL.AST.Document (Name)
@@ -51,7 +51,10 @@ data ScalarType = ScalarType Name (Maybe Text)
 -- Some leaf values of requests and input values are Enums. GraphQL serializes
 -- Enum values as strings, however internally Enums can be represented by any
 -- kind of type, often integers.
-data EnumType = EnumType Name (Maybe Text) (Set Text)
+data EnumType = EnumType Name (Maybe Text) (HashMap Name EnumValue)
+
+-- | Enum value is a single member of an 'EnumType'.
+newtype EnumValue = EnumValue (Maybe Text)
 
 -- | The @String@ scalar type represents textual data, represented as UTF-8
 -- character sequences. The String type is most often used by GraphQL to

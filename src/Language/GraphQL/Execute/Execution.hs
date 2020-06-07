@@ -19,6 +19,7 @@ import Data.Sequence (Seq(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Data.Sequence as Seq
+import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce

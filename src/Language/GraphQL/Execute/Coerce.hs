@@ -14,9 +14,8 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
-import qualified Data.Set as Set
 import Data.Scientific (toBoundedInteger, toRealFloat)
-import Language.GraphQL.AST.Core
+import Language.GraphQL.AST (Name)
 import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Type.Definition
 
@@ -147,7 +146,7 @@ coerceInputLiteral (In.ScalarBaseType type') value
 coerceInputLiteral (In.EnumBaseType type') (Enum enumValue)
     | member enumValue type' = Just $ Enum enumValue
   where
-    member value (EnumType _ _ members) = Set.member value members
+    member value (EnumType _ _ members) = HashMap.member value members
 coerceInputLiteral (In.InputObjectBaseType type') (Object values) = 
     let (In.InputObjectType _ _ inputFields) = type'
         in Object

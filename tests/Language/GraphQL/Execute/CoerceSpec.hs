@@ -9,7 +9,6 @@ import qualified Data.Aeson.Types as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (isNothing)
 import Data.Scientific (scientific)
-import qualified Data.Set as Set
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
@@ -17,8 +16,12 @@ import Prelude hiding (id)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
 direction :: EnumType
-direction = EnumType "Direction" Nothing 
-    $ Set.fromList ["NORTH", "EAST", "SOUTH", "WEST"]
+direction = EnumType "Direction" Nothing  $ HashMap.fromList
+    [ ("NORTH", EnumValue Nothing)
+    , ("EAST", EnumValue Nothing)
+    , ("SOUTH", EnumValue Nothing)
+    , ("WEST", EnumValue Nothing)
+    ]
 
 singletonInputObject :: In.Type
 singletonInputObject = In.NamedInputObjectType type'

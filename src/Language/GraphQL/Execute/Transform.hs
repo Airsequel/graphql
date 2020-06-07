@@ -43,6 +43,7 @@ import Data.Sequence (Seq, (<|), (><))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
+import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Directive (Directive(..))

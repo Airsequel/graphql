@@ -55,6 +55,7 @@ and this project adheres to
   made private. These types describe intermediate representation used by the
   executor internally. Moving was required to avoid cyclic dependencies between
   the executor and type system.
+- `AST.Core` doesn't reexports anything.
 
 ## [0.7.0.0] - 2020-05-11
 ### Fixed

@@ -24,7 +24,7 @@ module Language.GraphQL.Type.Out
 
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
-import Language.GraphQL.AST.Core
+import Language.GraphQL.AST (Name)
 import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In

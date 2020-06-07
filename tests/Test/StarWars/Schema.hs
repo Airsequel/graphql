@@ -11,7 +11,6 @@ import Data.Functor.Identity (Identity)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
-import qualified Data.Set as Set
 import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
@@ -86,8 +85,13 @@ idField f = do
     pure $ v' HashMap.! f
 
 episodeEnum :: EnumType
-episodeEnum = EnumType "Episode" Nothing
-    $ Set.fromList ["NEW_HOPE", "EMPIRE", "JEDI"]
+episodeEnum = EnumType "Episode" (Just description)
+    $ HashMap.fromList [newHope, empire, jedi]
+  where
+    description = "One of the films in the Star Wars Trilogy"
+    newHope = ("NEW_HOPE", EnumValue $ Just "Released in 1977.")
+    empire = ("EMPIRE", EnumValue $ Just "Released in 1980.")
+    jedi = ("JEDI", EnumValue $ Just "Released in 1983.")
 
 hero :: ActionT Identity Value
 hero = do

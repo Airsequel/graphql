@@ -1,7 +1,6 @@
 -- | This is the AST meant to be executed.
 module Language.GraphQL.AST.Core
     ( Arguments(..)
-    , Name
     ) where
 
 import Data.HashMap.Strict (HashMap)
