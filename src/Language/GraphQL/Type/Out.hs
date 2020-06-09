@@ -45,6 +45,9 @@ data Resolver m = Resolver (Field m) (ActionT m Value)
 data ObjectType m = ObjectType
     Name (Maybe Text) [InterfaceType m] (HashMap Name (Resolver m))
 
+instance forall a. Eq (ObjectType a) where
+    (ObjectType this _ _ _) == (ObjectType that _ _ _) = this == that
+
 -- | Interface Type Definition.
 --
 -- When a field can return one of a heterogeneous set of types, a Interface type
@@ -53,11 +56,17 @@ data ObjectType m = ObjectType
 data InterfaceType m = InterfaceType
     Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
 
+instance forall a. Eq (InterfaceType a) where
+    (InterfaceType this _ _ _) == (InterfaceType that _ _ _) = this == that
+
 -- | Union Type Definition.
 --
 -- When a field can return one of a heterogeneous set of types, a Union type is
 -- used to describe what types are possible.
 data UnionType m = UnionType Name (Maybe Text) [ObjectType m]
+
+instance forall a. Eq (UnionType a) where
+    (UnionType this _ _) == (UnionType that _ _) = this == that
 
 -- | Output object field definition.
 data Field m = Field
@@ -83,6 +92,7 @@ data Type m
     | NonNullInterfaceType (InterfaceType m)
     | NonNullUnionType (UnionType m)
     | NonNullListType (Type m)
+    deriving Eq
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
 pattern ScalarBaseType :: forall m. ScalarType -> Type m

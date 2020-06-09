@@ -25,17 +25,20 @@ data Type m
     | InputObjectType In.InputObjectType
     | InterfaceType (Out.InterfaceType m)
     | UnionType (Out.UnionType m)
+    deriving Eq
 
 -- | These types may describe the parent context of a selection set.
 data CompositeType m
     = CompositeUnionType (Out.UnionType m)
     | CompositeObjectType (Out.ObjectType m)
     | CompositeInterfaceType (Out.InterfaceType m)
+    deriving Eq
 
 -- | These types may describe the parent context of a selection set.
 data AbstractType m
     = AbstractUnionType (Out.UnionType m)
     | AbstractInterfaceType (Out.InterfaceType m)
+    deriving Eq
 
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the

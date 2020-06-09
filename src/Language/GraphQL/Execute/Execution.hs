@@ -79,9 +79,7 @@ doesFragmentTypeApply :: forall m
     -> Out.ObjectType m
     -> Bool
 doesFragmentTypeApply (CompositeObjectType fragmentType) objectType =
-    let Out.ObjectType fragmentName _ _ _ = fragmentType
-        Out.ObjectType objectName _ _ _ = objectType
-     in fragmentName == objectName
+    fragmentType == objectType
 doesFragmentTypeApply (CompositeInterfaceType fragmentType) objectType =
     instanceOf objectType $ AbstractInterfaceType fragmentType
 doesFragmentTypeApply (CompositeUnionType fragmentType) objectType =
@@ -92,16 +90,13 @@ instanceOf objectType (AbstractInterfaceType interfaceType) =
     let Out.ObjectType _ _ interfaces _ = objectType
      in foldr go False interfaces
   where
-    go (Out.InterfaceType that _ interfaces _) acc =
-        let Out.InterfaceType this _ _ _ = interfaceType
-         in acc || foldr go (this == that) interfaces
+    go objectInterfaceType@(Out.InterfaceType _ _ interfaces _) acc =
+        acc || foldr go (interfaceType == objectInterfaceType) interfaces
 instanceOf objectType (AbstractUnionType unionType) =
     let Out.UnionType _ _ members = unionType
      in foldr go False members
   where
-    go (Out.ObjectType that _ _ _) acc =
-        let Out.ObjectType this _ _ _ = objectType
-         in acc || this == that
+    go unionMemberType acc = acc || objectType == unionMemberType
 
 executeField :: Monad m
     => Definition.Value

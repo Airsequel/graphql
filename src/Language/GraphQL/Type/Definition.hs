@@ -37,7 +37,7 @@ instance IsString Value where
     fromString = String . fromString
 
 -- | Contains variables for the query. The key of the map is a variable name,
---   and the value is the variable value.
+-- and the value is the variable value.
 type Subs = HashMap Name Value
 
 -- | Scalar type definition.
@@ -46,12 +46,18 @@ type Subs = HashMap Name Value
 -- Enums) .
 data ScalarType = ScalarType Name (Maybe Text)
 
+instance Eq ScalarType where
+    (ScalarType this _) == (ScalarType that _) = this == that
+
 -- | Enum type definition.
 --
 -- Some leaf values of requests and input values are Enums. GraphQL serializes
 -- Enum values as strings, however internally Enums can be represented by any
 -- kind of type, often integers.
 data EnumType = EnumType Name (Maybe Text) (HashMap Name EnumValue)
+
+instance Eq EnumType where
+    (EnumType this _ _) == (EnumType that _ _) = this == that
 
 -- | Enum value is a single member of an 'EnumType'.
 newtype EnumValue = EnumValue (Maybe Text)

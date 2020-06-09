@@ -32,6 +32,9 @@ data InputField = InputField (Maybe Text) Type (Maybe Value)
 data InputObjectType = InputObjectType
     Name (Maybe Text) (HashMap Name InputField)
 
+instance Eq InputObjectType where
+    (InputObjectType this _ _) == (InputObjectType that _ _) = this == that
+
 -- | These types may be used as input types for arguments and directives.
 --
 -- GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
@@ -46,6 +49,7 @@ data Type
     | NonNullEnumType EnumType
     | NonNullInputObjectType InputObjectType
     | NonNullListType Type
+    deriving Eq
 
 -- | Field argument definition.
 data Argument = Argument (Maybe Text) Type (Maybe Value)
