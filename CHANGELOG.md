@@ -13,10 +13,11 @@ and this project adheres to
   constants cannot be variables. `AST.Document.ConstValue` was added,
   `AST.Document.ObjectField` was modified.
 - AST transformation should never fail.
-    * Missing variable are assumed to be null.
+    * Arguments and fields with a missing variable as value should be left out.
     * Invalid (recusrive or non-existing) fragments should be skipped.
 - Argument value coercion.
 - Variable value coercion.
+- The executor should skip the fields missing in the object type and not fail.
 
 ### Changed
 - `Schema.Resolver` was moved to `Type.Out`, it is a field and resolver function

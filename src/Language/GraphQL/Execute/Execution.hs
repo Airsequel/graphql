@@ -17,7 +17,6 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
-import qualified Data.Text as Text
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
@@ -100,10 +99,10 @@ instanceOf objectType (AbstractUnionType unionType) =
 
 executeField :: Monad m
     => Definition.Value
-    -> Out.Resolver m
     -> Field m
+    -> Out.Resolver m
     -> CollectErrsT m Aeson.Value
-executeField prev (Out.Resolver fieldDefinition resolver) field = do
+executeField prev field (Out.Resolver fieldDefinition resolver) = do
     let Out.Field _ fieldType argumentDefinitions = fieldDefinition
     let Field _ _ arguments' _ = field
     case coerceArgumentValues argumentDefinitions arguments' of
@@ -160,13 +159,12 @@ executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selection
     pure $ Aeson.toJSON resolvedValues
   where
     forEach _responseKey (field :<| _) =
-        tryResolvers field >>= lift . pure . pure
+        let Field _ name _ _ = field
+         in traverse (tryResolver field) $ lookupResolver name
     forEach _ _ = pure Nothing
     lookupResolver = flip HashMap.lookup resolvers
-    tryResolvers fld@(Field _ name _ _)
-        | Just typeField <- lookupResolver name =
-            executeField result typeField fld
-        | otherwise = errmsg $ Text.unwords ["field", name, "not resolved."]
+    tryResolver typeField field =
+        executeField result typeField field >>= lift . pure
 
 coerceArgumentValues
     :: HashMap Name In.Argument
