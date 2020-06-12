@@ -10,6 +10,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.State (gets)
+import Data.List.NonEmpty (NonEmpty(..))
 import Data.Map.Strict (Map)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -17,7 +18,6 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
-import qualified Data.Sequence as Seq
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
@@ -42,12 +42,12 @@ resolveFieldValue result args =
 collectFields :: Monad m
     => Out.ObjectType m
     -> Seq (Selection m)
-    -> Map Name (Seq (Field m))
+    -> Map Name (NonEmpty (Field m))
 collectFields objectType = foldl forEach Map.empty
   where
     forEach groupedFields (SelectionField field) =
         let responseKey = aliasOrName field
-         in Map.insertWith (<>) responseKey (Seq.singleton field) groupedFields
+         in Map.insertWith (<>) responseKey (field :| []) groupedFields
     forEach groupedFields (SelectionFragment selectionFragment)
         | Fragment fragmentType fragmentSelectionSet <- selectionFragment
         , doesFragmentTypeApply fragmentType objectType =
@@ -98,24 +98,24 @@ instanceOf objectType (AbstractUnionType unionType) =
     go unionMemberType acc = acc || objectType == unionMemberType
 
 executeField :: Monad m
-    => Definition.Value
-    -> Field m
-    -> Out.Resolver m
+    => Out.Resolver m
+    -> Definition.Value
+    -> NonEmpty (Field m)
     -> CollectErrsT m Aeson.Value
-executeField prev field (Out.Resolver fieldDefinition resolver) = do
+executeField (Out.Resolver fieldDefinition resolver) prev fields = do
     let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-    let Field _ _ arguments' _ = field
+    let (Field _ _ arguments' _ :| []) = fields
     case coerceArgumentValues argumentDefinitions arguments' of
         Nothing -> errmsg "Argument coercing failed."
         Just argumentValues -> do
             answer <- lift $ resolveFieldValue prev argumentValues resolver
             case answer of
-                Right result -> completeValue fieldType field result
+                Right result -> completeValue fieldType fields result
                 Left errorMessage -> errmsg errorMessage
 
 completeValue :: Monad m
     => Out.Type m
-    -> Field m
+    -> NonEmpty (Field m)
     -> Definition.Value
     -> CollectErrsT m Aeson.Value
 completeValue _ _ Definition.Null = pure Aeson.Null
@@ -124,23 +124,31 @@ completeValue _ _ (Definition.Boolean boolean') = pure $ Aeson.Bool boolean'
 completeValue _ _ (Definition.Float float') = pure $ Aeson.toJSON float'
 completeValue _ _ (Definition.Enum enum) = pure $ Aeson.String enum
 completeValue _ _ (Definition.String string') = pure $ Aeson.String string'
-completeValue (Out.ObjectBaseType objectType) (Field _ _ _ seqSelection) result =
-    executeSelectionSet result objectType seqSelection
-completeValue (Out.ListBaseType listType) selectionField (Definition.List list) =
-    Aeson.toJSON <$> traverse (completeValue listType selectionField) list
-completeValue (Out.InterfaceBaseType interfaceType) (Field _ _ _ seqSelection) result
+completeValue (Out.ListBaseType listType) fields (Definition.List list) =
+    Aeson.toJSON <$> traverse (completeValue listType fields) list
+completeValue (Out.ObjectBaseType objectType) fields result =
+    executeSelectionSet result objectType $ mergeSelectionSets fields
+completeValue (Out.InterfaceBaseType interfaceType) fields result
     | Definition.Object objectMap <- result = do
         abstractType <- resolveAbstractType (AbstractInterfaceType interfaceType) objectMap
         case abstractType of
-            Just objectType -> executeSelectionSet result objectType seqSelection
+            Just objectType -> executeSelectionSet result objectType
+                $ mergeSelectionSets fields
             Nothing -> errmsg "Value completion failed."
-completeValue (Out.UnionBaseType unionType) (Field _ _ _ seqSelection) result
+completeValue (Out.UnionBaseType unionType) fields result
     | Definition.Object objectMap <- result = do
         abstractType <- resolveAbstractType (AbstractUnionType unionType) objectMap
         case abstractType of
-            Just objectType -> executeSelectionSet result objectType seqSelection
+            Just objectType -> executeSelectionSet result objectType
+                $ mergeSelectionSets fields
             Nothing -> errmsg "Value completion failed."
 completeValue _ _ _ = errmsg "Value completion failed."
+
+mergeSelectionSets :: Monad m => NonEmpty (Field m) -> Seq (Selection m)
+mergeSelectionSets fields = foldr forEach mempty fields
+  where
+    forEach (Field _ _ _ fieldSelectionSet) selectionSet =
+        selectionSet <> fieldSelectionSet
 
 errmsg :: Monad m => Text -> CollectErrsT m Aeson.Value
 errmsg errorMessage = addErrMsg errorMessage >> pure Aeson.Null
@@ -154,17 +162,16 @@ executeSelectionSet :: Monad m
     -> Seq (Selection m)
     -> CollectErrsT m Aeson.Value
 executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selectionSet = do
-    resolvedValues <- Map.traverseMaybeWithKey forEach
-        $ collectFields objectType selectionSet
+    let fields = collectFields objectType selectionSet
+    resolvedValues <- Map.traverseMaybeWithKey forEach fields
     pure $ Aeson.toJSON resolvedValues
   where
-    forEach _responseKey (field :<| _) =
+    forEach _ fields@(field :| _) =
         let Field _ name _ _ = field
-         in traverse (tryResolver field) $ lookupResolver name
-    forEach _ _ = pure Nothing
+         in traverse (tryResolver fields) $ lookupResolver name
     lookupResolver = flip HashMap.lookup resolvers
-    tryResolver typeField field =
-        executeField result typeField field >>= lift . pure
+    tryResolver fields resolver =
+        executeField resolver result fields >>= lift . pure
 
 coerceArgumentValues
     :: HashMap Name In.Argument

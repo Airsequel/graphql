@@ -18,6 +18,7 @@ and this project adheres to
 - Argument value coercion.
 - Variable value coercion.
 - The executor should skip the fields missing in the object type and not fail.
+- Merging subselections.
 
 ### Changed
 - `Schema.Resolver` was moved to `Type.Out`, it is a field and resolver function
