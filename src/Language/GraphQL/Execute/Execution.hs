@@ -1,11 +1,11 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Language.GraphQL.Execute.Execution
     ( executeSelectionSet
     ) where
 
-import qualified Data.Aeson as Aeson
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
@@ -22,16 +22,17 @@ import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
-import Language.GraphQL.Execute.Transform
+import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Trans
-import qualified Language.GraphQL.Type.Definition as Definition
+import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
+import Prelude hiding (null)
 
 resolveFieldValue :: Monad m
-    => Definition.Value
-    -> Definition.Subs
+    => Type.Value
+    -> Type.Subs
     -> ActionT m a
     -> m (Either Text a)
 resolveFieldValue result args =
@@ -41,29 +42,29 @@ resolveFieldValue result args =
 
 collectFields :: Monad m
     => Out.ObjectType m
-    -> Seq (Selection m)
-    -> Map Name (NonEmpty (Field m))
+    -> Seq (Transform.Selection m)
+    -> Map Name (NonEmpty (Transform.Field m))
 collectFields objectType = foldl forEach Map.empty
   where
-    forEach groupedFields (SelectionField field) =
+    forEach groupedFields (Transform.SelectionField field) =
         let responseKey = aliasOrName field
          in Map.insertWith (<>) responseKey (field :| []) groupedFields
-    forEach groupedFields (SelectionFragment selectionFragment)
-        | Fragment fragmentType fragmentSelectionSet <- selectionFragment
+    forEach groupedFields (Transform.SelectionFragment selectionFragment)
+        | Transform.Fragment fragmentType fragmentSelectionSet <- selectionFragment
         , doesFragmentTypeApply fragmentType objectType =
             let fragmentGroupedFieldSet = collectFields objectType fragmentSelectionSet
              in Map.unionWith (<>) groupedFields fragmentGroupedFieldSet
         | otherwise = groupedFields
 
-aliasOrName :: forall m. Field m -> Name
-aliasOrName (Field alias name _ _) = fromMaybe name alias
+aliasOrName :: forall m. Transform.Field m -> Name
+aliasOrName (Transform.Field alias name _ _) = fromMaybe name alias
 
 resolveAbstractType :: Monad m
     => AbstractType m
-    -> HashMap Name Definition.Value
+    -> Type.Subs
     -> CollectErrsT m (Maybe (Out.ObjectType m))
 resolveAbstractType abstractType values'
-    | Just (Definition.String typeName) <- HashMap.lookup "__typename" values' = do
+    | Just (Type.String typeName) <- HashMap.lookup "__typename" values' = do
         types' <- gets types
         case HashMap.lookup typeName types' of
             Just (ObjectType objectType) ->
@@ -97,14 +98,14 @@ instanceOf objectType (AbstractUnionType unionType) =
   where
     go unionMemberType acc = acc || objectType == unionMemberType
 
-executeField :: Monad m
+executeField :: (Monad m, Serialize a)
     => Out.Resolver m
-    -> Definition.Value
-    -> NonEmpty (Field m)
-    -> CollectErrsT m Aeson.Value
+    -> Type.Value
+    -> NonEmpty (Transform.Field m)
+    -> CollectErrsT m a
 executeField (Out.Resolver fieldDefinition resolver) prev fields = do
     let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-    let (Field _ _ arguments' _ :| []) = fields
+    let (Transform.Field _ _ arguments' _ :| []) = fields
     case coerceArgumentValues argumentDefinitions arguments' of
         Nothing -> errmsg "Argument coercing failed."
         Just argumentValues -> do
@@ -113,61 +114,80 @@ executeField (Out.Resolver fieldDefinition resolver) prev fields = do
                 Right result -> completeValue fieldType fields result
                 Left errorMessage -> errmsg errorMessage
 
-completeValue :: Monad m
+completeValue :: (Monad m, Serialize a)
     => Out.Type m
-    -> NonEmpty (Field m)
-    -> Definition.Value
-    -> CollectErrsT m Aeson.Value
-completeValue _ _ Definition.Null = pure Aeson.Null
-completeValue _ _ (Definition.Int integer) = pure $ Aeson.toJSON integer
-completeValue _ _ (Definition.Boolean boolean') = pure $ Aeson.Bool boolean'
-completeValue _ _ (Definition.Float float') = pure $ Aeson.toJSON float'
-completeValue _ _ (Definition.Enum enum) = pure $ Aeson.String enum
-completeValue _ _ (Definition.String string') = pure $ Aeson.String string'
-completeValue (Out.ListBaseType listType) fields (Definition.List list) =
-    Aeson.toJSON <$> traverse (completeValue listType fields) list
+    -> NonEmpty (Transform.Field m)
+    -> Type.Value
+    -> CollectErrsT m a
+completeValue (Out.isNonNullType -> False) _ Type.Null = pure null
+completeValue outputType@(Out.ListBaseType listType) fields (Type.List list)
+    = traverse (completeValue listType fields) list
+    >>= coerceResult outputType . List
+completeValue outputType@(Out.ScalarBaseType _) _ (Type.Int int) =
+    coerceResult outputType $ Int int
+completeValue outputType@(Out.ScalarBaseType _) _ (Type.Boolean boolean) =
+    coerceResult outputType $ Boolean boolean
+completeValue outputType@(Out.ScalarBaseType _) _ (Type.Float float) =
+    coerceResult outputType $ Float float
+completeValue outputType@(Out.ScalarBaseType _) _ (Type.String string) =
+    coerceResult outputType $ String string
+completeValue outputType@(Out.EnumBaseType enumType) _ (Type.Enum enum) =
+    let Type.EnumType _ _ enumMembers = enumType
+     in if HashMap.member enum enumMembers
+        then coerceResult outputType $ Enum enum
+        else errmsg "Value completion failed."
 completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
-    | Definition.Object objectMap <- result = do
-        abstractType <- resolveAbstractType (AbstractInterfaceType interfaceType) objectMap
-        case abstractType of
+    | Type.Object objectMap <- result = do
+        let abstractType = AbstractInterfaceType interfaceType
+        concreteType <- resolveAbstractType abstractType objectMap
+        case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
             Nothing -> errmsg "Value completion failed."
 completeValue (Out.UnionBaseType unionType) fields result
-    | Definition.Object objectMap <- result = do
-        abstractType <- resolveAbstractType (AbstractUnionType unionType) objectMap
-        case abstractType of
+    | Type.Object objectMap <- result = do
+        let abstractType = AbstractUnionType unionType
+        concreteType <- resolveAbstractType abstractType objectMap
+        case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
             Nothing -> errmsg "Value completion failed."
 completeValue _ _ _ = errmsg "Value completion failed."
 
-mergeSelectionSets :: Monad m => NonEmpty (Field m) -> Seq (Selection m)
-mergeSelectionSets fields = foldr forEach mempty fields
+mergeSelectionSets :: Monad m => NonEmpty (Transform.Field m) -> Seq (Transform.Selection m)
+mergeSelectionSets = foldr forEach mempty
   where
-    forEach (Field _ _ _ fieldSelectionSet) selectionSet =
+    forEach (Transform.Field _ _ _ fieldSelectionSet) selectionSet =
         selectionSet <> fieldSelectionSet
 
-errmsg :: Monad m => Text -> CollectErrsT m Aeson.Value
-errmsg errorMessage = addErrMsg errorMessage >> pure Aeson.Null
+errmsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
+errmsg errorMessage = addErrMsg errorMessage >> pure null
 
--- | Takes an 'Out.ObjectType' and a list of 'Selection's and applies each field
--- to each 'Selection'. Resolves into a value containing the resolved
--- 'Selection', or a null value and error information.
-executeSelectionSet :: Monad m
-    => Definition.Value
+coerceResult :: (Monad m, Serialize a)
+    => Out.Type m
+    -> Output a
+    -> CollectErrsT m a
+coerceResult outputType result
+    | Just serialized <- serialize outputType result = pure serialized
+    | otherwise = errmsg "Result coercion failed."
+
+-- | Takes an 'Out.ObjectType' and a list of 'Transform.Selection's and applies
+-- each field to each 'Transform.Selection'. Resolves into a value containing
+-- the resolved 'Transform.Selection', or a null value and error information.
+executeSelectionSet :: (Monad m, Serialize a)
+    => Type.Value
     -> Out.ObjectType m
-    -> Seq (Selection m)
-    -> CollectErrsT m Aeson.Value
+    -> Seq (Transform.Selection m)
+    -> CollectErrsT m a
 executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selectionSet = do
     let fields = collectFields objectType selectionSet
     resolvedValues <- Map.traverseMaybeWithKey forEach fields
-    pure $ Aeson.toJSON resolvedValues
+    coerceResult (Out.NonNullObjectType objectType) $ Object resolvedValues
   where
     forEach _ fields@(field :| _) =
-        let Field _ name _ _ = field
+        let Transform.Field _ name _ _ = field
          in traverse (tryResolver fields) $ lookupResolver name
     lookupResolver = flip HashMap.lookup resolvers
     tryResolver fields resolver =
@@ -175,35 +195,35 @@ executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selection
 
 coerceArgumentValues
     :: HashMap Name In.Argument
-    -> HashMap Name Input
-    -> Maybe Definition.Subs
+    -> HashMap Name Transform.Input
+    -> Maybe Type.Subs
 coerceArgumentValues argumentDefinitions argumentValues =
     HashMap.foldrWithKey forEach (pure mempty) argumentDefinitions
   where
     forEach variableName (In.Argument _ variableType defaultValue) =
         matchFieldValues coerceArgumentValue argumentValues variableName variableType defaultValue
-    coerceArgumentValue inputType (Int integer) =
-        coerceInputLiteral inputType (Definition.Int integer)
-    coerceArgumentValue inputType (Boolean boolean) =
-        coerceInputLiteral inputType (Definition.Boolean boolean)
-    coerceArgumentValue inputType (String string) =
-        coerceInputLiteral inputType (Definition.String string)
-    coerceArgumentValue inputType (Float float) =
-        coerceInputLiteral inputType (Definition.Float float)
-    coerceArgumentValue inputType (Enum enum) =
-        coerceInputLiteral inputType (Definition.Enum enum)
-    coerceArgumentValue inputType Null
+    coerceArgumentValue inputType (Transform.Int integer) =
+        coerceInputLiteral inputType (Type.Int integer)
+    coerceArgumentValue inputType (Transform.Boolean boolean) =
+        coerceInputLiteral inputType (Type.Boolean boolean)
+    coerceArgumentValue inputType (Transform.String string) =
+        coerceInputLiteral inputType (Type.String string)
+    coerceArgumentValue inputType (Transform.Float float) =
+        coerceInputLiteral inputType (Type.Float float)
+    coerceArgumentValue inputType (Transform.Enum enum) =
+        coerceInputLiteral inputType (Type.Enum enum)
+    coerceArgumentValue inputType Transform.Null
         | In.isNonNullType inputType = Nothing
-        | otherwise = coerceInputLiteral inputType Definition.Null
-    coerceArgumentValue (In.ListBaseType inputType) (List list) =
+        | otherwise = coerceInputLiteral inputType Type.Null
+    coerceArgumentValue (In.ListBaseType inputType) (Transform.List list) =
         let coerceItem = coerceInputLiteral inputType
-         in Definition.List <$> traverse coerceItem list
-    coerceArgumentValue (In.InputObjectBaseType inputType) (Object object)
+         in Type.List <$> traverse coerceItem list
+    coerceArgumentValue (In.InputObjectBaseType inputType) (Transform.Object object)
         | In.InputObjectType _ _ inputFields <- inputType = 
             let go = forEachField object
                 resultMap = HashMap.foldrWithKey go (pure mempty) inputFields
-             in Definition.Object <$> resultMap
-    coerceArgumentValue _ (Variable variable) = pure variable
+             in Type.Object <$> resultMap
+    coerceArgumentValue _ (Transform.Variable variable) = pure variable
     coerceArgumentValue _ _ = Nothing
     forEachField object variableName (In.InputField _ variableType defaultValue) =
         matchFieldValues coerceArgumentValue object variableName variableType defaultValue

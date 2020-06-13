@@ -45,10 +45,10 @@ import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Core
-import Language.GraphQL.Execute.Coerce
+import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Type.Directive (Directive(..))
 import qualified Language.GraphQL.Type.Directive as Directive
-import qualified Language.GraphQL.Type.Definition as Definition
+import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
@@ -57,7 +57,7 @@ import Language.GraphQL.Type.Schema
 data Replacement m = Replacement
     { fragments :: HashMap Full.Name (Fragment m)
     , fragmentDefinitions :: FragmentDefinitions
-    , variableValues :: Definition.Subs
+    , variableValues :: Type.Subs
     , types :: HashMap Full.Name (Type m)
     }
 
@@ -110,9 +110,9 @@ data Input
     | Boolean Bool
     | Null
     | Enum Name
-    | List [Definition.Value]
+    | List [Type.Value]
     | Object (HashMap Name Input)
-    | Variable Definition.Value
+    | Variable Type.Value
     deriving (Eq, Show)
 
 queryError :: QueryError -> Text
@@ -168,12 +168,12 @@ lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
     = In.NonNullListType
     <$> lookupInputType nonNull types
 
-coerceVariableValues :: VariableValue a
+coerceVariableValues :: Coerce.VariableValue a
     => forall m
     . HashMap Full.Name (Type m)
     -> OperationDefinition
     -> HashMap.HashMap Full.Name a
-    -> Either QueryError Definition.Subs
+    -> Either QueryError Type.Subs
 coerceVariableValues types operationDefinition variableValues =
     let OperationDefinition _ _ variableDefinitions _ _ = operationDefinition
      in maybe (Left CoercionError) Right
@@ -185,27 +185,33 @@ coerceVariableValues types operationDefinition variableValues =
         let defaultValue' = constValue <$> defaultValue
         variableType <- lookupInputType variableTypeName types
 
-        matchFieldValues coerceVariableValue' variableValues variableName variableType defaultValue' coercedValues
+        Coerce.matchFieldValues
+            coerceVariableValue'
+            variableValues
+            variableName
+            variableType
+            defaultValue'
+            coercedValues
     coerceVariableValue' variableType value'
-        = coerceVariableValue variableType value'
-        >>= coerceInputLiteral variableType
+        = Coerce.coerceVariableValue variableType value'
+        >>= Coerce.coerceInputLiteral variableType
 
-constValue :: Full.ConstValue -> Definition.Value
-constValue (Full.ConstInt i) = Definition.Int i
-constValue (Full.ConstFloat f) = Definition.Float f
-constValue (Full.ConstString x) = Definition.String x
-constValue (Full.ConstBoolean b) = Definition.Boolean b
-constValue Full.ConstNull = Definition.Null
-constValue (Full.ConstEnum e) = Definition.Enum e
-constValue (Full.ConstList l) = Definition.List $ constValue <$> l
+constValue :: Full.ConstValue -> Type.Value
+constValue (Full.ConstInt i) = Type.Int i
+constValue (Full.ConstFloat f) = Type.Float f
+constValue (Full.ConstString x) = Type.String x
+constValue (Full.ConstBoolean b) = Type.Boolean b
+constValue Full.ConstNull = Type.Null
+constValue (Full.ConstEnum e) = Type.Enum e
+constValue (Full.ConstList l) = Type.List $ constValue <$> l
 constValue (Full.ConstObject o) =
-    Definition.Object $ HashMap.fromList $ constObjectField <$> o
+    Type.Object $ HashMap.fromList $ constObjectField <$> o
   where
     constObjectField (Full.ObjectField key value') = (key, constValue value')
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
-document :: VariableValue a
+document :: Coerce.VariableValue a
     => forall m
     . Schema m
     -> Maybe Full.Name
@@ -386,30 +392,30 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
         let newFragments = HashMap.insert name newValue fragments
          in replacement{ fragments = newFragments }
 
-value :: forall m. Full.Value -> State (Replacement m) Definition.Value
+value :: forall m. Full.Value -> State (Replacement m) Type.Value
 value (Full.Variable name) =
-    gets (fromMaybe Definition.Null . HashMap.lookup name . variableValues)
-value (Full.Int i) = pure $ Definition.Int i
-value (Full.Float f) = pure $ Definition.Float f
-value (Full.String x) = pure $ Definition.String x
-value (Full.Boolean b) = pure $ Definition.Boolean b
-value Full.Null = pure Definition.Null
-value (Full.Enum e) = pure $ Definition.Enum e
-value (Full.List l) = Definition.List <$> traverse value l
-value (Full.Object o) =
-    Definition.Object . HashMap.fromList <$> traverse objectField o
+    gets (fromMaybe Type.Null . HashMap.lookup name . variableValues)
+value (Full.Int int) = pure $ Type.Int int
+value (Full.Float float) = pure $ Type.Float float
+value (Full.String string) = pure $ Type.String string
+value (Full.Boolean boolean) = pure $ Type.Boolean boolean
+value Full.Null = pure Type.Null
+value (Full.Enum enum) = pure $ Type.Enum enum
+value (Full.List list) = Type.List <$> traverse value list
+value (Full.Object object) =
+    Type.Object . HashMap.fromList <$> traverse objectField object
   where
     objectField (Full.ObjectField name value') = (name,) <$> value value'
 
 input :: forall m. Full.Value -> State (Replacement m) (Maybe Input)
 input (Full.Variable name) =
     gets (fmap Variable . HashMap.lookup name . variableValues)
-input (Full.Int i) = pure $ pure $ Int i
-input (Full.Float f) = pure $ pure $ Float f
-input (Full.String x) = pure $ pure $ String x
-input (Full.Boolean b) = pure $ pure $ Boolean b
+input (Full.Int int) = pure $ pure $ Int int
+input (Full.Float float) = pure $ pure $ Float float
+input (Full.String string) = pure $ pure $ String string
+input (Full.Boolean boolean) = pure $ pure $ Boolean boolean
 input Full.Null = pure $ pure Null
-input (Full.Enum e) = pure $ pure $ Enum e
+input (Full.Enum enum) = pure $ pure $ Enum enum
 input (Full.List list) = pure . List <$> traverse value list
 input (Full.Object object) = do
     objectFields <- foldM objectField HashMap.empty object

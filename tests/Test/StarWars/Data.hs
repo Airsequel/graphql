@@ -184,7 +184,7 @@ getFriends :: Character -> [Character]
 getFriends char = catMaybes $ liftA2 (<|>) getDroid getHuman <$> friends char
 
 getEpisode :: Int -> Maybe Text
-getEpisode 4 = pure "NEWHOPE"
+getEpisode 4 = pure "NEW_HOPE"
 getEpisode 5 = pure "EMPIRE"
 getEpisode 6 = pure "JEDI"
 getEpisode _ = empty

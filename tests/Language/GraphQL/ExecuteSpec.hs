@@ -12,7 +12,7 @@ import Language.GraphQL.AST (Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
-import Language.GraphQL.Type
+import Language.GraphQL.Type as Type
 import Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.Megaparsec (parse)
@@ -25,7 +25,7 @@ queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.singleton "philosopher"
     $ Out.Resolver philosopherField
     $ pure
-    $ Object mempty
+    $ Type.Object mempty
   where
     philosopherField =
         Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
@@ -38,8 +38,8 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         [ ("firstName", firstNameResolver)
         , ("lastName", lastNameResolver)
         ]
-    firstNameResolver = Out.Resolver firstNameField $ pure $ String "Friedrich"
-    lastNameResolver = Out.Resolver lastNameField $ pure $ String "Nietzsche"
+    firstNameResolver = Out.Resolver firstNameField $ pure $ Type.String "Friedrich"
+    lastNameResolver = Out.Resolver lastNameField $ pure $ Type.String "Nietzsche"
     firstNameField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     lastNameField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 

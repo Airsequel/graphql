@@ -64,9 +64,9 @@ spec = describe "Star Wars Query Tests" $ do
                 friends {
                   name
                   appearsIn
-                    friends {
-                      name
-                    }
+                  friends {
+                    name
+                  }
                 }
               }
             }
@@ -77,7 +77,7 @@ spec = describe "Star Wars Query Tests" $ do
             , "friends" .= [
                   Aeson.object [
                       "name" .= ("Luke Skywalker" :: Text)
-                    , "appearsIn" .= ["NEWHOPE","EMPIRE","JEDI" :: Text]
+                    , "appearsIn" .= ["NEW_HOPE", "EMPIRE", "JEDI" :: Text]
                     , "friends" .= [
                           Aeson.object [hanName]
                         , Aeson.object [leiaName]
@@ -87,7 +87,7 @@ spec = describe "Star Wars Query Tests" $ do
                     ]
                 , Aeson.object [
                       hanName
-                    , "appearsIn" .= [ "NEWHOPE","EMPIRE","JEDI" :: Text]
+                    , "appearsIn" .= ["NEW_HOPE", "EMPIRE", "JEDI" :: Text]
                     , "friends" .=
                         [ Aeson.object [lukeName]
                         , Aeson.object [leiaName]
@@ -96,7 +96,7 @@ spec = describe "Star Wars Query Tests" $ do
                     ]
                 , Aeson.object [
                       leiaName
-                    , "appearsIn" .= [ "NEWHOPE","EMPIRE","JEDI" :: Text]
+                    , "appearsIn" .= ["NEW_HOPE", "EMPIRE", "JEDI" :: Text]
                     , "friends" .=
                         [ Aeson.object [lukeName]
                         , Aeson.object [hanName]

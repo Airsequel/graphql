@@ -42,7 +42,7 @@ heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
     [ ("id", Out.Resolver idFieldType (idField "id"))
     , ("name", Out.Resolver nameFieldType (idField "name"))
     , ("friends", Out.Resolver friendsFieldType (idField "friends"))
-    , ("appearsIn", Out.Resolver appearsInFieldType (idField "appearsIn"))
+    , ("appearsIn", Out.Resolver appearsInField (idField "appearsIn"))
     , ("homePlanet", Out.Resolver homePlanetFieldType (idField "homePlanet"))
     , ("secretBackstory", Out.Resolver secretBackstoryFieldType (String <$> secretBackstory))
     , ("__typename", Out.Resolver (Out.Field Nothing (Out.NamedScalarType string) mempty) (idField "__typename"))
@@ -55,7 +55,7 @@ droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
     [ ("id", Out.Resolver idFieldType (idField "id"))
     , ("name", Out.Resolver nameFieldType (idField "name"))
     , ("friends", Out.Resolver friendsFieldType (idField "friends"))
-    , ("appearsIn", Out.Resolver appearsInFieldType (idField "appearsIn"))
+    , ("appearsIn", Out.Resolver appearsInField (idField "appearsIn"))
     , ("primaryFunction", Out.Resolver primaryFunctionFieldType (idField "primaryFunction"))
     , ("secretBackstory", Out.Resolver secretBackstoryFieldType (String <$> secretBackstory))
     , ("__typename", Out.Resolver (Out.Field Nothing (Out.NamedScalarType string) mempty) (idField "__typename"))
@@ -72,8 +72,11 @@ nameFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
 friendsFieldType :: Out.Field Identity
 friendsFieldType = Out.Field Nothing (Out.ListType $ Out.NamedObjectType droidObject) mempty
 
-appearsInFieldType :: Out.Field Identity
-appearsInFieldType = Out.Field Nothing (Out.ListType $ Out.NamedScalarType int) mempty
+appearsInField :: Out.Field Identity
+appearsInField = Out.Field (Just description) fieldType mempty
+  where
+    fieldType = Out.ListType $ Out.NamedEnumType episodeEnum
+    description = "Which movies they appear in."
 
 secretBackstoryFieldType :: Out.Field Identity
 secretBackstoryFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
@@ -97,7 +100,7 @@ hero :: ActionT Identity Value
 hero = do
   episode <- argument "episode"
   pure $ character $ case episode of
-      Enum "NEWHOPE" -> getHero 4
+      Enum "NEW_HOPE" -> getHero 4
       Enum "EMPIRE" -> getHero 5
       Enum "JEDI" -> getHero 6
       _ -> artoo

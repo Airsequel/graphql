@@ -3,21 +3,28 @@
 
 -- | Types and functions used for input and result coercion.
 module Language.GraphQL.Execute.Coerce
-    ( VariableValue(..)
+    ( Output(..)
+    , Serialize(..)
+    , VariableValue(..)
     , coerceInputLiteral
     , matchFieldValues
     ) where
 
 import qualified Data.Aeson as Aeson
+import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Map.Strict (Map)
+import Data.String (IsString(..))
+import Data.Text (Text)
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
 import Data.Scientific (toBoundedInteger, toRealFloat)
 import Language.GraphQL.AST (Name)
+import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
-import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Out as Out
 
 -- | Since variables are passed separately from the query, in an independent
 -- format, they should be first coerced to the internal representation used by
@@ -46,26 +53,26 @@ class VariableValue a where
     coerceVariableValue
         :: In.Type -- ^ Expected type (variable type given in the query).
         -> a -- ^ Variable value being coerced.
-        -> Maybe Value -- ^ Coerced value on success, 'Nothing' otherwise.
+        -> Maybe Type.Value -- ^ Coerced value on success, 'Nothing' otherwise.
 
 instance VariableValue Aeson.Value where
-    coerceVariableValue _ Aeson.Null = Just Null
+    coerceVariableValue _ Aeson.Null = Just Type.Null
     coerceVariableValue (In.ScalarBaseType scalarType) value
-        | (Aeson.String stringValue) <- value = Just $ String stringValue
-        | (Aeson.Bool booleanValue) <- value = Just $ Boolean booleanValue
+        | (Aeson.String stringValue) <- value = Just $ Type.String stringValue
+        | (Aeson.Bool booleanValue) <- value = Just $ Type.Boolean booleanValue
         | (Aeson.Number numberValue) <- value
-        , (ScalarType "Float" _) <- scalarType =
-            Just $ Float $ toRealFloat numberValue
+        , (Type.ScalarType "Float" _) <- scalarType =
+            Just $ Type.Float $ toRealFloat numberValue
         | (Aeson.Number numberValue) <- value = -- ID or Int
-            Int <$> toBoundedInteger numberValue
+            Type.Int <$> toBoundedInteger numberValue
     coerceVariableValue (In.EnumBaseType _) (Aeson.String stringValue) =
-        Just $ Enum stringValue
+        Just $ Type.Enum stringValue
     coerceVariableValue (In.InputObjectBaseType objectType) value
         | (Aeson.Object objectValue) <- value = do
             let (In.InputObjectType _ _ inputFields) = objectType
             (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
             if HashMap.null newObjectValue
-                then Just $ Object resultMap
+                then Just $ Type.Object resultMap
                 else Nothing
       where
         foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues'
@@ -81,8 +88,8 @@ instance VariableValue Aeson.Value where
                         pure (newObjectValue, insert coerced)
                     Nothing -> Just (objectValue, resultMap)
     coerceVariableValue (In.ListBaseType listType) value
-        | (Aeson.Array arrayValue) <- value = List
-            <$> foldr foldVector (Just []) arrayValue
+        | (Aeson.Array arrayValue) <- value =
+            Type.List <$> foldr foldVector (Just []) arrayValue
         | otherwise = coerceVariableValue listType value
       where
         foldVector _ Nothing = Nothing
@@ -97,13 +104,13 @@ instance VariableValue Aeson.Value where
 -- result map. Otherwise it fails with 'Nothing' if the Input Type is a
 -- Non-Nullable type, or returns the unchanged, original map.
 matchFieldValues :: forall a
-    . (In.Type -> a -> Maybe Value)
+    . (In.Type -> a -> Maybe Type.Value)
     -> HashMap Name a
     -> Name
     -> In.Type
-    -> Maybe Value
-    -> Maybe (HashMap Name Value)
-    -> Maybe (HashMap Name Value)
+    -> Maybe Type.Value
+    -> Maybe (HashMap Name Type.Value)
+    -> Maybe (HashMap Name Type.Value)
 matchFieldValues coerce values' fieldName type' defaultValue resultMap =
     case HashMap.lookup fieldName values' of
         Just variableValue -> coerceRuntimeValue $ coerce type' variableValue
@@ -114,44 +121,99 @@ matchFieldValues coerce values' fieldName type' defaultValue resultMap =
             , In.isNonNullType type' -> Nothing
             | otherwise -> resultMap
   where
-    coerceRuntimeValue (Just Null)
+    coerceRuntimeValue (Just Type.Null)
         | In.isNonNullType type' = Nothing
     coerceRuntimeValue coercedValue =
         HashMap.insert fieldName <$> coercedValue <*> resultMap
 
 -- | Coerces operation arguments according to the input coercion rules for the
 -- corresponding types.
-coerceInputLiteral :: In.Type -> Value -> Maybe Value
+coerceInputLiteral :: In.Type -> Type.Value -> Maybe Type.Value
 coerceInputLiteral (In.ScalarBaseType type') value
-    | (String stringValue) <- value
-    , (ScalarType "String" _) <- type' = Just $ String stringValue
-    | (Boolean booleanValue) <- value
-    , (ScalarType "Boolean" _) <- type' = Just $ Boolean booleanValue
-    | (Int intValue) <- value
-    , (ScalarType "Int" _) <- type' = Just $ Int intValue
-    | (Float floatValue) <- value
-    , (ScalarType "Float" _) <- type' = Just $ Float floatValue
-    | (Int intValue) <- value
-    , (ScalarType "Float" _) <- type' =
-        Just $ Float $ fromIntegral intValue
-    | (String stringValue) <- value
-    , (ScalarType "ID" _) <- type' = Just $ String stringValue
-    | (Int intValue) <- value
-    , (ScalarType "ID" _) <- type' = Just $ decimal intValue
+    | (Type.String stringValue) <- value
+    , (Type.ScalarType "String" _) <- type' = Just $ Type.String stringValue
+    | (Type.Boolean booleanValue) <- value
+    , (Type.ScalarType "Boolean" _) <- type' = Just $ Type.Boolean booleanValue
+    | (Type.Int intValue) <- value
+    , (Type.ScalarType "Int" _) <- type' = Just $ Type.Int intValue
+    | (Type.Float floatValue) <- value
+    , (Type.ScalarType "Float" _) <- type' = Just $ Type.Float floatValue
+    | (Type.Int intValue) <- value
+    , (Type.ScalarType "Float" _) <- type' =
+        Just $ Type.Float $ fromIntegral intValue
+    | (Type.String stringValue) <- value
+    , (Type.ScalarType "ID" _) <- type' = Just $ Type.String stringValue
+    | (Type.Int intValue) <- value
+    , (Type.ScalarType "ID" _) <- type' = Just $ decimal intValue
   where
-    decimal = String
+    decimal = Type.String
         . Text.Lazy.toStrict
         . Text.Builder.toLazyText
         . Text.Builder.decimal
-coerceInputLiteral (In.EnumBaseType type') (Enum enumValue)
-    | member enumValue type' = Just $ Enum enumValue
+coerceInputLiteral (In.EnumBaseType type') (Type.Enum enumValue)
+    | member enumValue type' = Just $ Type.Enum enumValue
   where
-    member value (EnumType _ _ members) = HashMap.member value members
-coerceInputLiteral (In.InputObjectBaseType type') (Object values) = 
+    member value (Type.EnumType _ _ members) = HashMap.member value members
+coerceInputLiteral (In.InputObjectBaseType type') (Type.Object values) = 
     let (In.InputObjectType _ _ inputFields) = type'
-        in Object
+        in Type.Object
             <$> HashMap.foldrWithKey (matchFieldValues' values) (Just HashMap.empty) inputFields
   where
     matchFieldValues' values' fieldName (In.InputField _ inputFieldType defaultValue) =
         matchFieldValues coerceInputLiteral values' fieldName inputFieldType defaultValue
 coerceInputLiteral _ _ = Nothing
+
+-- | 'Serialize' describes how a @GraphQL@ value should be serialized.
+class Serialize a where
+    -- | Serializes a @GraphQL@ value according to the given serialization
+    -- format.
+    --
+    -- Type infomration is given as a hint, e.g. if you need to know what type
+    -- is being serialized to serialize it properly. Don't do any validation for
+    -- @GraphQL@ built-in types here.
+    --
+    -- If the value cannot be serialized without losing information, return
+    -- 'Nothing' — it will cause a field error.
+    serialize :: forall m
+        . Out.Type m -- ^ Expected output type.
+        -> Output a -- ^ The value to be serialized.
+        -> Maybe a -- ^ Serialized value on success or 'Nothing'.
+    -- | __null__ representation in the given serialization format.
+    null :: a
+
+-- | Intermediate type used to serialize a @GraphQL@ value.
+--
+-- The serialization is done during the execution, and 'Output' contains
+-- already serialized data (in 'List' and 'Object') as well as the new layer
+-- that has to be serialized in the current step. So 'Output' is parameterized
+-- by the serialization format.
+data Output a
+    = Int Int32
+    | Float Double
+    | String Text
+    | Boolean Bool
+    | Enum Name
+    | List [a]
+    | Object (Map Name a)
+    deriving (Eq, Show)
+
+instance forall a. IsString (Output a) where
+    fromString = String . fromString
+
+instance Serialize Aeson.Value where
+    serialize (Out.ScalarBaseType scalarType) value
+        | Type.ScalarType "Int" _ <- scalarType
+        , Int int <- value = Just $ Aeson.toJSON int
+        | Type.ScalarType "Float" _ <- scalarType
+        , Float float <- value = Just $ Aeson.toJSON float
+        | Type.ScalarType "String" _ <- scalarType
+        , String string <- value = Just $ Aeson.String string
+        | Type.ScalarType "ID" _ <- scalarType
+        , String string <- value = Just $ Aeson.String string
+        | Type.ScalarType "Boolean" _ <- scalarType
+        , Boolean boolean <- value = Just $ Aeson.Bool boolean
+    serialize _ (Enum enum) = Just $ Aeson.String enum
+    serialize _ (List list) = Just $ Aeson.toJSON list
+    serialize _ (Object object) = Just $ Aeson.toJSON object
+    serialize _ _ = Nothing
+    null = Aeson.Null
