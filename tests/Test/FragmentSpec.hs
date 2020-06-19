@@ -9,9 +9,8 @@ import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
-import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema
 import Test.Hspec
     ( Spec
     , describe

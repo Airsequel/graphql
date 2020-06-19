@@ -12,10 +12,9 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
 import Language.GraphQL.Trans
-import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema (Schema(..))
 import Test.StarWars.Data
 import Prelude hiding (id)
 

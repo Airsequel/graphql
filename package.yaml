@@ -42,7 +42,9 @@ library:
   other-modules:
   - Language.GraphQL.Execute.Execution
   - Language.GraphQL.Execute.Transform
+  - Language.GraphQL.Type.Definition
   - Language.GraphQL.Type.Directive
+  - Language.GraphQL.Type.Schema
 
 tests:
   tasty:

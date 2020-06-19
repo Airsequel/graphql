@@ -17,6 +17,7 @@ and this project adheres to
     * Invalid (recusrive or non-existing) fragments should be skipped.
 - Argument value coercion.
 - Variable value coercion.
+- Result coercion.
 - The executor should skip the fields missing in the object type and not fail.
 - Merging subselections.
 

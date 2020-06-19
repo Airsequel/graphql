@@ -10,7 +10,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (isNothing)
 import Data.Scientific (scientific)
 import qualified Language.GraphQL.Execute.Coerce as Coerce
-import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import Prelude hiding (id)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
@@ -98,7 +98,7 @@ spec = do
                 expected = Just $ List [String "asdf", String "qwer"]
              in actual `shouldBe` expected
 
-    describe "coerceInputLiterals" $ do
+    describe "coerceInputLiteral" $ do
         it "coerces enums" $
             let expected = Just (Enum "NORTH")
                 actual = Coerce.coerceInputLiteral
@@ -111,4 +111,12 @@ spec = do
         it "coerces integers to IDs" $
             let expected = Just (String "1234")
                 actual = Coerce.coerceInputLiteral namedIdType (Int 1234)
+             in actual `shouldBe` expected
+        it "coerces nulls" $ do
+            let actual = Coerce.coerceInputLiteral namedIdType Null
+             in actual `shouldBe` Just Null
+        it "wraps singleton lists" $ do
+            let expected = Just $ List [List [String "1"]]
+                embeddedType = In.ListType $ In.ListType namedIdType
+                actual = Coerce.coerceInputLiteral embeddedType (String "1")
              in actual `shouldBe` expected

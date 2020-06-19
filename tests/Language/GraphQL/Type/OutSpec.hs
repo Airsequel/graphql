@@ -3,7 +3,7 @@ module Language.GraphQL.Type.OutSpec
     ( spec
     ) where
 
-import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type
 import Test.Hspec (Spec, describe, it, shouldBe)
 
 spec :: Spec

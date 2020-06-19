@@ -1,5 +1,6 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | Types and functions used for input and result coercion.
 module Language.GraphQL.Execute.Coerce
@@ -129,6 +130,7 @@ matchFieldValues coerce values' fieldName type' defaultValue resultMap =
 -- | Coerces operation arguments according to the input coercion rules for the
 -- corresponding types.
 coerceInputLiteral :: In.Type -> Type.Value -> Maybe Type.Value
+coerceInputLiteral (In.isNonNullType -> False) Type.Null = Just Type.Null
 coerceInputLiteral (In.ScalarBaseType type') value
     | (Type.String stringValue) <- value
     , (Type.ScalarType "String" _) <- type' = Just $ Type.String stringValue
@@ -156,11 +158,20 @@ coerceInputLiteral (In.EnumBaseType type') (Type.Enum enumValue)
     member value (Type.EnumType _ _ members) = HashMap.member value members
 coerceInputLiteral (In.InputObjectBaseType type') (Type.Object values) = 
     let (In.InputObjectType _ _ inputFields) = type'
-        in Type.Object
+     in Type.Object
             <$> HashMap.foldrWithKey (matchFieldValues' values) (Just HashMap.empty) inputFields
   where
     matchFieldValues' values' fieldName (In.InputField _ inputFieldType defaultValue) =
         matchFieldValues coerceInputLiteral values' fieldName inputFieldType defaultValue
+coerceInputLiteral (In.ListBaseType listType) (Type.List list) =
+    Type.List <$> traverse (coerceInputLiteral listType) list
+coerceInputLiteral (In.ListBaseType listType) singleton =
+    wrapSingleton listType singleton
+  where
+      wrapSingleton (In.ListBaseType listType') singleton' =
+          Type.List <$> sequence [wrapSingleton listType' singleton']
+      wrapSingleton listType' singleton' =
+          Type.List <$> sequence [coerceInputLiteral listType' singleton']
 coerceInputLiteral _ _ = Nothing
 
 -- | 'Serialize' describes how a @GraphQL@ value should be serialized.

@@ -9,9 +9,8 @@ import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
 import Test.Hspec (Spec, describe, it, shouldBe)
 import Text.RawString.QQ (r)
-import Language.GraphQL.Type.Definition
+import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
