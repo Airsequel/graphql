@@ -1,7 +1,7 @@
 # Haskell GraphQL
 
 [![Hackage Version](https://img.shields.io/hackage/v/graphql.svg)](https://hackage.haskell.org/package/graphql)
-[![Build Status](https://semaphoreci.com/api/v1/belka-ew/graphql/branches/master/badge.svg)](https://semaphoreci.com/belka-ew/graphql)
+[![Build Status](https://github.com/caraus-ecms/graphql/workflows/Haskell%20CI/badge.svg)](https://github.com/caraus-ecms/graphql/actions?query=workflow%3A%22Haskell+CI%22)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](https://raw.githubusercontent.com/caraus-ecms/graphql/master/LICENSE)
 
 GraphQL implementation in Haskell.

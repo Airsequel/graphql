@@ -6,6 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [Unreleased]
 ## [0.8.0.0] - 2020-06-20
 ### Fixed
 - The parser rejects variables when parsing defaultValue (DefaultValue). The
@@ -267,6 +268,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...HEAD
 [0.8.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.7.0.0...v0.8.0.0
 [0.7.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...v0.7.0.0
 [0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
