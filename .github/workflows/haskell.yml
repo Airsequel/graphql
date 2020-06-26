@@ -15,7 +15,7 @@ jobs:
       with:
         enable-stack: true
         stack-no-global: true
-        stack-version: 'latest'
+        stack-version: latest
 
     - name: Cache
       uses: actions/cache@v2
@@ -24,8 +24,8 @@ jobs:
           ~/.stack
           graphql.cabal
           stack.yaml.lock
-        key: ${{ runner.os }}-build-${{ hashFiles('**/stack.yaml') }}
-        restore-keys: '${{ runner.os }}-build-'
+        key: ${{ runner.os }}-test-${{ hashFiles('**/stack.yaml') }}
+        restore-keys: ${{ runner.os }}-test-
 
     - name: Install dependencies
       run: stack --no-terminal test --only-snapshot
@@ -45,7 +45,7 @@ jobs:
       with:
         enable-stack: true
         stack-no-global: true
-        stack-version: 'latest'
+        stack-version: latest
 
     - name: Cache
       uses: actions/cache@v2
@@ -54,8 +54,8 @@ jobs:
           ~/.stack
           graphql.cabal
           stack.yaml.lock
-        key: ${{ runner.os }}-build-${{ hashFiles('**/stack.yaml') }}
-        restore-keys: '${{ runner.os }}-build-'
+        key: ${{ runner.os }}-lint-${{ hashFiles('**/stack.yaml') }}
+        restore-keys: ${{ runner.os }}-lint-
 
     - name: Build HLint
       run: stack --no-terminal build hlint
