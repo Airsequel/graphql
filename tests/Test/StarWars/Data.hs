@@ -66,8 +66,8 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: ActionT Identity Text
-secretBackstory = ActionT $ throwE "secretBackstory is secret."
+secretBackstory :: ResolverT Identity Text
+secretBackstory = ResolverT $ throwE "secretBackstory is secret."
 
 typeName :: Character -> Text
 typeName = either (const "Droid") (const "Human")

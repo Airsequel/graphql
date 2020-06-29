@@ -19,7 +19,7 @@ experimentalResolver = Schema { query = queryType, mutation = Nothing }
     resolver = pure $ Int 5
     queryType = Out.ObjectType "Query" Nothing []
         $ HashMap.singleton "experimentalField"
-        $ Out.Resolver (Out.Field Nothing (Out.NamedScalarType int) mempty) resolver
+        $ Out.Field Nothing (Out.NamedScalarType int) mempty resolver
 
 emptyObject :: Aeson.Value
 emptyObject = object

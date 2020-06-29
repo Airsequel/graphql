@@ -53,22 +53,24 @@ hasErrors _ = True
 shirtType :: Out.ObjectType IO
 shirtType = Out.ObjectType "Shirt" Nothing []
     $ HashMap.fromList
-        [ ("size", Out.Resolver sizeFieldType $ pure $ snd size)
-        , ("circumference", Out.Resolver circumferenceFieldType $ pure $ snd circumference)
+        [ ("size", sizeFieldType)
+        , ("circumference", circumferenceFieldType)
         ]
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.fromList
-        [ ("size", Out.Resolver sizeFieldType $ pure $ snd size)
-        , ("circumference", Out.Resolver circumferenceFieldType $ pure $ snd circumference)
+        [ ("size", sizeFieldType)
+        , ("circumference", circumferenceFieldType)
         ]
 
 circumferenceFieldType :: Out.Field IO
 circumferenceFieldType = Out.Field Nothing (Out.NamedScalarType int) mempty
+    $ pure $ snd circumference
 
 sizeFieldType :: Out.Field IO
 sizeFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+    $ pure $ snd size
 
 toSchema :: Text -> (Text, Value) -> Schema IO
 toSchema t (_, resolve) = Schema
@@ -76,15 +78,17 @@ toSchema t (_, resolve) = Schema
   where
     unionMember = if t == "Hat" then hatType else shirtType
     typeNameField = Out.Field Nothing (Out.NamedScalarType string) mempty
+        $ pure $ String "Shirt"
     garmentField = Out.Field Nothing (Out.NamedObjectType unionMember) mempty
+        $ pure resolve
     queryType =
         case t of
             "circumference" -> hatType
             "size" -> shirtType
             _ -> Out.ObjectType "Query" Nothing []
                 $ HashMap.fromList
-                    [ ("garment", Out.Resolver garmentField $ pure resolve)
-                    , ("__typename", Out.Resolver typeNameField $ pure $ String "Shirt")
+                    [ ("garment", garmentField)
+                    , ("__typename", typeNameField)
                     ]
 
 spec :: Spec

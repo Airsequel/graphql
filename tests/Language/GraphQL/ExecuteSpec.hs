@@ -22,26 +22,26 @@ schema = Schema {query = queryType, mutation = Nothing}
 
 queryType :: Out.ObjectType Identity
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.singleton "philosopher"
-    $ Out.Resolver philosopherField
-    $ pure
-    $ Type.Object mempty
+    $ HashMap.singleton "philosopher" philosopherField
   where
-    philosopherField =
-        Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
+    philosopherField
+        = Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
+        $ pure $ Type.Object mempty
 
 philosopherType :: Out.ObjectType Identity
 philosopherType = Out.ObjectType "Philosopher" Nothing []
     $ HashMap.fromList resolvers
   where
     resolvers =
-        [ ("firstName", firstNameResolver)
-        , ("lastName", lastNameResolver)
+        [ ("firstName", firstNameField)
+        , ("lastName", lastNameField)
         ]
-    firstNameResolver = Out.Resolver firstNameField $ pure $ Type.String "Friedrich"
-    lastNameResolver = Out.Resolver lastNameField $ pure $ Type.String "Nietzsche"
-    firstNameField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
-    lastNameField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    firstNameField
+        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        $ pure $ Type.String "Friedrich"
+    lastNameField
+        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        $ pure $ Type.String "Nietzsche"
 
 spec :: Spec
 spec =

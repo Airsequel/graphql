@@ -7,6 +7,14 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+## Changed
+- `Trans.ActionT` is renamed to `ResolverT`. Since `Type.Out.Resolver` has gone
+  it is a better name for GraphQL resolvers.
+
+## Removed
+- `Type.Out.Resolver`: It is an unneeded layer of complexity. Resolvers are a
+  part of the fields and are called `Trans.ResolverT`.
+
 ## [0.8.0.0] - 2020-06-20
 ### Fixed
 - The parser rejects variables when parsing defaultValue (DefaultValue). The

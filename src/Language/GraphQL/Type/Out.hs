@@ -10,7 +10,6 @@ module Language.GraphQL.Type.Out
     ( Field(..)
     , InterfaceType(..)
     , ObjectType(..)
-    , Resolver(..)
     , Type(..)
     , UnionType(..)
     , isNonNullType
@@ -29,21 +28,12 @@ import Language.GraphQL.Trans
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
 
--- | Resolves a 'Field' into an @Aeson.@'Data.Aeson.Types.Object' with error
--- information (if an error has occurred). @m@ is an arbitrary monad, usually
--- 'IO'.
---
--- Resolving a field can result in a leaf value or an object, which is
--- represented as a list of nested resolvers, used to resolve the fields of that
--- object.
-data Resolver m = Resolver (Field m) (ActionT m Value)
-
 -- | Object type definition.
 --
---   Almost all of the GraphQL types you define will be object types. Object
---   types have a name, but most importantly describe their fields.
+-- Almost all of the GraphQL types you define will be object types. Object
+-- types have a name, but most importantly describe their fields.
 data ObjectType m = ObjectType
-    Name (Maybe Text) [InterfaceType m] (HashMap Name (Resolver m))
+    Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
 
 instance forall a. Eq (ObjectType a) where
     (ObjectType this _ _ _) == (ObjectType that _ _ _) = this == that
@@ -73,6 +63,7 @@ data Field m = Field
     (Maybe Text) -- ^ Description.
     (Type m) -- ^ Field type.
     (HashMap Name In.Argument) -- ^ Arguments.
+    (ResolverT m Value) -- ^ Resolver.
 
 -- | These types may be used as output types as the result of fields.
 --

@@ -33,12 +33,12 @@ import Prelude hiding (null)
 resolveFieldValue :: Monad m
     => Type.Value
     -> Type.Subs
-    -> ActionT m a
+    -> ResolverT m a
     -> m (Either Text a)
 resolveFieldValue result args =
     flip runReaderT (Context {arguments = Arguments args, values = result})
     . runExceptT
-    . runActionT
+    . runResolverT
 
 collectFields :: Monad m
     => Out.ObjectType m
@@ -99,12 +99,12 @@ instanceOf objectType (AbstractUnionType unionType) =
     go unionMemberType acc = acc || objectType == unionMemberType
 
 executeField :: (Monad m, Serialize a)
-    => Out.Resolver m
+    => Out.Field m
     -> Type.Value
     -> NonEmpty (Transform.Field m)
     -> CollectErrsT m a
-executeField (Out.Resolver fieldDefinition resolver) prev fields = do
-    let Out.Field _ fieldType argumentDefinitions = fieldDefinition
+executeField fieldDefinition prev fields = do
+    let Out.Field _ fieldType argumentDefinitions resolver = fieldDefinition
     let (Transform.Field _ _ arguments' _ :| []) = fields
     case coerceArgumentValues argumentDefinitions arguments' of
         Nothing -> errmsg "Argument coercing failed."

@@ -1,7 +1,7 @@
 -- | Monad transformer stack used by the @GraphQL@ resolvers.
 module Language.GraphQL.Trans
     ( argument
-    , ActionT(..)
+    , ResolverT(..)
     , Context(..)
     ) where
 
@@ -26,42 +26,49 @@ data Context = Context
     }
 
 -- | Monad transformer stack used by the resolvers to provide error handling
---   and resolution context (resolver arguments).
-newtype ActionT m a = ActionT
-    { runActionT :: ExceptT Text (ReaderT Context m) a
+-- and resolution context (resolver arguments).
+--
+-- Resolves a 'Field' into a 'Value' with error information (if an error has
+-- occurred). @m@ is an arbitrary monad, usually 'IO'.
+--
+-- Resolving a field can result in a leaf value or an object, which is
+-- represented as a list of nested resolvers, used to resolve the fields of that
+-- object.
+newtype ResolverT m a = ResolverT
+    { runResolverT :: ExceptT Text (ReaderT Context m) a
     }
 
-instance Functor m => Functor (ActionT m) where
-    fmap f = ActionT . fmap f . runActionT
+instance Functor m => Functor (ResolverT m) where
+    fmap f = ResolverT . fmap f . runResolverT
 
-instance Monad m => Applicative (ActionT m) where
-    pure = ActionT . pure
-    (ActionT f) <*> (ActionT x) = ActionT $ f <*> x
+instance Monad m => Applicative (ResolverT m) where
+    pure = ResolverT . pure
+    (ResolverT f) <*> (ResolverT x) = ResolverT $ f <*> x
 
-instance Monad m => Monad (ActionT m) where
+instance Monad m => Monad (ResolverT m) where
     return = pure
-    (ActionT action) >>= f = ActionT $ action >>= runActionT . f
+    (ResolverT action) >>= f = ResolverT $ action >>= runResolverT . f
 
-instance MonadTrans ActionT where
-    lift = ActionT . lift . lift
+instance MonadTrans ResolverT where
+    lift = ResolverT . lift . lift
 
-instance MonadIO m => MonadIO (ActionT m) where
+instance MonadIO m => MonadIO (ResolverT m) where
     liftIO = lift . liftIO
 
-instance Monad m => Alternative (ActionT m) where
-    empty = ActionT empty
-    (ActionT x) <|> (ActionT y) = ActionT $ x <|> y
+instance Monad m => Alternative (ResolverT m) where
+    empty = ResolverT empty
+    (ResolverT x) <|> (ResolverT y) = ResolverT $ x <|> y
 
-instance Monad m => MonadPlus (ActionT m) where
+instance Monad m => MonadPlus (ResolverT m) where
     mzero = empty
     mplus = (<|>)
 
 -- | Retrieves an argument by its name. If the argument with this name couldn't
 --   be found, returns 'Null' (i.e. the argument is assumed to
 --   be optional then).
-argument :: Monad m => Name -> ActionT m Value
+argument :: Monad m => Name -> ResolverT m Value
 argument argumentName = do
-    argumentValue <- ActionT $ lift $ asks $ lookup . arguments
+    argumentValue <- ResolverT $ lift $ asks $ lookup . arguments
     pure $ fromMaybe Null argumentValue
   where
     lookup (Arguments argumentMap) = HashMap.lookup argumentName argumentMap

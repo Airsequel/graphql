@@ -41,13 +41,12 @@ First we build a GraphQL schema.
 >
 > queryType :: ObjectType IO
 > queryType = ObjectType "Query" Nothing []
->   $ HashMap.singleton "hello"
->   $ Out.Resolver helloField hello
+>   $ HashMap.singleton "hello" helloField
 >
 > helloField :: Field IO
-> helloField = Field Nothing (Out.NamedScalarType string) mempty
+> helloField = Field Nothing (Out.NamedScalarType string) mempty hello
 >
-> hello :: ActionT IO Value
+> hello :: ResolverT IO Value
 > hello = pure $ String "it's me"
 
 This defines a simple schema with one type and one field, that resolves to a fixed value.
@@ -79,13 +78,12 @@ For this example, we're going to be using time.
 >
 > queryType2 :: ObjectType IO
 > queryType2 = ObjectType "Query" Nothing []
->   $ HashMap.singleton "time"
->   $ Out.Resolver timeField time
+>   $ HashMap.singleton "time" timeField
 >
 > timeField :: Field IO
-> timeField = Field Nothing (Out.NamedScalarType string) mempty
+> timeField = Field Nothing (Out.NamedScalarType string) mempty time
 >
-> time :: ActionT IO Value
+> time :: ResolverT IO Value
 > time = do
 >   t <- liftIO getCurrentTime
 >   pure $ String $ Text.pack $ show t
@@ -146,8 +144,8 @@ Now that we have two resolvers, we can define a schema which uses them both.
 >
 > queryType3 :: ObjectType IO
 > queryType3 = ObjectType "Query" Nothing [] $ HashMap.fromList
->   [ ("hello", Out.Resolver helloField hello)
->   , ("time", Out.Resolver timeField time)
+>   [ ("hello", helloField)
+>   , ("time", timeField)
 >   ]
 >
 > query3 :: Text

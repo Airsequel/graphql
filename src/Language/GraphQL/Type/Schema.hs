@@ -61,7 +61,7 @@ collectReferencedTypes schema =
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes
         | otherwise = traverser $ HashMap.insert typeName element foundTypes
-    visitFields (Out.Field _ outputType arguments) foundTypes
+    visitFields (Out.Field _ outputType arguments _) foundTypes
         = traverseOutputType outputType
         $ foldr visitArguments foundTypes arguments
     visitArguments (In.Argument _ inputType _) = traverseInputType inputType
@@ -96,9 +96,8 @@ collectReferencedTypes schema =
         let (Definition.EnumType typeName _ _) = enumType
          in collect Prelude.id typeName (EnumType enumType)
     traverseObjectType objectType foundTypes =
-        let (Out.ObjectType typeName _ interfaces resolvers) = objectType
+        let (Out.ObjectType typeName _ interfaces fields) = objectType
             element = ObjectType objectType
-            fields = extractObjectField <$> resolvers
             traverser = polymorphicTraverser interfaces fields
          in collect traverser typeName element foundTypes
     traverseInterfaceType interfaceType foundTypes =
@@ -109,4 +108,3 @@ collectReferencedTypes schema =
     polymorphicTraverser interfaces fields
         = flip (foldr visitFields) fields
         . flip (foldr traverseInterfaceType) interfaces
-    extractObjectField (Out.Resolver field _) = field
