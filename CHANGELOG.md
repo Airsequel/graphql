@@ -7,9 +7,15 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+## Added
+- `AST` reexports `AST.Parser`.
+
 ## Changed
 - `Trans.ActionT` is renamed to `ResolverT`. Since `Type.Out.Resolver` has gone
   it is a better name for GraphQL resolvers.
+- `AST.Core` contained only `Arguments` which was moved to `Type.Definition`.
+  `AST` provides now only functionality related to parsing and encoding, as it
+  should be.
 
 ## Removed
 - `Type.Out.Resolver`: It is an unneeded layer of complexity. Resolvers are a

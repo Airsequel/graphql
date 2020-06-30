@@ -2,7 +2,8 @@
 
 -- | Types that can be used as both input and output types.
 module Language.GraphQL.Type.Definition
-    ( EnumType(..)
+    ( Arguments(..)
+    , EnumType(..)
     , EnumValue(..)
     , ScalarType(..)
     , Subs
@@ -39,6 +40,16 @@ instance IsString Value where
 -- | Contains variables for the query. The key of the map is a variable name,
 -- and the value is the variable value.
 type Subs = HashMap Name Value
+
+-- | Argument list.
+newtype Arguments = Arguments (HashMap Name Value)
+    deriving (Eq, Show)
+
+instance Semigroup Arguments where
+    (Arguments x) <> (Arguments y) = Arguments $ x <> y
+
+instance Monoid Arguments where
+    mempty = Arguments mempty
 
 -- | Scalar type definition.
 --

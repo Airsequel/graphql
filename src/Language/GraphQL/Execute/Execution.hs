@@ -19,7 +19,6 @@ import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
 import Language.GraphQL.AST (Name)
-import Language.GraphQL.AST.Core
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Execute.Transform as Transform
@@ -36,7 +35,7 @@ resolveFieldValue :: Monad m
     -> ResolverT m a
     -> m (Either Text a)
 resolveFieldValue result args =
-    flip runReaderT (Context {arguments = Arguments args, values = result})
+    flip runReaderT (Context {arguments = Type.Arguments args, values = result})
     . runExceptT
     . runResolverT
 

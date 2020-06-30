@@ -15,7 +15,6 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Language.GraphQL.AST (Name)
-import Language.GraphQL.AST.Core
 import Language.GraphQL.Type.Definition
 import Prelude hiding (lookup)
 

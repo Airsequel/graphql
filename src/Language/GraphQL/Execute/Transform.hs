@@ -44,7 +44,6 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.AST (Name)
-import Language.GraphQL.AST.Core
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Type.Directive (Directive(..))
 import qualified Language.GraphQL.Type.Directive as Directive
@@ -341,7 +340,7 @@ directives :: [Full.Directive] ->  State (Replacement m) [Directive]
 directives = traverse directive
   where
     directive (Full.Directive directiveName directiveArguments)
-        = Directive directiveName . Arguments
+        = Directive directiveName . Type.Arguments
         <$> foldM go HashMap.empty directiveArguments
     go arguments (Full.Argument name value') = do
         substitutedValue <- value value'
