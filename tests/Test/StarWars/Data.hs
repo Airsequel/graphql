@@ -21,7 +21,7 @@ import Control.Applicative (Alternative(..), liftA2)
 import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
-import Language.GraphQL.Trans
+import Language.GraphQL.Type
 
 -- * Data
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsData.js

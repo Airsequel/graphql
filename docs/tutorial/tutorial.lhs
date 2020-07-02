@@ -7,9 +7,11 @@ title: GraphQL Haskell Tutorial
 
 Welcome to graphql-haskell!
 
-We have written a small tutorial to help you (and ourselves) understand the graphql package.
+We have written a small tutorial to help you (and ourselves) understand the
+graphql package.
 
-Since this file is a literate haskell file, we start by importing some dependencies.
+Since this file is a literate haskell file, we start by importing some
+dependencies.
 
 > {-# LANGUAGE OverloadedStrings #-}
 > module Main where
@@ -23,16 +25,16 @@ Since this file is a literate haskell file, we start by importing some dependenc
 > import Data.Time (getCurrentTime)
 >
 > import Language.GraphQL
-> import Language.GraphQL.Trans
 > import Language.GraphQL.Type
 > import qualified Language.GraphQL.Type.Out as Out
 >
 > import Prelude hiding (putStrLn)
 
+
 === First example ===
 
-Now, as our first example, we are going to look at the
-example from [graphql.js](https://github.com/graphql/graphql-js).
+Now, as our first example, we are going to look at the example from
+[graphql.js](https://github.com/graphql/graphql-js).
 
 First we build a GraphQL schema.
 
@@ -49,24 +51,22 @@ First we build a GraphQL schema.
 > hello :: ResolverT IO Value
 > hello = pure $ String "it's me"
 
-This defines a simple schema with one type and one field, that resolves to a fixed value.
+This defines a simple schema with one type and one field, that resolves to a
+fixed value.
 
 Next we define our query.
 
 > query1 :: Text
 > query1 = "{ hello }"
 
-
 To run the query, we call the `graphql` with the schema and the query.
 
 > main1 :: IO ()
 > main1 = graphql schema1 query1 >>= putStrLn . encode
 
-This runs the query by fetching the one field defined,
-returning
+This runs the query by fetching the one field defined, returning
 
 ```{"data" : {"hello":"it's me"}}```
-
 
 
 === Monadic actions ===
@@ -88,8 +88,8 @@ For this example, we're going to be using time.
 >   t <- liftIO getCurrentTime
 >   pure $ String $ Text.pack $ show t
 
-This defines a simple schema with one type and one field,
-which resolves to the current time.
+This defines a simple schema with one type and one field, which resolves to the
+current time.
 
 Next we define our query.
 
@@ -106,34 +106,28 @@ This runs the query, returning the current time
 
 === Errors ===
 
-Errors are handled according to the spec,
-with fields that cause erros being resolved to `null`,
-and an error being added to the error list.
+Errors are handled according to the spec, with fields that cause erros being
+resolved to `null`, and an error being added to the error list.
 
 An example of this is the following query:
 
 > queryShouldFail :: Text
 > queryShouldFail = "{ boyhowdy }"
 
-Since there is no `boyhowdy` field in our schema, it will not resolve,
-and the query will fail, as we can see in the following example.
+Since there is no `boyhowdy` field in our schema, it will not resolve, and the
+query will fail, as we can see in the following example.
 
 > mainShouldFail :: IO ()
 > mainShouldFail = do
->   success <- graphql schema1 query1
->   putStrLn $ encode success
->   putStrLn "This will fail"
 >   failure <- graphql schema1 queryShouldFail
 >   putStrLn $ encode failure
->
 
 This outputs:
 
 ```
-{"data": {"hello": "it's me"}}
-This will fail
 {"data": {"boyhowdy": null}, "errors":[{"message": "the field boyhowdy did not resolve."}]}
 ```
+
 
 === Combining resolvers ===
 
@@ -158,15 +152,18 @@ This queries for both time and hello, returning
 
 ```{ "data": {"hello":"it's me","time":"2016-03-08 23:29:11.62108 UTC"}}```
 
-Notice that we can name our queries, as we did with `timeAndHello`. Since we have only been using single queries, we can use the shorthand `{ time hello}`, as we have been doing in the previous examples.
+Notice that we can name our queries, as we did with `timeAndHello`. Since we
+have only been using single queries, we can use the shorthand `{ time hello }`,
+as we have been doing in the previous examples.
 
 In GraphQL there can only be one operation per query.
 
 
 == Further examples ==
 
-More examples on queries and a more complex schema can be found in the test directory,
-in the [Test.StarWars](../../tests/Test/StarWars) module. This includes a more complex schema, and more complex queries.
+More examples on queries and a more complex schema can be found in the test
+directory, in the [Test.StarWars](../../tests/Test/StarWars) module. This
+includes a more complex schema, and more complex queries.
 
 > main :: IO ()
 > main = main1 >> main2 >> mainShouldFail >> main3

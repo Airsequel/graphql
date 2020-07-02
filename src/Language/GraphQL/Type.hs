@@ -2,10 +2,13 @@
 module Language.GraphQL.Type
     ( In.InputField(..)
     , In.InputObjectType(..)
+    , Out.Context(..)
     , Out.Field(..)
     , Out.InterfaceType(..)
     , Out.ObjectType(..)
+    , Out.ResolverT(..)
     , Out.UnionType(..)
+    , Out.argument
     , module Language.GraphQL.Type.Definition
     , module Language.GraphQL.Type.Schema
     ) where

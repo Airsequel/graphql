@@ -13,9 +13,9 @@ be built on top of it.
 
 ## State of the work
 
-For now this only provides a parser and a printer for the GraphQL query
-language and allows to execute queries and mutations without the schema
-validation step. But the idea is to be a Haskell port of
+For now this only provides a parser and a printer for the GraphQL query language
+and allows to execute queries and mutations using the given schema, but without
+the validation step. But the idea is to be a Haskell port of
 [`graphql-js`](https://github.com/graphql/graphql-js).
 
 For the list of currently missing features see issues marked as

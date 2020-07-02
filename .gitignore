@@ -12,3 +12,5 @@ cabal.project.local
 
 # GHC
 *.hi
+*.o
+/docs/tutorial/tutorial

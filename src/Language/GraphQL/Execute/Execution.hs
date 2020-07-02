@@ -22,7 +22,6 @@ import Language.GraphQL.AST (Name)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
 import qualified Language.GraphQL.Execute.Transform as Transform
-import Language.GraphQL.Trans
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -32,12 +31,15 @@ import Prelude hiding (null)
 resolveFieldValue :: Monad m
     => Type.Value
     -> Type.Subs
-    -> ResolverT m a
+    -> Type.ResolverT m a
     -> m (Either Text a)
 resolveFieldValue result args =
-    flip runReaderT (Context {arguments = Type.Arguments args, values = result})
-    . runExceptT
-    . runResolverT
+    flip runReaderT context . runExceptT . Type.runResolverT
+  where
+    context = Type.Context
+        { Type.arguments = Type.Arguments args
+        , Type.values = result
+        }
 
 collectFields :: Monad m
     => Out.ObjectType m

@@ -11,8 +11,10 @@ and this project adheres to
 - `AST` reexports `AST.Parser`.
 
 ## Changed
-- `Trans.ActionT` is renamed to `ResolverT`. Since `Type.Out.Resolver` has gone
-  it is a better name for GraphQL resolvers.
+- `Trans.ActionT` has become to `Type.Out.ResolverT`. Since `Type.Out.Resolver`
+  has gone it is a better name for GraphQL resolvers.
+- All code from `Trans` is moved to `Type.Out` and exported by `Type` and
+  `Type.Out`.
 - `AST.Core` contained only `Arguments` which was moved to `Type.Definition`.
   `AST` provides now only functionality related to parsing and encoding, as it
   should be.
