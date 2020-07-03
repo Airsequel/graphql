@@ -1,0 +1,113 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 7101732e7932f4605d0c6ecaf88fd11c1fb6cb8045e6e0f419858cad027f383a
+
+name:           graphql
+version:        0.8.0.0
+synopsis:       Haskell GraphQL implementation
+description:    This package provides a rudimentary parser for the <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
+category:       Language
+homepage:       https://github.com/caraus-ecms/graphql#readme
+bug-reports:    https://github.com/caraus-ecms/graphql/issues
+author:         Danny Navarro <j@dannynavarro.net>,
+                Matthías Páll Gissurarson <mpg@mpg.is>,
+                Sólrún Halla Einarsdóttir <she@mpg.is>
+maintainer:     belka@caraus.de
+copyright:      (c) 2019-2020 Eugen Wissner,
+                (c) 2015-2017 J. Daniel Navarro
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    CHANGELOG.md
+    README.md
+    LICENSE
+    docs/tutorial/tutorial.lhs
+data-files:
+    tests/data/kitchen-sink.graphql
+    tests/data/kitchen-sink.min.graphql
+
+source-repository head
+  type: git
+  location: https://github.com/caraus-ecms/graphql
+
+library
+  exposed-modules:
+      Language.GraphQL
+      Language.GraphQL.AST
+      Language.GraphQL.AST.DirectiveLocation
+      Language.GraphQL.AST.Document
+      Language.GraphQL.AST.Encoder
+      Language.GraphQL.AST.Lexer
+      Language.GraphQL.AST.Parser
+      Language.GraphQL.Error
+      Language.GraphQL.Execute
+      Language.GraphQL.Execute.Coerce
+      Language.GraphQL.Type
+      Language.GraphQL.Type.In
+      Language.GraphQL.Type.Out
+  other-modules:
+      Language.GraphQL.Execute.Execution
+      Language.GraphQL.Execute.Transform
+      Language.GraphQL.Type.Definition
+      Language.GraphQL.Type.Directive
+      Language.GraphQL.Type.Schema
+  hs-source-dirs:
+      src
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , containers
+    , megaparsec
+    , parser-combinators
+    , scientific
+    , text
+    , transformers
+    , unordered-containers
+    , vector
+  default-language: Haskell2010
+
+test-suite tasty
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      Language.GraphQL.AST.EncoderSpec
+      Language.GraphQL.AST.LexerSpec
+      Language.GraphQL.AST.ParserSpec
+      Language.GraphQL.ErrorSpec
+      Language.GraphQL.Execute.CoerceSpec
+      Language.GraphQL.ExecuteSpec
+      Language.GraphQL.Type.OutSpec
+      Test.DirectiveSpec
+      Test.FragmentSpec
+      Test.KitchenSinkSpec
+      Test.RootOperationSpec
+      Test.StarWars.Data
+      Test.StarWars.QuerySpec
+      Test.StarWars.Schema
+      Paths_graphql
+  hs-source-dirs:
+      tests
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      QuickCheck
+    , aeson
+    , base >=4.7 && <5
+    , containers
+    , graphql
+    , hspec
+    , hspec-expectations
+    , hspec-megaparsec
+    , megaparsec
+    , parser-combinators
+    , raw-strings-qq
+    , scientific
+    , text
+    , transformers
+    , unordered-containers
+    , vector
+  default-language: Haskell2010

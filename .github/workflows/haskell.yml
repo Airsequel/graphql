@@ -22,7 +22,6 @@ jobs:
       with:
         path: |
           ~/.stack
-          graphql.cabal
           stack.yaml.lock
         key: ${{ runner.os }}-test-${{ hashFiles('**/stack.yaml') }}
         restore-keys: ${{ runner.os }}-test-
@@ -52,7 +51,6 @@ jobs:
       with:
         path: |
           ~/.stack
-          graphql.cabal
           stack.yaml.lock
         key: ${{ runner.os }}-lint-${{ hashFiles('**/stack.yaml') }}
         restore-keys: ${{ runner.os }}-lint-
