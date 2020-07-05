@@ -47,28 +47,26 @@ spec :: Spec
 spec =
     describe "execute" $ do
         it "skips unknown fields" $
-            let expected = Aeson.object
-                    [ "data" .= Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "firstName" .= ("Friedrich" :: String)
-                            ]
+            let data'' = Aeson.object
+                    [ "philosopher" .= Aeson.object
+                        [ "firstName" .= ("Friedrich" :: String)
                         ]
                     ]
-                execute' = execute schema (mempty :: HashMap Name Aeson.Value)
+                expected = Response data'' mempty
+                execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
                 actual = runIdentity
                     $ either parseError execute'
                     $ parse document "" "{ philosopher { firstName surname } }"
              in actual `shouldBe` expected
         it "merges selections" $
-            let expected = Aeson.object
-                    [ "data" .= Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "firstName" .= ("Friedrich" :: String)
-                            , "lastName" .= ("Nietzsche" :: String)
-                            ]
+            let data'' = Aeson.object
+                    [ "philosopher" .= Aeson.object
+                        [ "firstName" .= ("Friedrich" :: String)
+                        , "lastName" .= ("Nietzsche" :: String)
                         ]
                     ]
-                execute' = execute schema (mempty :: HashMap Name Aeson.Value)
+                expected = Response data'' mempty
+                execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
                 actual = runIdentity
                     $ either parseError execute'
                     $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"

@@ -1,3 +1,6 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 -- | This module provides the functions to parse and execute @GraphQL@ queries.
 module Language.GraphQL
     ( graphql
@@ -5,13 +8,11 @@ module Language.GraphQL
     ) where
 
 import qualified Data.Aeson as Aeson
-import Data.HashMap.Strict (HashMap)
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
-import Language.GraphQL.AST.Document
-import Language.GraphQL.AST.Parser
+import Language.GraphQL.AST
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
-import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Schema
 import Text.Megaparsec (parse)
 
@@ -21,16 +22,32 @@ graphql :: Monad m
     => Schema m -- ^ Resolvers.
     -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
-graphql = flip graphqlSubs (mempty :: Aeson.Object)
+graphql schema = graphqlSubs schema mempty mempty
 
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
 -- applied to the query and the query is then executed using to the given
 -- 'Schema'.
-graphqlSubs :: (Monad m, VariableValue a)
+graphqlSubs :: Monad m
     => Schema m -- ^ Resolvers.
-    -> HashMap Name a -- ^ Variable substitution function.
+    -> Maybe Text -- ^ Operation name.
+    -> Aeson.Object -- ^ Variable substitution function.
     -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
-graphqlSubs schema f
-    = either parseError (execute schema f)
-    . parse document ""
+graphqlSubs schema operationName variableValues document' =
+    either parseError executeRequest parsed >>= formatResponse
+  where
+    parsed = parse document "" document'
+    formatResponse (Response data'' Seq.Empty) =
+        pure $ Aeson.object [("data", data'')]
+    formatResponse (Response data'' errors') = pure $ Aeson.object
+        [ ("data", data'')
+        , ("errors", Aeson.toJSON $ toJSON <$> errors')
+        ]
+    toJSON Error{ line = 0, column = 0, ..} =
+        Aeson.object [("message", Aeson.toJSON message)]
+    toJSON Error{..} = Aeson.object
+        [ ("message", Aeson.toJSON message)
+        , ("line", Aeson.toJSON line)
+        , ("column", Aeson.toJSON column)
+        ]
+    executeRequest = execute schema operationName variableValues

@@ -9,6 +9,9 @@ and this project adheres to
 ## [Unreleased]
 ## Added
 - `AST` reexports `AST.Parser`.
+- `Execute` reexports `Execute.Coerce`.
+- `Error.Error` is an error representation with a message and source location.
+- `Error.Response` represents a result of running a GraphQL query.
 
 ## Changed
 - `Trans.ActionT` has become to `Type.Out.ResolverT`. Since `Type.Out.Resolver`
@@ -18,10 +21,15 @@ and this project adheres to
 - `AST.Core` contained only `Arguments` which was moved to `Type.Definition`.
   `AST` provides now only functionality related to parsing and encoding, as it
   should be.
+- `Execute.execute` takes an additional argument, a possible operation name.
+- `Error` module was changed to work with dedicated types for errors and the
+  response instead of JSON.
 
 ## Removed
 - `Type.Out.Resolver`: It is an unneeded layer of complexity. Resolvers are a
   part of the fields and are called `Trans.ResolverT`.
+- `Execute.executeWithName`. `Execute.execute` takes the operation name and
+   completely replaces `executeWithName`.
 
 ## [0.8.0.0] - 2020-06-20
 ### Fixed

@@ -361,4 +361,4 @@ testQuery q expected = runIdentity (graphql schema q) `shouldBe` expected
 
 testQueryParams :: Aeson.Object -> Text -> Aeson.Value -> Expectation
 testQueryParams f q expected =
-    runIdentity (graphqlSubs schema f q) `shouldBe` expected
+    runIdentity (graphqlSubs schema Nothing f q) `shouldBe` expected

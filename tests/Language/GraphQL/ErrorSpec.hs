@@ -4,6 +4,7 @@ module Language.GraphQL.ErrorSpec
     ) where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Sequence as Seq
 import Language.GraphQL.Error
 import Test.Hspec ( Spec
                   , describe
@@ -14,11 +15,6 @@ import Test.Hspec ( Spec
 spec :: Spec
 spec = describe "singleError" $
     it "constructs an error with the given message" $
-        let expected = Aeson.object
-                [
-                    ("errors", Aeson.toJSON
-                        [ Aeson.object [("message", "Message.")]
-                        ]
-                    )
-                ]
+        let errors'' = Seq.singleton $ Error "Message." 0 0
+            expected = Response Aeson.Null errors''
          in singleError "Message." `shouldBe` expected
