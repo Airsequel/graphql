@@ -25,6 +25,7 @@ import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
+import Language.GraphQL.Type.Internal
 import Language.GraphQL.Type.Schema
 import Prelude hiding (null)
 
@@ -108,12 +109,12 @@ executeField fieldDefinition prev fields = do
     let Out.Field _ fieldType argumentDefinitions resolver = fieldDefinition
     let (Transform.Field _ _ arguments' _ :| []) = fields
     case coerceArgumentValues argumentDefinitions arguments' of
-        Nothing -> errmsg "Argument coercing failed."
+        Nothing -> addErrMsg "Argument coercing failed."
         Just argumentValues -> do
             answer <- lift $ resolveFieldValue prev argumentValues resolver
             case answer of
                 Right result -> completeValue fieldType fields result
-                Left errorMessage -> errmsg errorMessage
+                Left errorMessage -> addErrMsg errorMessage
 
 completeValue :: (Monad m, Serialize a)
     => Out.Type m
@@ -136,7 +137,7 @@ completeValue outputType@(Out.EnumBaseType enumType) _ (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
      in if HashMap.member enum enumMembers
         then coerceResult outputType $ Enum enum
-        else errmsg "Value completion failed."
+        else addErrMsg "Value completion failed."
 completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
@@ -146,7 +147,7 @@ completeValue (Out.InterfaceBaseType interfaceType) fields result
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
-            Nothing -> errmsg "Value completion failed."
+            Nothing -> addErrMsg "Value completion failed."
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = AbstractUnionType unionType
@@ -154,8 +155,8 @@ completeValue (Out.UnionBaseType unionType) fields result
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
-            Nothing -> errmsg "Value completion failed."
-completeValue _ _ _ = errmsg "Value completion failed."
+            Nothing -> addErrMsg "Value completion failed."
+completeValue _ _ _ = addErrMsg "Value completion failed."
 
 mergeSelectionSets :: Monad m => NonEmpty (Transform.Field m) -> Seq (Transform.Selection m)
 mergeSelectionSets = foldr forEach mempty
@@ -163,16 +164,13 @@ mergeSelectionSets = foldr forEach mempty
     forEach (Transform.Field _ _ _ fieldSelectionSet) selectionSet =
         selectionSet <> fieldSelectionSet
 
-errmsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
-errmsg errorMessage = addErrMsg errorMessage >> pure null
-
 coerceResult :: (Monad m, Serialize a)
     => Out.Type m
     -> Output a
     -> CollectErrsT m a
 coerceResult outputType result
     | Just serialized <- serialize outputType result = pure serialized
-    | otherwise = errmsg "Result coercion failed."
+    | otherwise = addErrMsg "Result coercion failed."
 
 -- | Takes an 'Out.ObjectType' and a list of 'Transform.Selection's and applies
 -- each field to each 'Transform.Selection'. Resolves into a value containing

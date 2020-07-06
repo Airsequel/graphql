@@ -79,8 +79,8 @@ singleError :: Serialize a => Text -> Response a
 singleError message = Response null $ Seq.singleton $ makeErrorMessage message
 
 -- | Convenience function for just wrapping an error message.
-addErrMsg :: Monad m => Text -> CollectErrsT m ()
-addErrMsg = addErr . makeErrorMessage
+addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
+addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null
 
 -- | @GraphQL@ error.
 data Error = Error

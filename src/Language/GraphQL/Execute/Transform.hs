@@ -45,10 +45,10 @@ import qualified Data.Text as Text
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.AST (Name)
 import qualified Language.GraphQL.Execute.Coerce as Coerce
-import Language.GraphQL.Type.Directive (Directive(..))
-import qualified Language.GraphQL.Type.Directive as Directive
+import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
+import Language.GraphQL.Type.Internal
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
@@ -285,7 +285,7 @@ selection (Full.Field alias name arguments' directives' selections) =
     maybe (Left mempty) (Right . SelectionField) <$> do
         fieldArguments <- foldM go HashMap.empty arguments'
         fieldSelections <- appendSelection selections
-        fieldDirectives <- Directive.selection <$> directives directives'
+        fieldDirectives <- Definition.selection <$> directives directives'
         let field' = Field alias name fieldArguments fieldSelections
         pure $ field' <$ fieldDirectives
   where
@@ -294,7 +294,7 @@ selection (Full.Field alias name arguments' directives' selections) =
 
 selection (Full.FragmentSpread name directives') =
     maybe (Left mempty) (Right . SelectionFragment) <$> do
-        spreadDirectives <- Directive.selection <$> directives directives'
+        spreadDirectives <- Definition.selection <$> directives directives'
         fragments' <- gets fragments
 
         fragmentDefinitions' <- gets fragmentDefinitions
@@ -308,7 +308,7 @@ selection (Full.FragmentSpread name directives') =
                         _ -> lift $ pure  Nothing
                 | otherwise -> lift $ pure  Nothing
 selection (Full.InlineFragment type' directives' selections) = do
-    fragmentDirectives <- Directive.selection <$> directives directives'
+    fragmentDirectives <- Definition.selection <$> directives directives'
     case fragmentDirectives of
         Nothing -> pure $ Left mempty
         _ -> do
@@ -336,11 +336,11 @@ appendSelection = foldM go mempty
     append acc (Left list) = list >< acc
     append acc (Right one) = one <| acc
 
-directives :: [Full.Directive] ->  State (Replacement m) [Directive]
+directives :: [Full.Directive] ->  State (Replacement m) [Definition.Directive]
 directives = traverse directive
   where
     directive (Full.Directive directiveName directiveArguments)
-        = Directive directiveName . Type.Arguments
+        = Definition.Directive directiveName . Type.Arguments
         <$> foldM go HashMap.empty directiveArguments
     go arguments (Full.Argument name value') = do
         substitutedValue <- value value'

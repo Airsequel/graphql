@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 7101732e7932f4605d0c6ecaf88fd11c1fb6cb8045e6e0f419858cad027f383a
+-- hash: c06170c5fd3d1c3e42fb8c8fde8afd88bf3dd142f6cee1f83128e8d00d443f2d
 
 name:           graphql
 version:        0.8.0.0
@@ -50,12 +50,12 @@ library
       Language.GraphQL.Type
       Language.GraphQL.Type.In
       Language.GraphQL.Type.Out
+      Language.GraphQL.Type.Schema
   other-modules:
       Language.GraphQL.Execute.Execution
       Language.GraphQL.Execute.Transform
       Language.GraphQL.Type.Definition
-      Language.GraphQL.Type.Directive
-      Language.GraphQL.Type.Schema
+      Language.GraphQL.Type.Internal
   hs-source-dirs:
       src
   build-depends:

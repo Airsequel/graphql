@@ -3,6 +3,7 @@
 -- | Types that can be used as both input and output types.
 module Language.GraphQL.Type.Definition
     ( Arguments(..)
+    , Directive(..)
     , EnumType(..)
     , EnumValue(..)
     , ScalarType(..)
@@ -12,14 +13,16 @@ module Language.GraphQL.Type.Definition
     , float
     , id
     , int
+    , selection
     , string
     ) where
 
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HashMap
 import Data.String (IsString(..))
 import Data.Text (Text)
-import Language.GraphQL.AST.Document (Name)
+import Language.GraphQL.AST (Name)
 import Prelude hiding (id)
 
 -- | Represents accordingly typed GraphQL values.
@@ -124,3 +127,49 @@ id = ScalarType "ID" (Just description)
         \JSON response as a String; however, it is not intended to be \
         \human-readable. When expected as an input type, any string (such as \
         \`\"4\"`) or integer (such as `4`) input value will be accepted as an ID."
+
+-- | Directive.
+data Directive = Directive Name Arguments
+    deriving (Eq, Show)
+
+-- | Directive processing status.
+data Status
+    = Skip -- ^ Skip the selection and stop directive processing
+    | Include Directive -- ^ The directive was processed, try other handlers
+    | Continue Directive -- ^ Directive handler mismatch, try other handlers
+
+-- | Takes a list of directives, handles supported directives and excludes them
+--   from the result. If the selection should be skipped, returns 'Nothing'.
+selection :: [Directive] -> Maybe [Directive]
+selection = foldr go (Just [])
+  where
+    go directive' directives' =
+        case (skip . include) (Continue directive') of
+            (Include _) -> directives'
+            Skip -> Nothing
+            (Continue x) -> (x :) <$> directives'
+
+handle :: (Directive -> Status) -> Status -> Status
+handle _ Skip = Skip
+handle handler (Continue directive) = handler directive
+handle handler (Include directive) = handler directive
+
+-- * Directive implementations
+
+skip :: Status -> Status
+skip = handle skip'
+  where
+    skip' directive'@(Directive "skip" (Arguments arguments)) =
+        case HashMap.lookup "if" arguments of
+            (Just (Boolean True)) -> Skip
+            _ -> Include directive'
+    skip' directive' = Continue directive'
+
+include :: Status -> Status
+include = handle include'
+  where
+    include' directive'@(Directive "include" (Arguments arguments)) =
+        case HashMap.lookup "if" arguments of
+            (Just (Boolean True)) -> Include directive'
+            _ -> Skip
+    include' directive' = Continue directive'
