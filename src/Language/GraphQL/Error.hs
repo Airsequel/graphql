@@ -22,7 +22,7 @@ import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Void (Void)
-import Language.GraphQL.AST.Document (Name)
+import Language.GraphQL.AST (Location(..), Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Schema
 import Prelude hiding (null)
@@ -51,9 +51,9 @@ parseError ParseErrorBundle{..}  =
         $ foldl go (Seq.empty, bundlePosState) bundleErrors
   where
     errorObject s SourcePos{..} = Error
-        (Text.pack $ init $ parseErrorTextPretty s)
-        (unPos' sourceLine)
-        (unPos' sourceColumn)
+        { message = Text.pack $ init $ parseErrorTextPretty s
+        , locations = [Location (unPos' sourceLine) (unPos' sourceColumn)]
+        }
     unPos' = fromIntegral . unPos
     go (result, state) x =
         let (_, newState) = reachOffset (errorOffset x) state
@@ -71,7 +71,7 @@ addErr v = modify appender
     appender resolution@Resolution{..} = resolution{ errors = errors |> v }
 
 makeErrorMessage :: Text -> Error
-makeErrorMessage s = Error s 0 0
+makeErrorMessage s = Error s []
 
 -- | Constructs a response object containing only the error with the given
 -- message.
@@ -85,8 +85,7 @@ addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null
 -- | @GraphQL@ error.
 data Error = Error
     { message :: Text
-    , line :: Word
-    , column :: Word
+    , locations :: [Location]
     } deriving (Eq, Show)
 
 -- | The server\'s response describes the result of executing the requested

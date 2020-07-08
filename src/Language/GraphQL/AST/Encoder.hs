@@ -254,19 +254,20 @@ stringValue (Pretty indentation) string =
           char == '\t' || isNewline char || (char >= '\x0020' && char /= '\x007F')
 
       tripleQuote = Builder.fromText "\"\"\""
-      start = tripleQuote <> Builder.singleton '\n'
-      end = Builder.fromLazyText (indent indentation) <> tripleQuote
+      newline = Builder.singleton '\n'
 
       strip = Text.dropWhile isWhiteSpace . Text.dropWhileEnd isWhiteSpace
       lines' = map Builder.fromText $ Text.split isNewline (Text.replace "\r\n" "\n" $ strip string)
       encoded [] = oneLine string
       encoded [_] = oneLine string
-      encoded lines'' = start <> transformLines lines'' <> end
-      transformLines = foldr ((\line acc -> line <> Builder.singleton '\n' <> acc) . transformLine) mempty
-      transformLine line =
-        if Lazy.Text.null (Builder.toLazyText line)
-        then line
-        else Builder.fromLazyText (indent (indentation + 1)) <> line
+      encoded lines'' = tripleQuote <> newline
+        <> transformLines lines''
+        <> Builder.fromLazyText (indent indentation) <> tripleQuote
+      transformLines = foldr transformLine mempty
+      transformLine "" acc = newline <> acc
+      transformLine line' acc
+            = Builder.fromLazyText (indent (indentation + 1))
+            <> line' <> newline <> acc
 
 escape :: Char -> Builder
 escape char'

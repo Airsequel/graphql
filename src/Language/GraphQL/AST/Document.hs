@@ -19,6 +19,7 @@ module Language.GraphQL.AST.Document
     , FragmentDefinition(..)
     , ImplementsInterfaces(..)
     , InputValueDefinition(..)
+    , Location(..)
     , Name
     , NamedType
     , NonNullType(..)
@@ -54,6 +55,12 @@ import Language.GraphQL.AST.DirectiveLocation
 
 -- | Name.
 type Name = Text
+
+-- | Error location, line and column.
+data Location = Location
+    { line :: Word
+    , column :: Word
+    } deriving (Eq, Show)
 
 -- ** Document
 

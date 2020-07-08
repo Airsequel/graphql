@@ -7,8 +7,13 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+## Fixed
+- Location of a parse error is returned in a singleton array with key
+  `locations`.
+
 ## Added
 - `AST` reexports `AST.Parser`.
+- `AST.Document.Location` is a token location as a line and column pair.
 - `Execute` reexports `Execute.Coerce`.
 - `Error.Error` is an error representation with a message and source location.
 - `Error.Response` represents a result of running a GraphQL query.
@@ -25,6 +30,10 @@ and this project adheres to
 - `Execute.execute` takes an additional argument, a possible operation name.
 - `Error` module was changed to work with dedicated types for errors and the
   response instead of JSON.
+- `graphqlSubs` takes an additional argument, the operation name. The type of
+  variable names is changed back to JSON since it is a common format and it
+  saves additional conversions. Custom format still can be used with the
+  underlying functions (in the `Execute` module).
 
 ## Removed
 - `Type.Out.Resolver`: It is an unneeded layer of complexity. Resolvers are a

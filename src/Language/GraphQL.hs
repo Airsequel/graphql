@@ -8,6 +8,7 @@ module Language.GraphQL
     ) where
 
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Language.GraphQL.AST
@@ -41,13 +42,16 @@ graphqlSubs schema operationName variableValues document' =
         pure $ Aeson.object [("data", data'')]
     formatResponse (Response data'' errors') = pure $ Aeson.object
         [ ("data", data'')
-        , ("errors", Aeson.toJSON $ toJSON <$> errors')
+        , ("errors", Aeson.toJSON $ fromError <$> errors')
         ]
-    toJSON Error{ line = 0, column = 0, ..} =
+    fromError Error{ locations = [], ..} =
         Aeson.object [("message", Aeson.toJSON message)]
-    toJSON Error{..} = Aeson.object
+    fromError Error{..} = Aeson.object
         [ ("message", Aeson.toJSON message)
-        , ("line", Aeson.toJSON line)
+        , ("locations", Aeson.listValue fromLocation locations)
+        ]
+    fromLocation Location{..} = Aeson.object
+        [ ("line", Aeson.toJSON line)
         , ("column", Aeson.toJSON column)
         ]
     executeRequest = execute schema operationName variableValues
