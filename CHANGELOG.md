@@ -10,6 +10,7 @@ and this project adheres to
 ## Fixed
 - Location of a parse error is returned in a singleton array with key
   `locations`.
+- Parsing comments in the front of definitions.
 
 ## Added
 - `AST` reexports `AST.Parser`.

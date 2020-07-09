@@ -6,7 +6,7 @@ module Language.GraphQL.AST.Parser
     ( document
     ) where
 
-import Control.Applicative (Alternative(..), optional)
+import Control.Applicative (Alternative(..), liftA2, optional)
 import Control.Applicative.Combinators (sepBy1)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty(..))
@@ -24,8 +24,8 @@ import Text.Megaparsec (lookAhead, option, try, (<?>))
 -- | Parser for the GraphQL documents.
 document :: Parser Document
 document = unicodeBOM
-    >> spaceConsumer
-    >> lexeme (NonEmpty.some definition)
+    *> spaceConsumer
+    *> lexeme (NonEmpty.some definition)
 
 definition :: Parser Definition
 definition = ExecutableDefinition <$> executableDefinition
@@ -40,19 +40,22 @@ executableDefinition = DefinitionOperation <$> operationDefinition
 
 typeSystemDefinition :: Parser TypeSystemDefinition
 typeSystemDefinition = schemaDefinition
-    <|> TypeDefinition <$> typeDefinition
-    <|> directiveDefinition
+    <|> typeSystemDefinitionWithDescription
     <?> "TypeSystemDefinition"
+  where
+    typeSystemDefinitionWithDescription = description
+        >>= liftA2 (<|>) typeDefinition' directiveDefinition
+    typeDefinition' description' = TypeDefinition
+        <$> typeDefinition description'
 
 typeSystemExtension :: Parser TypeSystemExtension
 typeSystemExtension = SchemaExtension <$> schemaExtension
     <|> TypeExtension <$> typeExtension
     <?> "TypeSystemExtension"
 
-directiveDefinition :: Parser TypeSystemDefinition
-directiveDefinition = DirectiveDefinition
-    <$> description
-    <* symbol "directive"
+directiveDefinition :: Description -> Parser TypeSystemDefinition
+directiveDefinition description' = DirectiveDefinition description'
+    <$ symbol "directive"
     <* at
     <*> name
     <*> argumentsDefinition
@@ -91,13 +94,13 @@ typeSystemDirectiveLocation = Directive.Schema <$ symbol "SCHEMA"
     <|> Directive.InputObject <$ symbol "INPUT_OBJECT"
     <|> Directive.InputFieldDefinition <$ symbol "INPUT_FIELD_DEFINITION"
 
-typeDefinition :: Parser TypeDefinition
-typeDefinition = scalarTypeDefinition
-    <|> objectTypeDefinition
-    <|> interfaceTypeDefinition
-    <|> unionTypeDefinition
-    <|> enumTypeDefinition
-    <|> inputObjectTypeDefinition
+typeDefinition :: Description -> Parser TypeDefinition
+typeDefinition description' = scalarTypeDefinition description'
+    <|> objectTypeDefinition description'
+    <|> interfaceTypeDefinition description'
+    <|> unionTypeDefinition description'
+    <|> enumTypeDefinition description'
+    <|> inputObjectTypeDefinition description'
     <?> "TypeDefinition"
 
 typeExtension :: Parser TypeExtension
@@ -109,10 +112,9 @@ typeExtension = scalarTypeExtension
     <|> inputObjectTypeExtension
     <?> "TypeExtension"
 
-scalarTypeDefinition :: Parser TypeDefinition
-scalarTypeDefinition = ScalarTypeDefinition
-    <$> description
-    <* symbol "scalar"
+scalarTypeDefinition :: Description -> Parser TypeDefinition
+scalarTypeDefinition description' = ScalarTypeDefinition description'
+    <$ symbol "scalar"
     <*> name
     <*> directives
     <?> "ScalarTypeDefinition"
@@ -121,10 +123,9 @@ scalarTypeExtension :: Parser TypeExtension
 scalarTypeExtension = extend "scalar" "ScalarTypeExtension"
     $ (ScalarTypeExtension <$> name <*> NonEmpty.some directive) :| []
 
-objectTypeDefinition :: Parser TypeDefinition
-objectTypeDefinition = ObjectTypeDefinition
-    <$> description
-    <* symbol "type"
+objectTypeDefinition :: Description -> Parser TypeDefinition
+objectTypeDefinition description' = ObjectTypeDefinition description'
+    <$ symbol "type"
     <*> name
     <*> option (ImplementsInterfaces []) (implementsInterfaces sepBy1)
     <*> directives
@@ -153,13 +154,12 @@ objectTypeExtension = extend "type" "ObjectTypeExtension"
 
 description :: Parser Description
 description = Description
-    <$> optional (string <|> blockString)
+    <$> optional (blockString <|> string)
     <?> "Description"
 
-unionTypeDefinition :: Parser TypeDefinition
-unionTypeDefinition = UnionTypeDefinition
-    <$> description
-    <* symbol "union"
+unionTypeDefinition :: Description -> Parser TypeDefinition
+unionTypeDefinition description' = UnionTypeDefinition description'
+    <$ symbol "union"
     <*> name
     <*> directives
     <*> option (UnionMemberTypes []) (unionMemberTypes sepBy1)
@@ -187,10 +187,9 @@ unionMemberTypes sepBy' = UnionMemberTypes
     <*> name `sepBy'` pipe
     <?> "UnionMemberTypes"
 
-interfaceTypeDefinition :: Parser TypeDefinition
-interfaceTypeDefinition = InterfaceTypeDefinition
-    <$> description
-    <* symbol "interface"
+interfaceTypeDefinition :: Description -> Parser TypeDefinition
+interfaceTypeDefinition description' = InterfaceTypeDefinition description'
+    <$ symbol "interface"
     <*> name
     <*> directives
     <*> braces (many fieldDefinition)
@@ -208,10 +207,9 @@ interfaceTypeExtension = extend "interface" "InterfaceTypeExtension"
         <$> name
         <*> NonEmpty.some directive
 
-enumTypeDefinition :: Parser TypeDefinition
-enumTypeDefinition = EnumTypeDefinition
-    <$> description
-    <* symbol "enum"
+enumTypeDefinition :: Description -> Parser TypeDefinition
+enumTypeDefinition description' = EnumTypeDefinition description'
+    <$ symbol "enum"
     <*> name
     <*> directives
     <*> listOptIn braces enumValueDefinition
@@ -229,10 +227,9 @@ enumTypeExtension = extend "enum" "EnumTypeExtension"
         <$> name
         <*> NonEmpty.some directive
 
-inputObjectTypeDefinition :: Parser TypeDefinition
-inputObjectTypeDefinition = InputObjectTypeDefinition
-    <$> description
-    <* symbol "input"
+inputObjectTypeDefinition :: Description -> Parser TypeDefinition
+inputObjectTypeDefinition description' = InputObjectTypeDefinition description'
+    <$ symbol "input"
     <*> name
     <*> directives
     <*> listOptIn braces inputValueDefinition

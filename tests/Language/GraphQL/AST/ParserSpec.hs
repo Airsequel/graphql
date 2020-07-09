@@ -149,3 +149,13 @@ spec = describe "Parser" $ do
               title
             }
         |]
+
+    it "parses documents beginning with a comment" $
+        parse document "" `shouldSucceedOn` [r|
+            """
+            Query
+            """
+            type Query {
+                queryField: String
+            }
+        |]
