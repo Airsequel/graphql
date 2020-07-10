@@ -168,11 +168,11 @@ blockString = between "\"\"\"" "\"\"\"" stringValue <* spaceConsumer
 
 -- | Parser for integers.
 integer :: Integral a => Parser a
-integer = Lexer.signed (pure ()) $ lexeme Lexer.decimal
+integer = Lexer.signed (pure ()) (lexeme Lexer.decimal) <?> "IntValue"
 
 -- | Parser for floating-point numbers.
 float :: Parser Double
-float = Lexer.signed (pure ()) $ lexeme Lexer.float
+float = Lexer.signed (pure ()) (lexeme Lexer.float) <?> "FloatValue"
 
 -- | Parser for names (/[_A-Za-z][_0-9A-Za-z]*/).
 name :: Parser T.Text

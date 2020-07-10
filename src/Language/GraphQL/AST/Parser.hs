@@ -66,11 +66,13 @@ directiveDefinition description' = DirectiveDefinition description'
 directiveLocations :: Parser (NonEmpty DirectiveLocation)
 directiveLocations = optional pipe
     *> directiveLocation `NonEmpty.sepBy1` pipe
+    <?> "DirectiveLocations"
 
 directiveLocation :: Parser DirectiveLocation
 directiveLocation
     = Directive.ExecutableDirectiveLocation <$> executableDirectiveLocation
     <|> Directive.TypeSystemDirectiveLocation <$> typeSystemDirectiveLocation
+    <?> "DirectiveLocation"
 
 executableDirectiveLocation :: Parser ExecutableDirectiveLocation
 executableDirectiveLocation = Directive.Query <$ symbol "QUERY"
@@ -80,6 +82,7 @@ executableDirectiveLocation = Directive.Query <$ symbol "QUERY"
     <|> Directive.FragmentDefinition <$ "FRAGMENT_DEFINITION"
     <|> Directive.FragmentSpread <$ "FRAGMENT_SPREAD"
     <|> Directive.InlineFragment <$ "INLINE_FRAGMENT"
+    <?> "ExecutableDirectiveLocation"
 
 typeSystemDirectiveLocation :: Parser TypeSystemDirectiveLocation
 typeSystemDirectiveLocation = Directive.Schema <$ symbol "SCHEMA"
@@ -93,6 +96,7 @@ typeSystemDirectiveLocation = Directive.Schema <$ symbol "SCHEMA"
     <|> Directive.EnumValue <$ symbol "ENUM_VALUE"
     <|> Directive.InputObject <$ symbol "INPUT_OBJECT"
     <|> Directive.InputFieldDefinition <$ symbol "INPUT_FIELD_DEFINITION"
+    <?> "TypeSystemDirectiveLocation"
 
 typeDefinition :: Description -> Parser TypeDefinition
 typeDefinition description' = scalarTypeDefinition description'
@@ -154,7 +158,7 @@ objectTypeExtension = extend "type" "ObjectTypeExtension"
 
 description :: Parser Description
 description = Description
-    <$> optional (blockString <|> string)
+    <$> optional stringValue
     <?> "Description"
 
 unionTypeDefinition :: Description -> Parser TypeDefinition
@@ -318,7 +322,7 @@ operationTypeDefinition = OperationTypeDefinition
 operationDefinition :: Parser OperationDefinition
 operationDefinition = SelectionSet <$> selectionSet
     <|> operationDefinition'
-    <?> "operationDefinition error"
+    <?> "OperationDefinition"
   where
     operationDefinition'
         = OperationDefinition <$> operationType
@@ -332,21 +336,17 @@ operationType = Query <$ symbol "query"
     <|> Mutation <$ symbol "mutation"
     -- <?> Keep default error message
 
--- * SelectionSet
-
 selectionSet :: Parser SelectionSet
-selectionSet = braces $ NonEmpty.some selection
+selectionSet = braces (NonEmpty.some selection) <?> "SelectionSet"
 
 selectionSetOpt :: Parser SelectionSetOpt
-selectionSetOpt = listOptIn braces selection
+selectionSetOpt = listOptIn braces selection <?> "SelectionSet"
 
 selection :: Parser Selection
 selection = field
     <|> try fragmentSpread
     <|> inlineFragment
-    <?> "selection error!"
-
--- * Field
+    <?> "Selection"
 
 field :: Parser Selection
 field = Field
@@ -355,25 +355,23 @@ field = Field
     <*> arguments
     <*> directives
     <*> selectionSetOpt
+    <?> "Field"
 
 alias :: Parser Alias
-alias = try $ name <* colon
-
--- * Arguments
+alias = try (name <* colon) <?> "Alias"
 
 arguments :: Parser [Argument]
-arguments = listOptIn parens argument
+arguments = listOptIn parens argument <?> "Arguments"
 
 argument :: Parser Argument
-argument = Argument <$> name <* colon <*> value
-
--- * Fragments
+argument = Argument <$> name <* colon <*> value <?> "Argument"
 
 fragmentSpread :: Parser Selection
 fragmentSpread = FragmentSpread
     <$ spread
     <*> fragmentName
     <*> directives
+    <?> "FragmentSpread"
 
 inlineFragment :: Parser Selection
 inlineFragment = InlineFragment
@@ -381,62 +379,74 @@ inlineFragment = InlineFragment
     <*> optional typeCondition
     <*> directives
     <*> selectionSet
+    <?> "InlineFragment"
 
 fragmentDefinition :: Parser FragmentDefinition
 fragmentDefinition = FragmentDefinition
-                 <$  symbol "fragment"
-                 <*> name
-                 <*> typeCondition
-                 <*> directives
-                 <*> selectionSet
+    <$  symbol "fragment"
+    <*> name
+    <*> typeCondition
+    <*> directives
+    <*> selectionSet
+    <?> "FragmentDefinition"
 
 fragmentName :: Parser Name
-fragmentName = but (symbol "on") *> name
+fragmentName = but (symbol "on") *> name <?> "FragmentName"
 
 typeCondition :: Parser TypeCondition
-typeCondition = symbol "on" *> name
-
--- * Input Values
+typeCondition = symbol "on" *> name <?> "TypeCondition"
 
 value :: Parser Value
 value = Variable <$> variable
     <|> Float <$> try float
     <|> Int <$> integer
     <|> Boolean <$> booleanValue
-    <|> Null <$  symbol "null"
-    <|> String <$> blockString
-    <|> String <$> string
+    <|> Null <$  nullValue
+    <|> String <$> stringValue
     <|> Enum <$> try enumValue
     <|> List <$> brackets (some value)
     <|> Object <$> braces (some $ objectField value)
-    <?> "value error!"
+    <?> "Value"
 
 constValue :: Parser ConstValue
 constValue = ConstFloat <$> try float
     <|> ConstInt <$> integer
     <|> ConstBoolean <$> booleanValue
-    <|> ConstNull <$  symbol "null"
-    <|> ConstString <$> blockString
-    <|> ConstString <$> string
+    <|> ConstNull <$ nullValue
+    <|> ConstString <$> stringValue
     <|> ConstEnum <$> try enumValue
     <|> ConstList <$> brackets (some constValue)
     <|> ConstObject <$> braces (some $ objectField constValue)
-    <?> "value error!"
+    <?> "Value"
 
 booleanValue :: Parser Bool
 booleanValue = True  <$ symbol "true"
     <|> False <$ symbol "false"
+    <?> "BooleanValue"
 
 enumValue :: Parser Name
-enumValue = but (symbol "true") *> but (symbol "false") *> but (symbol "null") *> name
+enumValue = but (symbol "true")
+    *> but (symbol "false")
+    *> but (symbol "null")
+    *> name
+    <?> "EnumValue"
+
+stringValue :: Parser Text
+stringValue = blockString <|> string <?> "StringValue"
+
+nullValue :: Parser Text
+nullValue = symbol "null" <?> "NullValue"
 
 objectField :: Parser a -> Parser (ObjectField a)
-objectField valueParser = ObjectField <$> name <* colon <*> valueParser
-
--- * Variables
+objectField valueParser = ObjectField
+    <$> name
+    <* colon
+    <*> valueParser
+    <?> "ObjectField"
 
 variableDefinitions :: Parser [VariableDefinition]
 variableDefinitions = listOptIn parens variableDefinition
+    <?> "VariableDefinitions"
 
 variableDefinition :: Parser VariableDefinition
 variableDefinition = VariableDefinition
@@ -447,12 +457,10 @@ variableDefinition = VariableDefinition
     <?> "VariableDefinition"
 
 variable :: Parser Name
-variable = dollar *> name
+variable = dollar *> name <?> "Variable"
 
 defaultValue :: Parser (Maybe ConstValue)
 defaultValue = optional (equals *> constValue) <?> "DefaultValue"
-
--- * Input Types
 
 type' :: Parser Type
 type' = try (TypeNonNull <$> nonNullType)
@@ -462,21 +470,18 @@ type' = try (TypeNonNull <$> nonNullType)
 
 nonNullType :: Parser NonNullType
 nonNullType = NonNullTypeNamed <$> name <* bang
-          <|> NonNullTypeList  <$> brackets type'  <* bang
-          <?> "nonNullType error!"
-
--- * Directives
+    <|> NonNullTypeList  <$> brackets type'  <* bang
+    <?> "NonNullType"
 
 directives :: Parser [Directive]
-directives = many directive
+directives = many directive <?> "Directives"
 
 directive :: Parser Directive
 directive = Directive
     <$  at
     <*> name
     <*> arguments
-
--- * Internal
+    <?> "Directive"
 
 listOptIn :: (Parser [a] -> Parser [a]) -> Parser a -> Parser [a]
 listOptIn surround = option [] . surround . some

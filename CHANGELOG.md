@@ -11,6 +11,8 @@ and this project adheres to
 - Location of a parse error is returned in a singleton array with key
   `locations`.
 - Parsing comments in the front of definitions.
+- Some missing labels were added to the parsers, some labels were fixed to
+  refer to the AST nodes being parsed. 
 
 ## Added
 - `AST` reexports `AST.Parser`.
