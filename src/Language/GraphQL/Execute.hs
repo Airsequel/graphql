@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- | This module provides functions to execute a @GraphQL@ request.
 module Language.GraphQL.Execute
     ( execute
@@ -42,6 +44,8 @@ executeRequest (Transform.Document types' rootObjectType operation)
         executeOperation types' rootObjectType fields
     | (Transform.Mutation _ fields) <- operation =
         executeOperation types' rootObjectType fields
+    | otherwise =
+        pure $ singleError "This service does not support subscriptions."
 
 -- This is actually executeMutation, but we don't distinguish between queries
 -- and mutations yet.

@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 -- | This module defines a minifier and a printer for the @GraphQL@ language.
 module Language.GraphQL.AST.Encoder
@@ -65,12 +66,14 @@ definition formatter x
 
 -- | Converts a 'OperationDefinition into a string.
 operationDefinition :: Formatter -> OperationDefinition -> Lazy.Text
-operationDefinition formatter (SelectionSet sels)
-    = selectionSet formatter sels
-operationDefinition formatter (OperationDefinition Query name vars dirs sels)
-    = "query " <> node formatter name vars dirs sels
-operationDefinition formatter (OperationDefinition Mutation name vars dirs sels)
-    = "mutation " <> node formatter name vars dirs sels
+operationDefinition formatter = \case
+    SelectionSet sels -> selectionSet formatter sels
+    OperationDefinition Query name vars dirs sels ->
+        "query " <> node formatter name vars dirs sels
+    OperationDefinition Mutation name vars dirs sels ->
+        "mutation " <> node formatter name vars dirs sels
+    OperationDefinition Subscription name vars dirs sels ->
+        "subscription " <> node formatter name vars dirs sels
 
 -- | Converts a Query or Mutation into a string.
 node :: Formatter ->

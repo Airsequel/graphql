@@ -21,6 +21,7 @@ and this project adheres to
 - `Error.Error` is an error representation with a message and source location.
 - `Error.Response` represents a result of running a GraphQL query.
 - `Type.Schema` exports `Type` which lists all types possible in the schema.
+- Parsing subscriptions (the execution always fails yet).
 
 ## Changed
 - `Trans.ActionT` has become to `Type.Out.ResolverT`. Since `Type.Out.Resolver`

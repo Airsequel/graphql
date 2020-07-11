@@ -159,3 +159,12 @@ spec = describe "Parser" $ do
                 queryField: String
             }
         |]
+
+    it "parses subscriptions" $
+        parse document "" `shouldSucceedOn` [r|
+            subscription NewMessages {
+              newMessage(roomId: 123) {
+                sender
+              }
+            }
+        |]

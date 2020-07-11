@@ -99,9 +99,7 @@ data OperationDefinition
 -- * mutation - a write operation followed by a fetch.
 -- * subscription - a long-lived request that fetches data in response to
 -- source events.
---
--- Currently only queries and mutations are supported.
-data OperationType = Query | Mutation deriving (Eq, Show)
+data OperationType = Query | Mutation | Subscription deriving (Eq, Show)
 
 -- ** Selection Sets
 

@@ -334,7 +334,8 @@ operationDefinition = SelectionSet <$> selectionSet
 operationType :: Parser OperationType
 operationType = Query <$ symbol "query"
     <|> Mutation <$ symbol "mutation"
-    -- <?> Keep default error message
+    <|> Subscription <$ symbol "subscription"
+    <?> "OperationType"
 
 selectionSet :: Parser SelectionSet
 selectionSet = braces (NonEmpty.some selection) <?> "SelectionSet"

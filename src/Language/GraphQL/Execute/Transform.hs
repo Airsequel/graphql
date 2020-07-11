@@ -77,6 +77,7 @@ data Selection m
 data Operation m
     = Query (Maybe Text) (Seq (Selection m))
     | Mutation (Maybe Text) (Seq (Selection m))
+    | Subscription (Maybe Text) (Seq (Selection m))
 
 -- | Single GraphQL field.
 data Field m = Field
@@ -275,6 +276,8 @@ operation operationDefinition replacement
         Query name <$> appendSelection sels
     transform (OperationDefinition Full.Mutation name _ _ sels) =
         Mutation name <$> appendSelection sels
+    transform (OperationDefinition Full.Subscription name _ _ sels) =
+        Subscription name <$> appendSelection sels
 
 -- * Selection
 
