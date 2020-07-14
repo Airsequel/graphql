@@ -16,10 +16,10 @@ import Text.RawString.QQ (r)
 experimentalResolver :: Schema IO
 experimentalResolver = Schema { query = queryType, mutation = Nothing }
   where
-    resolver = pure $ Int 5
     queryType = Out.ObjectType "Query" Nothing []
         $ HashMap.singleton "experimentalField"
-        $ Out.Field Nothing (Out.NamedScalarType int) mempty resolver
+        $ Out.ValueResolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
+        $ pure $ Int 5
 
 emptyObject :: Aeson.Value
 emptyObject = object

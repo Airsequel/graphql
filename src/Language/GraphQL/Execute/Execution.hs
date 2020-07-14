@@ -3,7 +3,9 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Language.GraphQL.Execute.Execution
-    ( executeSelectionSet
+    ( coerceArgumentValues
+    , collectFields
+    , executeSelectionSet
     ) where
 
 import Control.Monad.Trans.Class (lift)
@@ -32,10 +34,10 @@ import Prelude hiding (null)
 resolveFieldValue :: Monad m
     => Type.Value
     -> Type.Subs
-    -> Type.ResolverT m a
-    -> m (Either Text a)
-resolveFieldValue result args =
-    flip runReaderT context . runExceptT . Type.runResolverT
+    -> Type.Resolve m
+    -> m (Either Text Type.Value)
+resolveFieldValue result args resolver =
+    flip runReaderT context $ runExceptT resolver
   where
     context = Type.Context
         { Type.arguments = Type.Arguments args
@@ -101,12 +103,12 @@ instanceOf objectType (AbstractUnionType unionType) =
     go unionMemberType acc = acc || objectType == unionMemberType
 
 executeField :: (Monad m, Serialize a)
-    => Out.Field m
+    => Out.Resolver m
     -> Type.Value
     -> NonEmpty (Transform.Field m)
     -> CollectErrsT m a
-executeField fieldDefinition prev fields = do
-    let Out.Field _ fieldType argumentDefinitions resolver = fieldDefinition
+executeField (Out.ValueResolver fieldDefinition resolver) prev fields = do
+    let Out.Field _ fieldType argumentDefinitions = fieldDefinition
     let (Transform.Field _ _ arguments' _ :| []) = fields
     case coerceArgumentValues argumentDefinitions arguments' of
         Nothing -> addErrMsg "Argument coercing failed."
@@ -115,6 +117,7 @@ executeField fieldDefinition prev fields = do
             case answer of
                 Right result -> completeValue fieldType fields result
                 Left errorMessage -> addErrMsg errorMessage
+executeField _ _ _ = addErrMsg "No field value resolver specified."
 
 completeValue :: (Monad m, Serialize a)
     => Out.Type m

@@ -66,8 +66,8 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: ResolverT Identity Text
-secretBackstory = ResolverT $ throwE "secretBackstory is secret."
+secretBackstory :: Resolve Identity
+secretBackstory = throwE "secretBackstory is secret."
 
 typeName :: Character -> Text
 typeName = either (const "Droid") (const "Human")
@@ -161,10 +161,10 @@ getHero :: Int -> Character
 getHero 5 = luke
 getHero _ = artoo
 
-getHuman :: Alternative f => ID -> f Character
+getHuman :: ID -> Maybe Character
 getHuman = fmap Right . getHuman'
 
-getHuman' :: Alternative f => ID -> f Human
+getHuman' :: ID -> Maybe Human
 getHuman' "1000" = pure luke'
 getHuman' "1001" = pure vader
 getHuman' "1002" = pure han
@@ -172,10 +172,10 @@ getHuman' "1003" = pure leia
 getHuman' "1004" = pure tarkin
 getHuman' _      = empty
 
-getDroid :: Alternative f => ID -> f Character
+getDroid :: ID -> Maybe Character
 getDroid = fmap Left . getDroid'
 
-getDroid' :: Alternative f => ID -> f Droid
+getDroid' :: ID -> Maybe Droid
 getDroid' "2000" = pure threepio
 getDroid' "2001" = pure artoo'
 getDroid' _      = empty

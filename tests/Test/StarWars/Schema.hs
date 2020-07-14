@@ -23,19 +23,20 @@ schema :: Schema Identity
 schema = Schema { query = queryType, mutation = Nothing }
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
-        [ ("hero", heroField)
-        , ("human", humanField)
-        , ("droid", droidField)
+        [ ("hero", heroFieldResolver)
+        , ("human", humanFieldResolver)
+        , ("droid", droidFieldResolver)
         ]
-    heroArguments = HashMap.singleton "episode"
+    heroField = Out.Field Nothing (Out.NamedObjectType heroObject)
+        $ HashMap.singleton "episode"
         $ In.Argument Nothing (In.NamedEnumType episodeEnum) Nothing
-    heroField =
-        Out.Field Nothing (Out.NamedObjectType heroObject) heroArguments hero
-    humanArguments = HashMap.singleton "id"
+    heroFieldResolver = ValueResolver heroField hero
+    humanField = Out.Field Nothing (Out.NamedObjectType heroObject)
+        $ HashMap.singleton "id"
         $ In.Argument Nothing (In.NonNullScalarType string) Nothing
-    humanField =
-        Out.Field Nothing (Out.NamedObjectType heroObject) humanArguments human
-    droidField = Out.Field Nothing (Out.NamedObjectType droidObject) mempty droid
+    humanFieldResolver = ValueResolver humanField human
+    droidField = Out.Field Nothing (Out.NamedObjectType droidObject) mempty
+    droidFieldResolver = ValueResolver droidField droid
 
 heroObject :: Out.ObjectType Identity
 heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
@@ -48,8 +49,9 @@ heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
     , ("__typename", typenameFieldType)
     ]
   where
-    homePlanetFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
-        $ idField "homePlanet"
+    homePlanetFieldType
+      = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
+      $ idField "homePlanet"
 
 droidObject :: Out.ObjectType Identity
 droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
@@ -62,39 +64,48 @@ droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
     , ("__typename", typenameFieldType)
     ]
   where
-    primaryFunctionFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+    primaryFunctionFieldType
+        = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
         $ idField "primaryFunction"
 
-typenameFieldType :: Out.Field Identity
-typenameFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+typenameFieldType :: Resolver Identity
+typenameFieldType
+    = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
     $ idField "__typename"
 
-idFieldType :: Out.Field Identity
-idFieldType = Out.Field Nothing (Out.NamedScalarType id) mempty
+idFieldType :: Resolver Identity
+idFieldType
+    = ValueResolver (Out.Field Nothing (Out.NamedScalarType id) mempty)
     $ idField "id"
 
-nameFieldType :: Out.Field Identity
-nameFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
+nameFieldType :: Resolver  Identity
+nameFieldType
+    = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
     $ idField "name"
 
-friendsFieldType :: Out.Field Identity
-friendsFieldType = Out.Field Nothing (Out.ListType $ Out.NamedObjectType droidObject) mempty
+friendsFieldType :: Resolver Identity
+friendsFieldType
+    = ValueResolver (Out.Field Nothing fieldType mempty)
     $ idField "friends"
+  where
+    fieldType = Out.ListType $ Out.NamedObjectType droidObject
 
-appearsInField :: Out.Field Identity
-appearsInField = Out.Field (Just description) fieldType mempty
+appearsInField :: Resolver Identity
+appearsInField
+    = ValueResolver (Out.Field (Just description) fieldType mempty)
     $ idField "appearsIn"
   where
     fieldType = Out.ListType $ Out.NamedEnumType episodeEnum
     description = "Which movies they appear in."
 
-secretBackstoryFieldType :: Out.Field Identity
-secretBackstoryFieldType = Out.Field Nothing (Out.NamedScalarType string) mempty
-    $ String <$> secretBackstory
+secretBackstoryFieldType :: Resolver Identity
+secretBackstoryFieldType = ValueResolver field secretBackstory
+  where
+    field = Out.Field Nothing (Out.NamedScalarType string) mempty
 
-idField :: Text -> ResolverT Identity Value
+idField :: Text -> Resolve Identity
 idField f = do
-    v <- ResolverT $ lift $ asks values
+    v <- lift $ asks values
     let (Object v') = v
     pure $ v' HashMap.! f
 
@@ -107,7 +118,7 @@ episodeEnum = EnumType "Episode" (Just description)
     empire = ("EMPIRE", EnumValue $ Just "Released in 1980.")
     jedi = ("JEDI", EnumValue $ Just "Released in 1983.")
 
-hero :: ResolverT Identity Value
+hero :: Resolve Identity
 hero = do
   episode <- argument "episode"
   pure $ character $ case episode of
@@ -116,23 +127,19 @@ hero = do
       Enum "JEDI" -> getHero 6
       _ -> artoo
 
-human :: ResolverT Identity Value
+human :: Resolve Identity
 human = do
     id' <- argument "id"
     case id' of
-        String i -> do
-            humanCharacter <- lift $ return $ getHuman i >>= Just
-            case humanCharacter of
-                Nothing -> pure Null
-                Just e -> pure $ character e
-        _ -> ResolverT $ throwE "Invalid arguments."
+        String i -> pure $ maybe Null character $ getHuman i >>= Just
+        _ -> throwE "Invalid arguments."
 
-droid :: ResolverT Identity Value
+droid :: Resolve Identity
 droid = do
     id' <- argument "id"
     case id' of
-        String i -> character <$> getDroid i
-        _ -> ResolverT $ throwE "Invalid arguments."
+        String i -> pure $ maybe Null character $ getDroid i >>= Just
+        _ -> throwE "Invalid arguments."
 
 character :: Character -> Value
 character char = Object $ HashMap.fromList

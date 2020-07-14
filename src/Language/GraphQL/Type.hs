@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 -- | Reexports non-conflicting type system and schema definitions.
 module Language.GraphQL.Type
     ( In.InputField(..)
@@ -6,7 +10,10 @@ module Language.GraphQL.Type
     , Out.Field(..)
     , Out.InterfaceType(..)
     , Out.ObjectType(..)
-    , Out.ResolverT(..)
+    , Out.Resolve
+    , Out.Resolver(..)
+    , Out.SourceEventStream
+    , Out.Subscribe
     , Out.UnionType(..)
     , Out.argument
     , module Language.GraphQL.Type.Definition

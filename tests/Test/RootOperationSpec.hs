@@ -15,23 +15,23 @@ import qualified Language.GraphQL.Type.Out as Out
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
     $ HashMap.singleton "circumference"
-    $ Out.Field Nothing (Out.NamedScalarType int) mempty
-    $ pure
-    $ Int 60
+    $ ValueResolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
+    $ pure $ Int 60
 
 schema :: Schema IO
 schema = Schema
-    (Out.ObjectType "Query" Nothing [] hatField)
-    (Just $ Out.ObjectType "Mutation" Nothing [] incrementField)
+    (Out.ObjectType "Query" Nothing [] hatFieldResolver)
+    (Just $ Out.ObjectType "Mutation" Nothing [] incrementFieldResolver)
   where
     garment = pure $ Object $ HashMap.fromList
         [ ("circumference", Int 60)
         ]
-    incrementField = HashMap.singleton "incrementCircumference"
-        $ Out.Field Nothing (Out.NamedScalarType int) mempty
+    incrementFieldResolver = HashMap.singleton "incrementCircumference"
+        $ ValueResolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
         $ pure $ Int 61
-    hatField = HashMap.singleton "garment"
-        $ Out.Field Nothing (Out.NamedObjectType hatType) mempty garment
+    hatField = Out.Field Nothing (Out.NamedObjectType hatType) mempty
+    hatFieldResolver =
+        HashMap.singleton "garment" $ ValueResolver hatField garment
 
 spec :: Spec
 spec =

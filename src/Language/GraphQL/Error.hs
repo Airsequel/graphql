@@ -9,19 +9,20 @@ module Language.GraphQL.Error
     , Error(..)
     , Resolution(..)
     , Response(..)
+    , ResponseEventStream
     , addErr
     , addErrMsg
     , runCollectErrs
     , singleError
     ) where
 
+import Conduit
 import Control.Monad.Trans.State (StateT, modify, runStateT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Data.Void (Void)
 import Language.GraphQL.AST (Location(..), Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Type.Schema
@@ -95,6 +96,11 @@ data Response a = Response
     { data' :: a
     , errors :: Seq Error
     } deriving (Eq, Show)
+
+-- | Each event in the underlying Source Stream triggers execution of the
+-- subscription selection set. The results of the execution generate a Response
+-- Stream.
+type ResponseEventStream m a = ConduitT () (Response a) m ()
 
 -- | Runs the given query computation, but collects the errors into an error
 -- list, which is then sent back with the data.

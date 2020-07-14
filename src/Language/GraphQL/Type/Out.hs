@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -12,7 +16,10 @@ module Language.GraphQL.Type.Out
     , Field(..)
     , InterfaceType(..)
     , ObjectType(..)
-    , ResolverT(..)
+    , Resolve
+    , Subscribe
+    , Resolver(..)
+    , SourceEventStream
     , Type(..)
     , UnionType(..)
     , argument
@@ -25,10 +32,7 @@ module Language.GraphQL.Type.Out
     , pattern UnionBaseType
     ) where
 
-import Control.Applicative (Alternative(..))
-import Control.Monad (MonadPlus(..))
-import Control.Monad.IO.Class (MonadIO(..))
-import Control.Monad.Trans.Class (MonadTrans(..))
+import Conduit
 import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Reader (ReaderT, asks)
 import Data.HashMap.Strict (HashMap)
@@ -44,7 +48,7 @@ import qualified Language.GraphQL.Type.In as In
 -- Almost all of the GraphQL types you define will be object types. Object
 -- types have a name, but most importantly describe their fields.
 data ObjectType m = ObjectType
-    Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
+    Name (Maybe Text) [InterfaceType m] (HashMap Name (Resolver m))
 
 instance forall a. Eq (ObjectType a) where
     (ObjectType this _ _ _) == (ObjectType that _ _ _) = this == that
@@ -74,7 +78,6 @@ data Field m = Field
     (Maybe Text) -- ^ Description.
     (Type m) -- ^ Field type.
     (HashMap Name In.Argument) -- ^ Arguments.
-    (ResolverT m Value) -- ^ Resolver.
 
 -- | These types may be used as output types as the result of fields.
 --
@@ -169,56 +172,41 @@ isNonNullType (NonNullUnionType _) = True
 isNonNullType (NonNullListType _) = True
 isNonNullType _ = False
 
--- | Resolution context holds resolver arguments.
+-- | Resolution context holds resolver arguments and the root value.
 data Context = Context
     { arguments :: Arguments
     , values :: Value
     }
 
--- | Monad transformer stack used by the resolvers to provide error handling
--- and resolution context (resolver arguments).
+-- | Monad transformer stack used by the resolvers for determining the resolved
+-- value of a field.
+type Resolve m = ExceptT Text (ReaderT Context m) Value
+
+-- | Monad transformer stack used by the resolvers for determining the resolved
+-- event stream of a subscription field.
+type Subscribe m = ExceptT Text (ReaderT Context m) (SourceEventStream m)
+
+-- | A source stream represents the sequence of events, each of which will
+-- trigger a GraphQL execution corresponding to that event.
+type SourceEventStream m = ConduitT () Value m ()
+
+-- | 'Resolver' associates some function(s) with each 'Field'. 'ValueResolver'
+-- resolves a 'Field' into a 'Value'. 'EventStreamResolver' resolves
+-- additionally a 'Field' into a 'SourceEventStream' if it is the field of a
+-- root subscription type.
 --
--- Resolves a 'Field' into a 'Value' with error information (if an error has
--- occurred). @m@ is an arbitrary monad, usually 'IO'.
---
--- Resolving a field can result in a leaf value or an object, which is
--- represented as a list of nested resolvers, used to resolve the fields of that
--- object.
-newtype ResolverT m a = ResolverT
-    { runResolverT :: ExceptT Text (ReaderT Context m) a
-    }
-
-instance Functor m => Functor (ResolverT m) where
-    fmap f = ResolverT . fmap f . runResolverT
-
-instance Monad m => Applicative (ResolverT m) where
-    pure = ResolverT . pure
-    (ResolverT f) <*> (ResolverT x) = ResolverT $ f <*> x
-
-instance Monad m => Monad (ResolverT m) where
-    return = pure
-    (ResolverT action) >>= f = ResolverT $ action >>= runResolverT . f
-
-instance MonadTrans ResolverT where
-    lift = ResolverT . lift . lift
-
-instance MonadIO m => MonadIO (ResolverT m) where
-    liftIO = lift . liftIO
-
-instance Monad m => Alternative (ResolverT m) where
-    empty = ResolverT empty
-    (ResolverT x) <|> (ResolverT y) = ResolverT $ x <|> y
-
-instance Monad m => MonadPlus (ResolverT m) where
-    mzero = empty
-    mplus = (<|>)
+-- The resolvers aren't part of the 'Field' itself because not all fields
+-- have resolvers (interface fields don't have an implementation).
+data Resolver m
+    = ValueResolver (Field m) (Resolve m)
+    | EventStreamResolver (Field m) (Resolve m) (Subscribe m)
 
 -- | Retrieves an argument by its name. If the argument with this name couldn't
 -- be found, returns 'Null' (i.e. the argument is assumed to
 -- be optional then).
-argument :: Monad m => Name -> ResolverT m Value
+argument :: Monad m => Name -> Resolve m
 argument argumentName = do
-    argumentValue <- ResolverT $ lift $ asks $ lookupArgument . arguments
+    argumentValue <- lift $ asks $ lookupArgument . arguments
     pure $ fromMaybe Null argumentValue
   where
     lookupArgument (Arguments argumentMap) =

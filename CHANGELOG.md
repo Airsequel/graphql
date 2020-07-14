@@ -22,16 +22,21 @@ and this project adheres to
 - `Error.Response` represents a result of running a GraphQL query.
 - `Type.Schema` exports `Type` which lists all types possible in the schema.
 - Parsing subscriptions (the execution always fails yet).
+- `Error.ResponseEventStream`, `Type.Out.Resolve`, `Type.Out.Subscribe` and
+  `Type.Out.SourceEventStream` define subscription resolvers.
 
 ## Changed
-- `Trans.ActionT` has become to `Type.Out.ResolverT`. Since `Type.Out.Resolver`
-  has gone it is a better name for GraphQL resolvers.
+- `Type.Out.Resolver`: Interface fields don't have resolvers, object fields
+  have value resolvers, root subscription type resolvers need an additional
+  resolver that creates an event stream. `Resolver` represents these differences
+  now and pairs a field with the function(s).
 - All code from `Trans` is moved to `Type.Out` and exported by `Type` and
   `Type.Out`.
 - `AST.Core` contained only `Arguments` which was moved to `Type.Definition`.
   `AST` provides now only functionality related to parsing and encoding, as it
   should be.
-- `Execute.execute` takes an additional argument, a possible operation name.
+- `Execute.execute` takes an additional argument, a possible operation name
+  and returns either a stream or the response.
 - `Error` module was changed to work with dedicated types for errors and the
   response instead of JSON.
 - `graphqlSubs` takes an additional argument, the operation name. The type of
@@ -40,7 +45,9 @@ and this project adheres to
   underlying functions (in the `Execute` module).
 
 ## Removed
-- `Type.Out.Resolver`: It is an unneeded layer of complexity. Resolvers are a
+- `Trans.ActionT` is an unneeded layer of complexity. `Type.Out.Resolver`
+  represents possible resolver configurations.
+- `Type.Out.Resolver`: It . Resolvers are a
   part of the fields and are called `Trans.ResolverT`.
 - `Execute.executeWithName`. `Execute.execute` takes the operation name and
    completely replaces `executeWithName`.

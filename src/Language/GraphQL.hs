@@ -9,6 +9,7 @@ module Language.GraphQL
 
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
+import Data.Either (fromRight)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Language.GraphQL.AST
@@ -34,10 +35,14 @@ graphqlSubs :: Monad m
     -> Aeson.Object -- ^ Variable substitution function.
     -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
-graphqlSubs schema operationName variableValues document' =
-    either parseError executeRequest parsed >>= formatResponse
+graphqlSubs schema operationName variableValues document'
+    = either parseError executeRequest (parse document "" document')
+    >>= formatResponse
   where
-    parsed = parse document "" document'
+    executeRequest parsed
+      = fromRight streamReturned
+      <$> execute schema operationName variableValues parsed
+    streamReturned = singleError "This service does not support subscriptions."
     formatResponse (Response data'' Seq.Empty) =
         pure $ Aeson.object [("data", data'')]
     formatResponse (Response data'' errors') = pure $ Aeson.object
@@ -54,4 +59,3 @@ graphqlSubs schema operationName variableValues document' =
         [ ("line", Aeson.toJSON line)
         , ("column", Aeson.toJSON column)
         ]
-    executeRequest = execute schema operationName variableValues

@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 {-# LANGUAGE ExplicitForAll #-}
 
 module Language.GraphQL.Type.Internal
@@ -36,11 +40,13 @@ collectReferencedTypes schema =
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes
         | otherwise = traverser $ HashMap.insert typeName element foundTypes
-    visitFields (Out.Field _ outputType arguments _) foundTypes
+    visitFields (Out.Field _ outputType arguments) foundTypes
         = traverseOutputType outputType
         $ foldr visitArguments foundTypes arguments
     visitArguments (In.Argument _ inputType _) = traverseInputType inputType
     visitInputFields (In.InputField _ inputType _) = traverseInputType inputType
+    getField (Out.ValueResolver field _) = field
+    getField (Out.EventStreamResolver field _ _) = field
     traverseInputType (In.InputObjectBaseType objectType) =
         let (In.InputObjectType typeName _ inputFields) = objectType
             element = InputObjectType objectType
@@ -73,7 +79,7 @@ collectReferencedTypes schema =
     traverseObjectType objectType foundTypes =
         let (Out.ObjectType typeName _ interfaces fields) = objectType
             element = ObjectType objectType
-            traverser = polymorphicTraverser interfaces fields
+            traverser = polymorphicTraverser interfaces (getField <$> fields)
          in collect traverser typeName element foundTypes
     traverseInterfaceType interfaceType foundTypes =
         let (Out.InterfaceType typeName _ interfaces fields) = interfaceType

@@ -5,6 +5,7 @@ module Language.GraphQL.ExecuteSpec
 
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
+import Data.Either (fromRight)
 import Data.Functor.Identity (Identity(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -22,26 +23,27 @@ schema = Schema {query = queryType, mutation = Nothing}
 
 queryType :: Out.ObjectType Identity
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.singleton "philosopher" philosopherField
+    $ HashMap.singleton "philosopher" 
+    $ ValueResolver philosopherField
+    $ pure $ Type.Object mempty
   where
-    philosopherField
-        = Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
-        $ pure $ Type.Object mempty
+    philosopherField =
+        Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
 
 philosopherType :: Out.ObjectType Identity
 philosopherType = Out.ObjectType "Philosopher" Nothing []
     $ HashMap.fromList resolvers
   where
     resolvers =
-        [ ("firstName", firstNameField)
-        , ("lastName", lastNameField)
+        [ ("firstName", ValueResolver firstNameField firstNameResolver)
+        , ("lastName", ValueResolver lastNameField lastNameResolver)
         ]
-    firstNameField
-        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
-        $ pure $ Type.String "Friedrich"
+    firstNameField =
+        Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    firstNameResolver = pure $ Type.String "Friedrich"
     lastNameField
         = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
-        $ pure $ Type.String "Nietzsche"
+    lastNameResolver = pure $ Type.String "Nietzsche"
 
 spec :: Spec
 spec =
@@ -54,8 +56,9 @@ spec =
                     ]
                 expected = Response data'' mempty
                 execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
-                actual = runIdentity
-                    $ either parseError execute'
+                actual = fromRight (singleError "")
+                    $ runIdentity
+                    $ either (pure . parseError) execute'
                     $ parse document "" "{ philosopher { firstName surname } }"
              in actual `shouldBe` expected
         it "merges selections" $
@@ -67,7 +70,8 @@ spec =
                     ]
                 expected = Response data'' mempty
                 execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
-                actual = runIdentity
-                    $ either parseError execute'
+                actual = fromRight (singleError "")
+                    $ runIdentity
+                    $ either (pure . parseError) execute'
                     $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
              in actual `shouldBe` expected

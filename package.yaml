@@ -28,6 +28,7 @@ data-files:
 dependencies:
 - aeson
 - base >= 4.7 && < 5
+- conduit
 - containers
 - megaparsec
 - parser-combinators
@@ -35,12 +36,12 @@ dependencies:
 - text
 - transformers
 - unordered-containers
-- vector
 
 library:
   source-dirs: src
   other-modules:
   - Language.GraphQL.Execute.Execution
+  - Language.GraphQL.Execute.Subscribe
   - Language.GraphQL.Execute.Transform
   - Language.GraphQL.Type.Definition
   - Language.GraphQL.Type.Internal
