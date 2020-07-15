@@ -20,7 +20,11 @@ import Prelude hiding (id)
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
 schema :: Schema Identity
-schema = Schema { query = queryType, mutation = Nothing }
+schema = Schema
+    { query = queryType
+    , mutation = Nothing
+    , subscription = Nothing
+    }
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
         [ ("hero", heroFieldResolver)

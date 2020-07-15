@@ -239,6 +239,10 @@ document schema operationName subs ast = do
             | Just mutationType <- mutation schema ->
                 pure $ Document referencedTypes mutationType
                     $ operation chosenOperation replacement
+        OperationDefinition Full.Subscription _ _ _ _
+            | Just subscriptionType <- subscription schema ->
+                pure $ Document referencedTypes subscriptionType
+                    $ operation chosenOperation replacement
         _ -> Left UnsupportedRootOperation
 
 defragment

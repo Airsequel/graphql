@@ -5,7 +5,7 @@ title: GraphQL Haskell Tutorial
 
 == Getting started ==
 
-Welcome to graphql-haskell!
+Welcome to GraphQL!
 
 We have written a small tutorial to help you (and ourselves) understand the
 graphql package.
@@ -39,16 +39,18 @@ Now, as our first example, we are going to look at the example from
 First we build a GraphQL schema.
 
 > schema1 :: Schema IO
-> schema1 = Schema queryType Nothing
+> schema1 = Schema
+>   { query = queryType , mutation = Nothing , subscription = Nothing }
 >
 > queryType :: ObjectType IO
 > queryType = ObjectType "Query" Nothing []
->   $ HashMap.singleton "hello" helloField
+>   $ HashMap.singleton "hello"
+>   $ ValueResolver helloField hello
 >
 > helloField :: Field IO
-> helloField = Field Nothing (Out.NamedScalarType string) mempty hello
+> helloField = Field Nothing (Out.NamedScalarType string) mempty
 >
-> hello :: ResolverT IO Value
+> hello :: Resolve IO
 > hello = pure $ String "it's me"
 
 This defines a simple schema with one type and one field, that resolves to a
@@ -74,16 +76,18 @@ This runs the query by fetching the one field defined, returning
 For this example, we're going to be using time.
 
 > schema2 :: Schema IO
-> schema2 = Schema queryType2 Nothing
+> schema2 = Schema
+>   { query = queryType2, mutation = Nothing, subscription = Nothing }
 >
 > queryType2 :: ObjectType IO
 > queryType2 = ObjectType "Query" Nothing []
->   $ HashMap.singleton "time" timeField
+>   $ HashMap.singleton "time"
+>   $ ValueResolver timeField time
 >
 > timeField :: Field IO
-> timeField = Field Nothing (Out.NamedScalarType string) mempty time
+> timeField = Field Nothing (Out.NamedScalarType string) mempty
 >
-> time :: ResolverT IO Value
+> time :: Resolve IO
 > time = do
 >   t <- liftIO getCurrentTime
 >   pure $ String $ Text.pack $ show t
@@ -104,42 +108,18 @@ This runs the query, returning the current time
 ```{"data": {"time":"2016-03-08 23:28:14.546899 UTC"}}```
 
 
-=== Errors ===
-
-Errors are handled according to the spec, with fields that cause erros being
-resolved to `null`, and an error being added to the error list.
-
-An example of this is the following query:
-
-> queryShouldFail :: Text
-> queryShouldFail = "{ boyhowdy }"
-
-Since there is no `boyhowdy` field in our schema, it will not resolve, and the
-query will fail, as we can see in the following example.
-
-> mainShouldFail :: IO ()
-> mainShouldFail = do
->   failure <- graphql schema1 queryShouldFail
->   putStrLn $ encode failure
-
-This outputs:
-
-```
-{"data": {"boyhowdy": null}, "errors":[{"message": "the field boyhowdy did not resolve."}]}
-```
-
-
 === Combining resolvers ===
 
 Now that we have two resolvers, we can define a schema which uses them both.
 
 > schema3 :: Schema IO
-> schema3 = Schema queryType3 Nothing
+> schema3 = Schema
+>   { query = queryType3, mutation = Nothing, subscription = Nothing }
 >
 > queryType3 :: ObjectType IO
 > queryType3 = ObjectType "Query" Nothing [] $ HashMap.fromList
->   [ ("hello", helloField)
->   , ("time", timeField)
+>   [ ("hello", ValueResolver helloField hello)
+>   , ("time", ValueResolver timeField time)
 >   ]
 >
 > query3 :: Text
@@ -166,4 +146,4 @@ directory, in the [Test.StarWars](../../tests/Test/StarWars) module. This
 includes a more complex schema, and more complex queries.
 
 > main :: IO ()
-> main = main1 >> main2 >> mainShouldFail >> main3
+> main = main1 >> main2 >> main3

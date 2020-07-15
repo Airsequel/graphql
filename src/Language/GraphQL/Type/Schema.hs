@@ -29,4 +29,5 @@ data Type m
 data Schema m = Schema
     { query :: Out.ObjectType m
     , mutation :: Maybe (Out.ObjectType m)
+    , subscription :: Maybe (Out.ObjectType m)
     }

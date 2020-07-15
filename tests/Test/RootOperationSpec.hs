@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Test.RootOperationSpec
@@ -20,8 +24,10 @@ hatType = Out.ObjectType "Hat" Nothing []
 
 schema :: Schema IO
 schema = Schema
-    (Out.ObjectType "Query" Nothing [] hatFieldResolver)
-    (Just $ Out.ObjectType "Mutation" Nothing [] incrementFieldResolver)
+    { query = Out.ObjectType "Query" Nothing [] hatFieldResolver
+    , mutation = Just $ Out.ObjectType "Mutation" Nothing [] incrementFieldResolver
+    , subscription = Nothing
+    }
   where
     garment = pure $ Object $ HashMap.fromList
         [ ("circumference", Int 60)

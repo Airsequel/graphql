@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 module Test.FragmentSpec
@@ -76,7 +80,7 @@ sizeFieldType
 
 toSchema :: Text -> (Text, Value) -> Schema IO
 toSchema t (_, resolve) = Schema
-    { query = queryType, mutation = Nothing }
+    { query = queryType, mutation = Nothing, subscription = Nothing }
   where
     unionMember = if t == "Hat" then hatType else shirtType
     typeNameField = Out.Field Nothing (Out.NamedScalarType string) mempty

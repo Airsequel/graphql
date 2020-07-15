@@ -107,17 +107,22 @@ executeField :: (Monad m, Serialize a)
     -> Type.Value
     -> NonEmpty (Transform.Field m)
     -> CollectErrsT m a
-executeField (Out.ValueResolver fieldDefinition resolver) prev fields = do
-    let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-    let (Transform.Field _ _ arguments' _ :| []) = fields
-    case coerceArgumentValues argumentDefinitions arguments' of
-        Nothing -> addErrMsg "Argument coercing failed."
-        Just argumentValues -> do
-            answer <- lift $ resolveFieldValue prev argumentValues resolver
-            case answer of
-                Right result -> completeValue fieldType fields result
-                Left errorMessage -> addErrMsg errorMessage
-executeField _ _ _ = addErrMsg "No field value resolver specified."
+executeField fieldResolver prev fields
+    | Out.ValueResolver fieldDefinition resolver <- fieldResolver =
+        executeField' fieldDefinition resolver
+    | Out.EventStreamResolver fieldDefinition resolver _ <- fieldResolver =
+        executeField' fieldDefinition resolver
+  where
+    executeField' fieldDefinition resolver = do
+        let Out.Field _ fieldType argumentDefinitions = fieldDefinition
+        let (Transform.Field _ _ arguments' _ :| []) = fields
+        case coerceArgumentValues argumentDefinitions arguments' of
+            Nothing -> addErrMsg "Argument coercing failed."
+            Just argumentValues -> do
+                answer <- lift $ resolveFieldValue prev argumentValues resolver
+                case answer of
+                    Right result -> completeValue fieldType fields result
+                    Left errorMessage -> addErrMsg errorMessage
 
 completeValue :: (Monad m, Serialize a)
     => Out.Type m
