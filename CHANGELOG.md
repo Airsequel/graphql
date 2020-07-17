@@ -24,12 +24,16 @@ and this project adheres to
 - Parsing subscriptions (the execution always fails yet).
 - `Error.ResponseEventStream`, `Type.Out.Resolve`, `Type.Out.Subscribe` and
   `Type.Out.SourceEventStream` define subscription resolvers.
+- `Error.ResolverException` is an exception that can be thrown by (field value
+  and event stream) resolvers to signalize an error. Other exceptions will
+  escape.
 
 ## Changed
 - `Type.Out.Resolver`: Interface fields don't have resolvers, object fields
   have value resolvers, root subscription type resolvers need an additional
   resolver that creates an event stream. `Resolver` represents these differences
-  now and pairs a field with the function(s).
+  now and pairs a field with the function(s). Resolvers don't have `ExceptT`,
+  errors are handled with `MonadThrow`/`MonadCatch`.
 - All code from `Trans` is moved to `Type.Out` and exported by `Type` and
   `Type.Out`.
 - `AST.Core` contained only `Arguments` which was moved to `Type.Definition`.
@@ -43,6 +47,8 @@ and this project adheres to
   variable names is changed back to JSON since it is a common format and it
   saves additional conversions. Custom format still can be used with the
   underlying functions (in the `Execute` module).
+- The constraint of the base monad was changed to `MonadCatch` (and it implies
+  `MonadThrow`).
 
 ## Removed
 - `Trans.ActionT` is an unneeded layer of complexity. `Type.Out.Resolver`

@@ -7,11 +7,10 @@ module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
 
+import Control.Exception (SomeException)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import Data.Conduit
-import Data.Either (fromRight)
-import Data.Functor.Identity (Identity(..))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL.AST (Name)
@@ -23,14 +22,14 @@ import Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
 
-schema :: Schema Identity
+schema :: Schema (Either SomeException)
 schema = Schema
     { query = queryType
     , mutation = Nothing
     , subscription = Just subscriptionType
     }
 
-queryType :: Out.ObjectType Identity
+queryType :: Out.ObjectType (Either SomeException)
 queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.singleton "philosopher" 
     $ ValueResolver philosopherField
@@ -39,7 +38,7 @@ queryType = Out.ObjectType "Query" Nothing []
     philosopherField =
         Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
 
-philosopherType :: Out.ObjectType Identity
+philosopherType :: Out.ObjectType (Either SomeException)
 philosopherType = Out.ObjectType "Philosopher" Nothing []
     $ HashMap.fromList resolvers
   where
@@ -54,7 +53,7 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     lastNameResolver = pure $ Type.String "Nietzsche"
 
-subscriptionType :: Out.ObjectType Identity
+subscriptionType :: Out.ObjectType (Either SomeException)
 subscriptionType = Out.ObjectType "Subscription" Nothing []
     $ HashMap.singleton "newQuote"
     $ EventStreamResolver quoteField (pure $ Type.Object mempty)
@@ -63,7 +62,7 @@ subscriptionType = Out.ObjectType "Subscription" Nothing []
     quoteField =
         Out.Field Nothing (Out.NonNullObjectType quoteType) HashMap.empty
 
-quoteType :: Out.ObjectType Identity
+quoteType :: Out.ObjectType (Either SomeException)
 quoteType = Out.ObjectType "Quote" Nothing []
     $ HashMap.singleton "quote"
     $ ValueResolver quoteField
@@ -84,9 +83,7 @@ spec =
                         ]
                     expected = Response data'' mempty
                     execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
-                    actual = fromRight (singleError "")
-                        $ runIdentity
-                        $ either (pure . parseError) execute'
+                    Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName surname } }"
                 in actual `shouldBe` expected
             it "merges selections" $
@@ -98,9 +95,7 @@ spec =
                         ]
                     expected = Response data'' mempty
                     execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
-                    actual = fromRight (singleError "")
-                        $ runIdentity
-                        $ either (pure . parseError) execute'
+                    Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
                 in actual `shouldBe` expected
         context "Subscription" $
@@ -112,8 +107,7 @@ spec =
                         ]
                     expected = Response data'' mempty
                     execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
-                    Left stream = runIdentity
-                        $ either (pure . parseError) execute'
+                    Right (Left stream) = either (pure . parseError) execute'
                         $ parse document "" "subscription { newQuote { quote } }"
-                    Just actual = runConduitPure $ stream .| await
+                    Right (Just actual) = runConduit $ stream .| await
                 in actual `shouldBe` expected

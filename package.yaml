@@ -30,6 +30,7 @@ dependencies:
 - base >= 4.7 && < 5
 - conduit
 - containers
+- exceptions
 - megaparsec
 - parser-combinators
 - scientific

@@ -4,10 +4,8 @@ module Test.StarWars.Schema
     ( schema
     ) where
 
+import Control.Monad.Catch (MonadThrow(..), SomeException)
 import Control.Monad.Trans.Reader (asks)
-import Control.Monad.Trans.Except (throwE)
-import Control.Monad.Trans.Class (lift)
-import Data.Functor.Identity (Identity)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
@@ -19,7 +17,7 @@ import Prelude hiding (id)
 
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: Schema Identity
+schema :: Schema (Either SomeException)
 schema = Schema
     { query = queryType
     , mutation = Nothing
@@ -42,7 +40,7 @@ schema = Schema
     droidField = Out.Field Nothing (Out.NamedObjectType droidObject) mempty
     droidFieldResolver = ValueResolver droidField droid
 
-heroObject :: Out.ObjectType Identity
+heroObject :: Out.ObjectType (Either SomeException)
 heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
     [ ("id", idFieldType)
     , ("name", nameFieldType)
@@ -57,7 +55,7 @@ heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
       = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
       $ idField "homePlanet"
 
-droidObject :: Out.ObjectType Identity
+droidObject :: Out.ObjectType (Either SomeException)
 droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
     [ ("id", idFieldType)
     , ("name", nameFieldType)
@@ -72,29 +70,29 @@ droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
         = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
         $ idField "primaryFunction"
 
-typenameFieldType :: Resolver Identity
+typenameFieldType :: Resolver (Either SomeException)
 typenameFieldType
     = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
     $ idField "__typename"
 
-idFieldType :: Resolver Identity
+idFieldType :: Resolver (Either SomeException)
 idFieldType
     = ValueResolver (Out.Field Nothing (Out.NamedScalarType id) mempty)
     $ idField "id"
 
-nameFieldType :: Resolver  Identity
+nameFieldType :: Resolver (Either SomeException)
 nameFieldType
     = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
     $ idField "name"
 
-friendsFieldType :: Resolver Identity
+friendsFieldType :: Resolver (Either SomeException)
 friendsFieldType
     = ValueResolver (Out.Field Nothing fieldType mempty)
     $ idField "friends"
   where
     fieldType = Out.ListType $ Out.NamedObjectType droidObject
 
-appearsInField :: Resolver Identity
+appearsInField :: Resolver (Either SomeException)
 appearsInField
     = ValueResolver (Out.Field (Just description) fieldType mempty)
     $ idField "appearsIn"
@@ -102,14 +100,14 @@ appearsInField
     fieldType = Out.ListType $ Out.NamedEnumType episodeEnum
     description = "Which movies they appear in."
 
-secretBackstoryFieldType :: Resolver Identity
+secretBackstoryFieldType :: Resolver (Either SomeException)
 secretBackstoryFieldType = ValueResolver field secretBackstory
   where
     field = Out.Field Nothing (Out.NamedScalarType string) mempty
 
-idField :: Text -> Resolve Identity
+idField :: Text -> Resolve (Either SomeException)
 idField f = do
-    v <- lift $ asks values
+    v <- asks values
     let (Object v') = v
     pure $ v' HashMap.! f
 
@@ -122,7 +120,7 @@ episodeEnum = EnumType "Episode" (Just description)
     empire = ("EMPIRE", EnumValue $ Just "Released in 1980.")
     jedi = ("JEDI", EnumValue $ Just "Released in 1983.")
 
-hero :: Resolve Identity
+hero :: Resolve (Either SomeException)
 hero = do
   episode <- argument "episode"
   pure $ character $ case episode of
@@ -131,19 +129,19 @@ hero = do
       Enum "JEDI" -> getHero 6
       _ -> artoo
 
-human :: Resolve Identity
+human :: Resolve (Either SomeException)
 human = do
     id' <- argument "id"
     case id' of
         String i -> pure $ maybe Null character $ getHuman i >>= Just
-        _ -> throwE "Invalid arguments."
+        _ -> throwM InvalidArguments
 
-droid :: Resolve Identity
+droid :: Resolve (Either SomeException)
 droid = do
     id' <- argument "id"
     case id' of
         String i -> pure $ maybe Null character $ getDroid i >>= Just
-        _ -> throwE "Invalid arguments."
+        _ -> throwM InvalidArguments
 
 character :: Character -> Value
 character char = Object $ HashMap.fromList

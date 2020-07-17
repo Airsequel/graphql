@@ -6,6 +6,7 @@ module Language.GraphQL.Execute
     , module Language.GraphQL.Execute.Coerce
     ) where
 
+import Control.Monad.Catch (MonadCatch)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
@@ -25,7 +26,7 @@ import Language.GraphQL.Type.Schema
 --
 -- Returns the result of the query against the schema wrapped in a /data/
 -- field, or errors wrapped in an /errors/ field.
-execute :: (Monad m, VariableValue a, Serialize b)
+execute :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
     -> HashMap Name a -- ^ Variable substitution function.
@@ -39,7 +40,7 @@ execute schema operationName subs document =
             $ Transform.queryError queryError
         Right transformed -> executeRequest transformed
 
-executeRequest :: (Monad m, Serialize a)
+executeRequest :: (MonadCatch m, Serialize a)
     => Transform.Document m
     -> m (Either (ResponseEventStream m a) (Response a))
 executeRequest (Transform.Document types' rootObjectType operation)
@@ -53,7 +54,7 @@ executeRequest (Transform.Document types' rootObjectType operation)
 
 -- This is actually executeMutation, but we don't distinguish between queries
 -- and mutations yet.
-executeOperation :: (Monad m, Serialize a)
+executeOperation :: (MonadCatch m, Serialize a)
     => HashMap Name (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)

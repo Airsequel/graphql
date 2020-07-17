@@ -7,6 +7,7 @@ module Language.GraphQL
     , graphqlSubs
     ) where
 
+import Control.Monad.Catch (MonadCatch)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.Either (fromRight)
@@ -20,7 +21,7 @@ import Text.Megaparsec (parse)
 
 -- | If the text parses correctly as a @GraphQL@ query the query is
 -- executed using the given 'Schema'.
-graphql :: Monad m
+graphql :: MonadCatch m
     => Schema m -- ^ Resolvers.
     -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m Aeson.Value -- ^ Response.
@@ -29,7 +30,7 @@ graphql schema = graphqlSubs schema mempty mempty
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
 -- applied to the query and the query is then executed using to the given
 -- 'Schema'.
-graphqlSubs :: Monad m
+graphqlSubs :: MonadCatch m
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
     -> Aeson.Object -- ^ Variable substitution function.

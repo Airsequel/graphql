@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 38e16611476c6163a049a4ddbaef34cf3fdef8f85d25f7bcaed839372c9fdf75
+-- hash: f3469205f704a81ee0f55655758cf588a9e9eb52303dadd58def32a2eb207696
 
 name:           graphql
 version:        0.8.0.0
@@ -64,6 +64,7 @@ library
     , base >=4.7 && <5
     , conduit
     , containers
+    , exceptions
     , megaparsec
     , parser-combinators
     , scientific
@@ -100,6 +101,7 @@ test-suite tasty
     , base >=4.7 && <5
     , conduit
     , containers
+    , exceptions
     , graphql
     , hspec
     , hspec-expectations

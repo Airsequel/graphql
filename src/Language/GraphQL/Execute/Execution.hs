@@ -8,8 +8,8 @@ module Language.GraphQL.Execute.Execution
     , executeSelectionSet
     ) where
 
+import Control.Monad.Catch (Exception(..), MonadCatch(..))
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.State (gets)
 import Data.List.NonEmpty (NonEmpty(..))
@@ -19,7 +19,7 @@ import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
-import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
@@ -31,14 +31,19 @@ import Language.GraphQL.Type.Internal
 import Language.GraphQL.Type.Schema
 import Prelude hiding (null)
 
-resolveFieldValue :: Monad m
+resolveFieldValue :: MonadCatch m
     => Type.Value
     -> Type.Subs
     -> Type.Resolve m
-    -> m (Either Text Type.Value)
+    -> CollectErrsT m Type.Value
 resolveFieldValue result args resolver =
-    flip runReaderT context $ runExceptT resolver
+    catch (lift $ runReaderT resolver context) handleFieldError
   where
+    handleFieldError :: MonadCatch m
+        => ResolverException
+        -> CollectErrsT m Type.Value
+    handleFieldError e =
+        addErr (Error (Text.pack $ displayException e) []) >> pure Type.Null
     context = Type.Context
         { Type.arguments = Type.Arguments args
         , Type.values = result
@@ -102,7 +107,7 @@ instanceOf objectType (AbstractUnionType unionType) =
   where
     go unionMemberType acc = acc || objectType == unionMemberType
 
-executeField :: (Monad m, Serialize a)
+executeField :: (MonadCatch m, Serialize a)
     => Out.Resolver m
     -> Type.Value
     -> NonEmpty (Transform.Field m)
@@ -119,12 +124,10 @@ executeField fieldResolver prev fields
         case coerceArgumentValues argumentDefinitions arguments' of
             Nothing -> addErrMsg "Argument coercing failed."
             Just argumentValues -> do
-                answer <- lift $ resolveFieldValue prev argumentValues resolver
-                case answer of
-                    Right result -> completeValue fieldType fields result
-                    Left errorMessage -> addErrMsg errorMessage
+                answer <- resolveFieldValue prev argumentValues resolver
+                completeValue fieldType fields answer
 
-completeValue :: (Monad m, Serialize a)
+completeValue :: (MonadCatch m, Serialize a)
     => Out.Type m
     -> NonEmpty (Transform.Field m)
     -> Type.Value
@@ -166,13 +169,15 @@ completeValue (Out.UnionBaseType unionType) fields result
             Nothing -> addErrMsg "Value completion failed."
 completeValue _ _ _ = addErrMsg "Value completion failed."
 
-mergeSelectionSets :: Monad m => NonEmpty (Transform.Field m) -> Seq (Transform.Selection m)
+mergeSelectionSets :: MonadCatch m
+    => NonEmpty (Transform.Field m)
+    -> Seq (Transform.Selection m)
 mergeSelectionSets = foldr forEach mempty
   where
     forEach (Transform.Field _ _ _ fieldSelectionSet) selectionSet =
         selectionSet <> fieldSelectionSet
 
-coerceResult :: (Monad m, Serialize a)
+coerceResult :: (MonadCatch m, Serialize a)
     => Out.Type m
     -> Output a
     -> CollectErrsT m a
@@ -183,7 +188,7 @@ coerceResult outputType result
 -- | Takes an 'Out.ObjectType' and a list of 'Transform.Selection's and applies
 -- each field to each 'Transform.Selection'. Resolves into a value containing
 -- the resolved 'Transform.Selection', or a null value and error information.
-executeSelectionSet :: (Monad m, Serialize a)
+executeSelectionSet :: (MonadCatch m, Serialize a)
     => Type.Value
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)

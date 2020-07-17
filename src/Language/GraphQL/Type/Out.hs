@@ -33,7 +33,6 @@ module Language.GraphQL.Type.Out
     ) where
 
 import Conduit
-import Control.Monad.Trans.Except (ExceptT)
 import Control.Monad.Trans.Reader (ReaderT, asks)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -180,11 +179,11 @@ data Context = Context
 
 -- | Monad transformer stack used by the resolvers for determining the resolved
 -- value of a field.
-type Resolve m = ExceptT Text (ReaderT Context m) Value
+type Resolve m = ReaderT Context m Value
 
 -- | Monad transformer stack used by the resolvers for determining the resolved
 -- event stream of a subscription field.
-type Subscribe m = ExceptT Text (ReaderT Context m) (SourceEventStream m)
+type Subscribe m = ReaderT Context m (SourceEventStream m)
 
 -- | A source stream represents the sequence of events, each of which will
 -- trigger a GraphQL execution corresponding to that event.
@@ -206,7 +205,7 @@ data Resolver m
 -- be optional then).
 argument :: Monad m => Name -> Resolve m
 argument argumentName = do
-    argumentValue <- lift $ asks $ lookupArgument . arguments
+    argumentValue <- asks $ lookupArgument . arguments
     pure $ fromMaybe Null argumentValue
   where
     lookupArgument (Arguments argumentMap) =

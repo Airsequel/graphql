@@ -1,4 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -8,6 +9,7 @@ module Language.GraphQL.Error
     , CollectErrsT
     , Error(..)
     , Resolution(..)
+    , ResolverException(..)
     , Response(..)
     , ResponseEventStream
     , addErr
@@ -17,6 +19,7 @@ module Language.GraphQL.Error
     ) where
 
 import Conduit
+import Control.Exception (Exception(..))
 import Control.Monad.Trans.State (StateT, modify, runStateT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..), (|>))
@@ -101,6 +104,15 @@ data Response a = Response
 -- subscription selection set. The results of the execution generate a Response
 -- Stream.
 type ResponseEventStream m a = ConduitT () (Response a) m ()
+
+-- | Only exceptions that inherit from 'ResolverException' a cought by the
+-- executor.
+data ResolverException = forall e. Exception e => ResolverException e
+
+instance Show ResolverException where
+    show (ResolverException e) = show e
+
+instance Exception ResolverException
 
 -- | Runs the given query computation, but collects the errors into an error
 -- list, which is then sent back with the data.

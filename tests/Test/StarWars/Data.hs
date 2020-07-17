@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Test.StarWars.Data
     ( Character
+    , StarWarsException(..)
     , appearsIn
     , artoo
     , getDroid
@@ -16,11 +17,12 @@ module Test.StarWars.Data
     , typeName
     ) where
 
-import Data.Functor.Identity (Identity)
+import Control.Monad.Catch (Exception(..), MonadThrow(..), SomeException)
 import Control.Applicative (Alternative(..), liftA2)
-import Control.Monad.Trans.Except (throwE)
 import Data.Maybe (catMaybes)
 import Data.Text (Text)
+import Data.Typeable (cast)
+import Language.GraphQL.Error
 import Language.GraphQL.Type
 
 -- * Data
@@ -66,8 +68,20 @@ appearsIn :: Character -> [Int]
 appearsIn (Left  x) = _appearsIn . _droidChar $ x
 appearsIn (Right x) = _appearsIn . _humanChar $ x
 
-secretBackstory :: Resolve Identity
-secretBackstory = throwE "secretBackstory is secret."
+data StarWarsException = SecretBackstory | InvalidArguments
+
+instance Show StarWarsException where
+    show SecretBackstory = "secretBackstory is secret."
+    show InvalidArguments = "Invalid arguments."
+
+instance Exception StarWarsException where
+    toException = toException . ResolverException
+    fromException e = do
+        ResolverException resolverException <- fromException e
+        cast resolverException
+
+secretBackstory :: Resolve (Either SomeException)
+secretBackstory = throwM SecretBackstory
 
 typeName :: Character -> Text
 typeName = either (const "Droid") (const "Human")
