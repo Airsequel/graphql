@@ -31,6 +31,7 @@ dependencies:
 - conduit
 - containers
 - exceptions
+- hspec-expectations
 - megaparsec
 - parser-combinators
 - scientific
@@ -58,7 +59,6 @@ tests:
     dependencies:
     - graphql
     - hspec
-    - hspec-expectations
     - hspec-megaparsec
     - QuickCheck
     - raw-strings-qq

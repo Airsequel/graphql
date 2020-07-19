@@ -27,6 +27,7 @@ and this project adheres to
 - `Error.ResolverException` is an exception that can be thrown by (field value
   and event stream) resolvers to signalize an error. Other exceptions will
   escape.
+- `Test.Hspec.GraphQL` contains some test helpers.
 
 ## Changed
 - `Type.Out.Resolver`: Interface fields don't have resolvers, object fields
@@ -46,7 +47,9 @@ and this project adheres to
 - `graphqlSubs` takes an additional argument, the operation name. The type of
   variable names is changed back to JSON since it is a common format and it
   saves additional conversions. Custom format still can be used with the
-  underlying functions (in the `Execute` module).
+  underlying functions (in the `Execute` module). The function returns either a
+  a stream or the resolved value.
+- `graphql` returns either a stream or the resolved value.
 - The constraint of the base monad was changed to `MonadCatch` (and it implies
   `MonadThrow`).
 

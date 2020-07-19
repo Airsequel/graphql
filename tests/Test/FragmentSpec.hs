@@ -8,20 +8,15 @@ module Test.FragmentSpec
     ( spec
     ) where
 
-import Data.Aeson (object, (.=))
+import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Language.GraphQL
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
-import Test.Hspec
-    ( Spec
-    , describe
-    , it
-    , shouldBe
-    , shouldNotSatisfy
-    )
+import Test.Hspec (Spec, describe, it)
+import Test.Hspec.GraphQL
 import Text.RawString.QQ (r)
 
 size :: (Text, Value)
@@ -49,10 +44,6 @@ inlineQuery = [r|{
     }
   }
 }|]
-
-hasErrors :: Aeson.Value -> Bool
-hasErrors (Aeson.Object object') = HashMap.member "errors" object'
-hasErrors _ = True
 
 shirtType :: Out.ObjectType IO
 shirtType = Out.ObjectType "Shirt" Nothing []
@@ -100,25 +91,23 @@ spec = do
     describe "Inline fragment executor" $ do
         it "chooses the first selection if the type matches" $ do
             actual <- graphql (toSchema "Hat" $ garment "Hat") inlineQuery
-            let expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
+            let expected = HashMap.singleton "data"
+                    $ Aeson.object
+                        [ "garment" .= Aeson.object
                             [ "circumference" .= (60 :: Int)
                             ]
                         ]
-                    ]
-             in actual `shouldBe` expected
+             in actual `shouldResolveTo` expected
 
         it "chooses the last selection if the type matches" $ do
             actual <- graphql (toSchema "Shirt" $ garment "Shirt") inlineQuery
-            let expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
+            let expected = HashMap.singleton "data"
+                    $ Aeson.object
+                        [ "garment" .= Aeson.object
                             [ "size" .= ("L" :: Text)
                             ]
                         ]
-                    ]
-             in actual `shouldBe` expected
+             in actual `shouldResolveTo` expected
 
         it "embeds inline fragments without type" $ do
             let sourceQuery = [r|{
@@ -132,15 +121,14 @@ spec = do
                 resolvers = ("garment", Object $ HashMap.fromList [circumference,  size])
 
             actual <- graphql (toSchema "garment" resolvers) sourceQuery
-            let expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
+            let expected = HashMap.singleton "data"
+                    $ Aeson.object
+                        [ "garment" .= Aeson.object
                             [ "circumference" .= (60 :: Int)
                             , "size" .= ("L" :: Text)
                             ]
                         ]
-                    ]
-             in actual `shouldBe` expected
+             in actual `shouldResolveTo` expected
 
         it "evaluates fragments on Query" $ do
             let sourceQuery = [r|{
@@ -148,9 +136,7 @@ spec = do
                 size
               }
             }|]
-
-            actual <- graphql (toSchema "size" size) sourceQuery
-            actual `shouldNotSatisfy` hasErrors
+             in graphql (toSchema "size" size) `shouldResolve` sourceQuery
 
     describe "Fragment spread executor" $ do
         it "evaluates fragment spreads" $ do
@@ -165,12 +151,11 @@ spec = do
             |]
 
             actual <- graphql (toSchema "circumference" circumference) sourceQuery
-            let expected = object
-                    [ "data" .= object
+            let expected = HashMap.singleton "data"
+                    $ Aeson.object
                         [ "circumference" .= (60 :: Int)
                         ]
-                    ]
-             in actual `shouldBe` expected
+             in actual `shouldResolveTo` expected
 
         it "evaluates nested fragments" $ do
             let sourceQuery = [r|
@@ -190,19 +175,16 @@ spec = do
             |]
 
             actual <- graphql (toSchema "Hat" $ garment "Hat") sourceQuery
-            let expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
+            let expected = HashMap.singleton "data"
+                    $ Aeson.object
+                        [ "garment" .= Aeson.object
                             [ "circumference" .= (60 :: Int)
                             ]
                         ]
-                    ]
-             in actual `shouldBe` expected
+             in actual `shouldResolveTo` expected
 
         it "rejects recursive fragments" $ do
-            let expected = object
-                    [ "data" .= object []
-                    ]
+            let expected = HashMap.singleton "data" $ Aeson.object []
                 sourceQuery = [r|
               {
                 ...circumferenceFragment
@@ -214,7 +196,7 @@ spec = do
             |]
 
             actual <- graphql (toSchema "circumference" circumference) sourceQuery
-            actual `shouldBe` expected
+            actual `shouldResolveTo` expected
 
         it "considers type condition" $ do
             let sourceQuery = [r|
@@ -231,12 +213,11 @@ spec = do
                 size
               }
             |]
-                expected = object
-                    [ "data" .= object
-                        [ "garment" .= object
+                expected = HashMap.singleton "data"
+                    $ Aeson.object
+                        [ "garment" .= Aeson.object
                             [ "circumference" .= (60 :: Int)
                             ]
                         ]
-                    ]
             actual <- graphql (toSchema "Hat" $ garment "Hat") sourceQuery
-            actual `shouldBe` expected
+            actual `shouldResolveTo` expected

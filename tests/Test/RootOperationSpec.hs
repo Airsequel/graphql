@@ -11,10 +11,11 @@ module Test.RootOperationSpec
 import Data.Aeson ((.=), object)
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it)
 import Text.RawString.QQ (r)
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
+import Test.Hspec.GraphQL
 
 hatType :: Out.ObjectType IO
 hatType = Out.ObjectType "Hat" Nothing []
@@ -50,15 +51,14 @@ spec =
                 }
               }
             |]
-                expected = object
-                    [ "data" .= object
+                expected = HashMap.singleton "data"
+                    $ object
                         [ "garment" .= object
                             [ "circumference" .= (60 :: Int)
                             ]
                         ]
-                    ]
             actual <- graphql schema querySource
-            actual `shouldBe` expected
+            actual `shouldResolveTo` expected
 
         it "chooses Mutation" $ do
             let querySource = [r|
@@ -66,10 +66,9 @@ spec =
                 incrementCircumference
               }
             |]
-                expected = object
-                    [ "data" .= object
+                expected = HashMap.singleton "data"
+                    $ object
                         [ "incrementCircumference" .= (61 :: Int)
                         ]
-                    ]
             actual <- graphql schema querySource
-            actual `shouldBe` expected
+            actual `shouldResolveTo` expected

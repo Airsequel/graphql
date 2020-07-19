@@ -10,7 +10,7 @@ module Language.GraphQL
 import Control.Monad.Catch (MonadCatch)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import Data.Either (fromRight)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Language.GraphQL.AST
@@ -24,7 +24,7 @@ import Text.Megaparsec (parse)
 graphql :: MonadCatch m
     => Schema m -- ^ Resolvers.
     -> Text -- ^ Text representing a @GraphQL@ request document.
-    -> m Aeson.Value -- ^ Response.
+    -> m (Either (ResponseEventStream m Aeson.Value) Aeson.Object) -- ^ Response.
 graphql schema = graphqlSubs schema mempty mempty
 
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
@@ -35,18 +35,15 @@ graphqlSubs :: MonadCatch m
     -> Maybe Text -- ^ Operation name.
     -> Aeson.Object -- ^ Variable substitution function.
     -> Text -- ^ Text representing a @GraphQL@ request document.
-    -> m Aeson.Value -- ^ Response.
-graphqlSubs schema operationName variableValues document'
-    = either parseError executeRequest (parse document "" document')
-    >>= formatResponse
+    -> m (Either (ResponseEventStream m Aeson.Value) Aeson.Object) -- ^ Response.
+graphqlSubs schema operationName variableValues document' =
+    case parse document "" document' of
+        Left errorBundle -> pure . formatResponse <$> parseError errorBundle
+        Right parsed -> fmap formatResponse
+            <$> execute schema operationName variableValues parsed
   where
-    executeRequest parsed
-      = fromRight streamReturned
-      <$> execute schema operationName variableValues parsed
-    streamReturned = singleError "This service does not support subscriptions."
-    formatResponse (Response data'' Seq.Empty) =
-        pure $ Aeson.object [("data", data'')]
-    formatResponse (Response data'' errors') = pure $ Aeson.object
+    formatResponse (Response data'' Seq.Empty) = HashMap.singleton "data" data''
+    formatResponse (Response data'' errors') = HashMap.fromList
         [ ("data", data'')
         , ("errors", Aeson.toJSON $ fromError <$> errors')
         ]

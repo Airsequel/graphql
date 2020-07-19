@@ -64,7 +64,8 @@ Next we define our query.
 To run the query, we call the `graphql` with the schema and the query.
 
 > main1 :: IO ()
-> main1 = graphql schema1 query1 >>= putStrLn . encode
+> main1 = graphql schema1 query1
+>   >>= either (const $ pure ()) (putStrLn . encode)
 
 This runs the query by fetching the one field defined, returning
 
@@ -101,7 +102,8 @@ Next we define our query.
 > query2 = "{ time }"
 >
 > main2 :: IO ()
-> main2 = graphql schema2 query2 >>= putStrLn . encode
+> main2 = graphql schema2 query2
+>   >>= either (const $ pure ()) (putStrLn . encode)
 
 This runs the query, returning the current time
 
@@ -126,7 +128,8 @@ Now that we have two resolvers, we can define a schema which uses them both.
 > query3 = "query timeAndHello { time hello }"
 >
 > main3 :: IO ()
-> main3 = graphql schema3 query3 >>= putStrLn . encode
+> main3 = graphql schema3 query3
+>   >>= either (const $ pure ()) (putStrLn . encode)
 
 This queries for both time and hello, returning
 

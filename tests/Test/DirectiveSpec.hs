@@ -14,7 +14,8 @@ import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it)
+import Test.Hspec.GraphQL
 import Text.RawString.QQ (r)
 
 experimentalResolver :: Schema IO
@@ -26,10 +27,8 @@ experimentalResolver = Schema
         $ Out.ValueResolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
         $ pure $ Int 5
 
-emptyObject :: Aeson.Value
-emptyObject = object
-    [ "data" .= object []
-    ]
+emptyObject :: Aeson.Object
+emptyObject = HashMap.singleton "data" $ object []
 
 spec :: Spec
 spec =
@@ -42,7 +41,7 @@ spec =
             |]
 
             actual <- graphql experimentalResolver sourceQuery
-            actual `shouldBe` emptyObject
+            actual `shouldResolveTo` emptyObject
 
         it "should not skip fields if @skip is false" $ do
             let sourceQuery = [r|
@@ -50,14 +49,12 @@ spec =
                 experimentalField @skip(if: false)
               }
             |]
-                expected = object
-                    [ "data" .= object
+                expected = HashMap.singleton "data"
+                    $ object
                         [ "experimentalField" .= (5 :: Int)
                         ]
-                    ]
-
             actual <- graphql experimentalResolver sourceQuery
-            actual `shouldBe` expected
+            actual `shouldResolveTo` expected
 
         it "should skip fields if @include is false" $ do
             let sourceQuery = [r|
@@ -67,7 +64,7 @@ spec =
             |]
 
             actual <- graphql experimentalResolver sourceQuery
-            actual `shouldBe` emptyObject
+            actual `shouldResolveTo` emptyObject
 
         it "should be able to @skip a fragment spread" $ do
             let sourceQuery = [r|
@@ -81,7 +78,7 @@ spec =
             |]
 
             actual <- graphql experimentalResolver sourceQuery
-            actual `shouldBe` emptyObject
+            actual `shouldResolveTo` emptyObject
 
         it "should be able to @skip an inline fragment" $ do
             let sourceQuery = [r|
@@ -93,4 +90,4 @@ spec =
             |]
 
             actual <- graphql experimentalResolver sourceQuery
-            actual `shouldBe` emptyObject
+            actual `shouldResolveTo` emptyObject
