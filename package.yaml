@@ -47,6 +47,7 @@ library:
   - Language.GraphQL.Execute.Transform
   - Language.GraphQL.Type.Definition
   - Language.GraphQL.Type.Internal
+  - Language.GraphQL.Validate.Rules
 
 tests:
   tasty:

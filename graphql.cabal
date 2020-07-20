@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: ca820b1bb2b81ffca4a3e2563bfa2be5381d80eaf4085595e07cf7db2aa3c6a9
+-- hash: ba234bcfff46df053a3466359e32682c4592b88894911ecbe78bd00fa00929b5
 
 name:           graphql
 version:        0.8.0.0
@@ -51,6 +51,7 @@ library
       Language.GraphQL.Type.In
       Language.GraphQL.Type.Out
       Language.GraphQL.Type.Schema
+      Language.GraphQL.Validate
       Test.Hspec.GraphQL
   other-modules:
       Language.GraphQL.Execute.Execution
@@ -58,6 +59,7 @@ library
       Language.GraphQL.Execute.Transform
       Language.GraphQL.Type.Definition
       Language.GraphQL.Type.Internal
+      Language.GraphQL.Validate.Rules
   hs-source-dirs:
       src
   build-depends:
@@ -86,6 +88,7 @@ test-suite tasty
       Language.GraphQL.Execute.CoerceSpec
       Language.GraphQL.ExecuteSpec
       Language.GraphQL.Type.OutSpec
+      Language.GraphQL.ValidateSpec
       Test.DirectiveSpec
       Test.FragmentSpec
       Test.KitchenSinkSpec

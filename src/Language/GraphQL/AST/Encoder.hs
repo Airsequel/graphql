@@ -50,7 +50,8 @@ document formatter defs
     | Minified <-formatter = Lazy.Text.snoc (mconcat encodeDocument) '\n'
   where
     encodeDocument = foldr executableDefinition [] defs
-    executableDefinition (ExecutableDefinition x) acc = definition formatter x : acc
+    executableDefinition (ExecutableDefinition x _) acc =
+        definition formatter x : acc
     executableDefinition _ acc = acc
 
 -- | Converts a t'ExecutableDefinition' into a string.

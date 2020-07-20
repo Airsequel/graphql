@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | @GraphQL@ document parser.
 module Language.GraphQL.AST.Parser
@@ -19,7 +20,15 @@ import Language.GraphQL.AST.DirectiveLocation
     )
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
-import Text.Megaparsec (lookAhead, option, try, (<?>))
+import Text.Megaparsec
+    ( SourcePos(..)
+    , getSourcePos
+    , lookAhead
+    , option
+    , try
+    , unPos
+    , (<?>)
+    )
 
 -- | Parser for the GraphQL documents.
 document :: Parser Document
@@ -28,10 +37,30 @@ document = unicodeBOM
     *> lexeme (NonEmpty.some definition)
 
 definition :: Parser Definition
-definition = ExecutableDefinition <$> executableDefinition
-    <|> TypeSystemDefinition <$> typeSystemDefinition
-    <|> TypeSystemExtension <$> typeSystemExtension
+definition = executableDefinition'
+    <|> typeSystemDefinition'
+    <|> typeSystemExtension'
     <?> "Definition"
+  where
+    executableDefinition' = do
+        location <- getLocation
+        definition' <- executableDefinition
+        pure $ ExecutableDefinition definition' location
+    typeSystemDefinition' = do
+        location <- getLocation
+        definition' <- typeSystemDefinition
+        pure $ TypeSystemDefinition definition' location
+    typeSystemExtension' = do
+        location <- getLocation
+        definition' <- typeSystemExtension
+        pure $ TypeSystemExtension definition' location
+
+getLocation :: Parser Location
+getLocation = fromSourcePosition <$> getSourcePos
+  where
+    fromSourcePosition SourcePos{..} =
+        Location (wordFromPosition sourceLine) (wordFromPosition sourceColumn)
+    wordFromPosition = fromIntegral . unPos
 
 executableDefinition :: Parser ExecutableDefinition
 executableDefinition = DefinitionOperation <$> operationDefinition

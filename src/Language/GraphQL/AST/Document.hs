@@ -69,9 +69,9 @@ type Document = NonEmpty Definition
 
 -- | All kinds of definitions that can occur in a GraphQL document.
 data Definition
-    = ExecutableDefinition ExecutableDefinition
-    | TypeSystemDefinition TypeSystemDefinition
-    | TypeSystemExtension TypeSystemExtension
+    = ExecutableDefinition ExecutableDefinition Location
+    | TypeSystemDefinition TypeSystemDefinition Location
+    | TypeSystemExtension TypeSystemExtension Location
     deriving (Eq, Show)
 
 -- | Top-level definition of a document, either an operation or a fragment.

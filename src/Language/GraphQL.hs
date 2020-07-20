@@ -16,6 +16,7 @@ import Data.Text (Text)
 import Language.GraphQL.AST
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
+import qualified Language.GraphQL.Validate as Validate
 import Language.GraphQL.Type.Schema
 import Text.Megaparsec (parse)
 
@@ -39,9 +40,16 @@ graphqlSubs :: MonadCatch m
 graphqlSubs schema operationName variableValues document' =
     case parse document "" document' of
         Left errorBundle -> pure . formatResponse <$> parseError errorBundle
-        Right parsed -> fmap formatResponse
-            <$> execute schema operationName variableValues parsed
+        Right parsed ->
+            case validate parsed of
+                Seq.Empty -> fmap formatResponse
+                    <$> execute schema operationName variableValues parsed
+                errors -> pure $ pure
+                    $ HashMap.singleton "errors"
+                    $ Aeson.toJSON
+                    $ fromValidationError <$> errors
   where
+    validate = Validate.document schema Validate.specifiedRules
     formatResponse (Response data'' Seq.Empty) = HashMap.singleton "data" data''
     formatResponse (Response data'' errors') = HashMap.fromList
         [ ("data", data'')
@@ -53,6 +61,18 @@ graphqlSubs schema operationName variableValues document' =
         [ ("message", Aeson.toJSON message)
         , ("locations", Aeson.listValue fromLocation locations)
         ]
+    fromValidationError Validate.Error{..}
+        | [] <- path = Aeson.object
+            [ ("message", Aeson.toJSON message)
+            , ("locations", Aeson.listValue fromLocation locations)
+            ]
+        | otherwise = Aeson.object
+            [ ("message", Aeson.toJSON message)
+            , ("locations", Aeson.listValue fromLocation locations)
+            , ("path", Aeson.listValue fromPath path)
+            ]
+    fromPath (Validate.Segment segment) = Aeson.String segment
+    fromPath (Validate.Index index) = Aeson.toJSON index
     fromLocation Location{..} = Aeson.object
         [ ("line", Aeson.toJSON line)
         , ("column", Aeson.toJSON column)

@@ -255,10 +255,10 @@ defragment ast =
      in (, fragmentTable) <$> maybe emptyDocument Right nonEmptyOperations
   where
     defragment' definition (operations, fragments')
-        | (Full.ExecutableDefinition executable) <- definition
+        | (Full.ExecutableDefinition executable _) <- definition
         , (Full.DefinitionOperation operation') <- executable =
             (transform operation' : operations, fragments')
-        | (Full.ExecutableDefinition executable) <- definition
+        | (Full.ExecutableDefinition executable _) <- definition
         , (Full.DefinitionFragment fragment) <- executable
         , (Full.FragmentDefinition name _ _ _) <- fragment =
             (operations, HashMap.insert name fragment fragments')
