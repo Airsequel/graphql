@@ -5,6 +5,7 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
 
+-- | GraphQL validator.
 module Language.GraphQL.Validate
     ( Error(..)
     , Path(..)
@@ -29,17 +30,24 @@ data Context m = Context
 
 type ValidateT m = Reader (Context m) (Seq Error)
 
+-- | If an error can be associated to a particular field in the GraphQL result,
+-- it must contain an entry with the key path that details the path of the
+-- response field which experienced the error. This allows clients to identify
+-- whether a null result is intentional or caused by a runtime error.
 data Path
-    = Segment Text
-    | Index Int
+    = Segment Text -- ^ Field name.
+    | Index Int -- ^ List index if a field returned a list.
     deriving (Eq, Show)
 
+-- | Validation error.
 data Error = Error
     { message :: String
     , locations :: [Location]
     , path :: [Path]
     } deriving (Eq, Show)
 
+-- | Validates a document and returns a list of found errors. If the returned
+-- list is empty, the document is valid.
 document :: forall m. Schema m -> [Rule] -> Document -> Seq Error
 document schema' rules' document' =
     runReader (foldrM go Seq.empty document') context

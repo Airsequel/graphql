@@ -28,6 +28,7 @@ and this project adheres to
   and event stream) resolvers to signalize an error. Other exceptions will
   escape.
 - `Test.Hspec.GraphQL` contains some test helpers.
+- `Validate` contains the validator and standard rules.
 
 ## Changed
 - `Type.Out.Resolver`: Interface fields don't have resolvers, object fields
