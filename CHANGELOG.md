@@ -7,6 +7,8 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+
+## [0.9.0.0] - 2020-07-24
 ## Fixed
 - Location of a parse error is returned in a singleton array with key
   `locations`.
@@ -21,7 +23,7 @@ and this project adheres to
 - `Error.Error` is an error representation with a message and source location.
 - `Error.Response` represents a result of running a GraphQL query.
 - `Type.Schema` exports `Type` which lists all types possible in the schema.
-- Parsing subscriptions (the execution always fails yet).
+- Parsing subscriptions.
 - `Error.ResponseEventStream`, `Type.Out.Resolve`, `Type.Out.Subscribe` and
   `Type.Out.SourceEventStream` define subscription resolvers.
 - `Error.ResolverException` is an exception that can be thrown by (field value
@@ -57,8 +59,6 @@ and this project adheres to
 ## Removed
 - `Trans.ActionT` is an unneeded layer of complexity. `Type.Out.Resolver`
   represents possible resolver configurations.
-- `Type.Out.Resolver`: It . Resolvers are a
-  part of the fields and are called `Trans.ResolverT`.
 - `Execute.executeWithName`. `Execute.execute` takes the operation name and
    completely replaces `executeWithName`.
 
@@ -323,7 +323,8 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...HEAD
+[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.9.0.0...HEAD
+[0.9.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...v0.9.0.0
 [0.8.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.7.0.0...v0.8.0.0
 [0.7.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...v0.7.0.0
 [0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
