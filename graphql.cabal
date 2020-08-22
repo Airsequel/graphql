@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5fa34f11ab1242b72c75c3c19b31ba310c24716a0eb2d134d2b17dd558280732
+-- hash: 1d8c32c00a882ccd1fefc4c083d5fe4e83a1825fbf8e0dcfd551ff2c8cd2dda0
 
 name:           graphql
 version:        0.9.0.0
@@ -24,12 +24,10 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
-    README.md
+    CONTRIBUTING.md
     LICENSE
+    README.md
     docs/tutorial/tutorial.lhs
-data-files:
-    tests/data/kitchen-sink.graphql
-    tests/data/kitchen-sink.min.graphql
 
 source-repository head
   type: git
@@ -91,7 +89,6 @@ test-suite tasty
       Language.GraphQL.ValidateSpec
       Test.DirectiveSpec
       Test.FragmentSpec
-      Test.KitchenSinkSpec
       Test.RootOperationSpec
       Test.StarWars.Data
       Test.StarWars.QuerySpec

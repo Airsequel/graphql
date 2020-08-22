@@ -17,7 +17,7 @@ import Language.GraphQL.AST.Document
 newtype Rule
     = DefinitionRule (Definition -> Maybe String)
 
--- | Default reules given in the specification.
+-- | Default rules given in the specification.
 specifiedRules :: [Rule]
 specifiedRules =
     [ executableDefinitionsRule

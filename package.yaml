@@ -17,13 +17,10 @@ author:
 
 extra-source-files:
 - CHANGELOG.md
-- README.md
+- CONTRIBUTING.md
 - LICENSE
+- README.md
 - docs/tutorial/tutorial.lhs
-
-data-files:
-- tests/data/*.graphql
-- tests/data/*.min.graphql
 
 dependencies:
 - aeson

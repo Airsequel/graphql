@@ -1,10 +1,9 @@
-# Haskell GraphQL
+# GraphQL implementation in Haskell.
 
 [![Hackage Version](https://img.shields.io/hackage/v/graphql.svg)](https://hackage.haskell.org/package/graphql)
 [![Build Status](https://github.com/caraus-ecms/graphql/workflows/Haskell%20CI/badge.svg)](https://github.com/caraus-ecms/graphql/actions?query=workflow%3A%22Haskell+CI%22)
 [![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](https://raw.githubusercontent.com/caraus-ecms/graphql/master/LICENSE)
-
-GraphQL implementation in Haskell.
+[![Simple Haskell](https://www.simplehaskell.org/badges/badge.svg)](https://www.simplehaskell.org)
 
 This implementation is relatively low-level by design, it doesn't provide any
 mappings between the GraphQL types and Haskell's type system and avoids
@@ -13,12 +12,19 @@ be built on top of it.
 
 ## State of the work
 
-For now this only provides a parser and a printer for the GraphQL query language
-and allows to execute queries and mutations using the given schema, but without
-the validation step. But the idea is to be a Haskell port of
+For now this library provides:
+
+- Parser for the query and schema languages, as well as a printer for the query
+  language (minimizer and pretty-printer).
+- Data structures to define a type system.
+- Executor (queries, mutations and subscriptions are supported).
+- Validation is work in progress.
+- Introspection isn't available yet.
+
+But the idea is to be a Haskell port of
 [`graphql-js`](https://github.com/graphql/graphql-js).
 
-For the list of currently missing features see issues marked as
+For a more precise list of currently missing features see issues marked as
 "[not implemented](https://github.com/caraus-ecms/graphql/labels/not%20implemented)".
 
 ## Documentation

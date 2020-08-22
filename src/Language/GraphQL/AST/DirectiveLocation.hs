@@ -1,5 +1,9 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 -- | Various parts of a GraphQL document can be annotated with directives. 
---   This module describes locations in a document where directives can appear.
+-- This module describes locations in a document where directives can appear.
 module Language.GraphQL.AST.DirectiveLocation
     ( DirectiveLocation(..)
     , ExecutableDirectiveLocation(..)
@@ -7,8 +11,8 @@ module Language.GraphQL.AST.DirectiveLocation
     ) where
 
 -- | All directives can be splitted in two groups: directives used to annotate
---   various parts of executable definitions and the ones used in the schema
---   definition.
+-- various parts of executable definitions and the ones used in the schema
+-- definition.
 data DirectiveLocation
     = ExecutableDirectiveLocation ExecutableDirectiveLocation
     | TypeSystemDirectiveLocation TypeSystemDirectiveLocation

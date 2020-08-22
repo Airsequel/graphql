@@ -7,6 +7,8 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+## Changed
+- `Test.Hspec.GraphQL.*`: replace `IO` in the resolver with any `MonadCatch`.
 
 ## [0.9.0.0] - 2020-07-24
 ## Fixed
