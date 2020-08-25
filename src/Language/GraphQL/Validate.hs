@@ -13,22 +13,19 @@ module Language.GraphQL.Validate
     , module Language.GraphQL.Validate.Rules
     ) where
 
-import Control.Monad.Trans.Reader (Reader, asks, runReader)
+import Control.Monad (foldM)
+import Control.Monad.Trans.Reader (Reader, asks, mapReaderT, runReader)
 import Data.Foldable (foldrM)
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Language.GraphQL.AST.Document
-import Language.GraphQL.Type.Schema
+import Language.GraphQL.Type.Internal
+import Language.GraphQL.Type.Schema (Schema(..))
 import Language.GraphQL.Validate.Rules
+import Language.GraphQL.Validate.Validation
 
-data Context m = Context
-    { ast :: Document
-    , schema :: Schema m
-    , rules :: [Rule]
-    }
-
-type ValidateT m = Reader (Context m) (Seq Error)
+type ValidateT m = Reader (Validation m) (Seq Error)
 
 -- | If an error can be associated to a particular field in the GraphQL result,
 -- it must contain an entry with the key path that details the path of the
@@ -48,36 +45,46 @@ data Error = Error
 
 -- | Validates a document and returns a list of found errors. If the returned
 -- list is empty, the document is valid.
-document :: forall m. Schema m -> [Rule] -> Document -> Seq Error
+document :: forall m. Schema m -> [Rule m] -> Document -> Seq Error
 document schema' rules' document' =
     runReader (foldrM go Seq.empty document') context
   where
-    context = Context
+    context = Validation
         { ast = document'
         , schema = schema'
+        , types = collectReferencedTypes schema'
         , rules = rules'
         }
     go definition' accumulator = (accumulator ><) <$> definition definition'
 
 definition :: forall m. Definition -> ValidateT m
 definition = \case
-    definition'@(ExecutableDefinition executableDefinition' _) -> do
+    definition'@(ExecutableDefinition executableDefinition') -> do
         applied <- applyRules definition'
         children <- executableDefinition executableDefinition'
         pure $ children >< applied
     definition' -> applyRules definition'
   where
-    applyRules definition' = foldr (ruleFilter definition') Seq.empty
-        <$> asks rules
-    ruleFilter definition' (DefinitionRule rule) accumulator
-        | Just message' <- rule definition' =
-            accumulator |> Error
-                { message = message'
-                , locations = [definitionLocation definition']
-                , path = []
-                }
-        | otherwise = accumulator
-    definitionLocation (ExecutableDefinition _ location) = location
+    applyRules definition' =
+        asks rules >>= foldM (ruleFilter definition') Seq.empty
+    ruleFilter definition' accumulator (DefinitionRule rule) =
+        flip mapReaderT (rule definition') $ \case
+            Just message' ->
+                pure $ accumulator |> Error
+                    { message = message'
+                    , locations = [definitionLocation definition']
+                    , path = []
+                    }
+            Nothing -> pure accumulator
+    ruleFilter _ accumulator _ = pure accumulator
+    definitionLocation (ExecutableDefinition executableDefinition')
+        | DefinitionOperation definitionOperation <- executableDefinition'
+        , SelectionSet _ location <- definitionOperation = location
+        | DefinitionOperation definitionOperation <- executableDefinition'
+        , OperationDefinition _ _ _ _ _ location <- definitionOperation =
+            location
+        | DefinitionFragment fragmentDefinition' <- executableDefinition'
+        , FragmentDefinition _ _ _ _ location <- fragmentDefinition' = location
     definitionLocation (TypeSystemDefinition _ location) = location
     definitionLocation (TypeSystemExtension _ location) = location
 
@@ -88,10 +95,21 @@ executableDefinition (DefinitionFragment definition') =
     fragmentDefinition definition'
 
 operationDefinition :: forall m. OperationDefinition -> ValidateT m
-operationDefinition (SelectionSet _operation) =
-    pure Seq.empty
-operationDefinition (OperationDefinition _type _name _variables _directives _selection) =
-    pure Seq.empty
+operationDefinition operation =
+    asks rules >>= foldM (ruleFilter operation) Seq.empty
+  where
+    ruleFilter definition' accumulator (OperationDefinitionRule rule) =
+        flip mapReaderT (rule definition') $ \case
+            Just message' ->
+                pure $ accumulator |> Error
+                    { message = message'
+                    , locations = [definitionLocation operation]
+                    , path = []
+                    }
+            Nothing -> pure accumulator
+    ruleFilter _ accumulator _ = pure accumulator
+    definitionLocation (SelectionSet _ location) = location
+    definitionLocation (OperationDefinition _ _ _ _ _ location) = location
 
 fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
 fragmentDefinition _fragment = pure Seq.empty

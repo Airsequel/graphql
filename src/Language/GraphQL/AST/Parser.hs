@@ -21,7 +21,8 @@ import Language.GraphQL.AST.DirectiveLocation
 import Language.GraphQL.AST.Document
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec
-    ( SourcePos(..)
+    ( MonadParsec(..)
+    , SourcePos(..)
     , getSourcePos
     , lookAhead
     , option
@@ -37,15 +38,11 @@ document = unicodeBOM
     *> lexeme (NonEmpty.some definition)
 
 definition :: Parser Definition
-definition = executableDefinition'
+definition = ExecutableDefinition <$> executableDefinition
     <|> typeSystemDefinition'
     <|> typeSystemExtension'
     <?> "Definition"
   where
-    executableDefinition' = do
-        location <- getLocation
-        definition' <- executableDefinition
-        pure $ ExecutableDefinition definition' location
     typeSystemDefinition' = do
         location <- getLocation
         definition' <- typeSystemDefinition
@@ -349,16 +346,22 @@ operationTypeDefinition = OperationTypeDefinition
     <?> "OperationTypeDefinition"
 
 operationDefinition :: Parser OperationDefinition
-operationDefinition = SelectionSet <$> selectionSet
+operationDefinition = shorthand
     <|> operationDefinition'
     <?> "OperationDefinition"
   where
-    operationDefinition'
-        = OperationDefinition <$> operationType
-        <*> optional name
-        <*> variableDefinitions
-        <*> directives
-        <*> selectionSet
+    shorthand = do
+        location <- getLocation
+        selectionSet' <- selectionSet
+        pure $ SelectionSet selectionSet' location
+    operationDefinition' = do
+        location <- getLocation
+        operationType' <- operationType
+        operationName <- optional name
+        variableDefinitions' <- variableDefinitions
+        directives' <- directives
+        selectionSet' <- selectionSet
+        pure $ OperationDefinition operationType' operationName variableDefinitions' directives' selectionSet' location
 
 operationType :: Parser OperationType
 operationType = Query <$ symbol "query"
@@ -412,13 +415,15 @@ inlineFragment = InlineFragment
     <?> "InlineFragment"
 
 fragmentDefinition :: Parser FragmentDefinition
-fragmentDefinition = FragmentDefinition
-    <$  symbol "fragment"
-    <*> name
-    <*> typeCondition
-    <*> directives
-    <*> selectionSet
-    <?> "FragmentDefinition"
+fragmentDefinition =  label "FragmentDefinition" $ do
+    location <- getLocation
+    _ <- symbol "fragment"
+    fragmentName' <- name
+    typeCondition' <- typeCondition
+    directives' <- directives
+    selectionSet' <- selectionSet
+    pure $ FragmentDefinition
+        fragmentName' typeCondition' directives' selectionSet' location
 
 fragmentName :: Parser Name
 fragmentName = but (symbol "on") *> name <?> "FragmentName"

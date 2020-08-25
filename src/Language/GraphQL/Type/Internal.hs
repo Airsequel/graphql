@@ -8,6 +8,9 @@ module Language.GraphQL.Type.Internal
     ( AbstractType(..)
     , CompositeType(..)
     , collectReferencedTypes
+    , doesFragmentTypeApply
+    , instanceOf
+    , lookupTypeCondition
     ) where
 
 import Data.HashMap.Strict (HashMap)
@@ -89,3 +92,39 @@ collectReferencedTypes schema =
     polymorphicTraverser interfaces fields
         = flip (foldr visitFields) fields
         . flip (foldr traverseInterfaceType) interfaces
+
+doesFragmentTypeApply :: forall m
+    . CompositeType m
+    -> Out.ObjectType m
+    -> Bool
+doesFragmentTypeApply (CompositeObjectType fragmentType) objectType =
+    fragmentType == objectType
+doesFragmentTypeApply (CompositeInterfaceType fragmentType) objectType =
+    instanceOf objectType $ AbstractInterfaceType fragmentType
+doesFragmentTypeApply (CompositeUnionType fragmentType) objectType =
+    instanceOf objectType $ AbstractUnionType fragmentType
+
+instanceOf :: forall m. Out.ObjectType m -> AbstractType m -> Bool
+instanceOf objectType (AbstractInterfaceType interfaceType) =
+    let Out.ObjectType _ _ interfaces _ = objectType
+     in foldr go False interfaces
+  where
+    go objectInterfaceType@(Out.InterfaceType _ _ interfaces _) acc =
+        acc || foldr go (interfaceType == objectInterfaceType) interfaces
+instanceOf objectType (AbstractUnionType unionType) =
+    let Out.UnionType _ _ members = unionType
+     in foldr go False members
+  where
+    go unionMemberType acc = acc || objectType == unionMemberType
+
+lookupTypeCondition :: forall m
+    . Name
+    -> HashMap Name (Type m)
+    -> Maybe (CompositeType m)
+lookupTypeCondition type' types' =
+    case HashMap.lookup type' types' of
+        Just (ObjectType objectType) -> Just $ CompositeObjectType objectType
+        Just (UnionType unionType) -> Just $ CompositeUnionType unionType
+        Just (InterfaceType interfaceType) ->
+            Just $ CompositeInterfaceType interfaceType
+        _ -> Nothing

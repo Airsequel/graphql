@@ -9,6 +9,14 @@ and this project adheres to
 ## [Unreleased]
 ## Changed
 - `Test.Hspec.GraphQL.*`: replace `IO` in the resolver with any `MonadCatch`.
+- The `Location` argument of `AST.Document.Definition.ExecutableDefinition` was
+  moved to `OperationDefinition` and `FragmentDefinition` since these are the
+  actual elements that have a location in the document.
+- `Validate.Rules` get the whole validation context (AST and schema).
+
+## Added
+- `Validate.Validation` contains data structures and functions used by the
+  validator and concretet rules.
 
 ## [0.9.0.0] - 2020-07-24
 ## Fixed

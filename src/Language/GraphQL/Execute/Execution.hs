@@ -83,30 +83,6 @@ resolveAbstractType abstractType values'
             _ -> pure Nothing
     | otherwise = pure Nothing
 
-doesFragmentTypeApply :: forall m
-    . CompositeType m
-    -> Out.ObjectType m
-    -> Bool
-doesFragmentTypeApply (CompositeObjectType fragmentType) objectType =
-    fragmentType == objectType
-doesFragmentTypeApply (CompositeInterfaceType fragmentType) objectType =
-    instanceOf objectType $ AbstractInterfaceType fragmentType
-doesFragmentTypeApply (CompositeUnionType fragmentType) objectType =
-    instanceOf objectType $ AbstractUnionType fragmentType
-
-instanceOf :: forall m. Out.ObjectType m -> AbstractType m -> Bool
-instanceOf objectType (AbstractInterfaceType interfaceType) =
-    let Out.ObjectType _ _ interfaces _ = objectType
-     in foldr go False interfaces
-  where
-    go objectInterfaceType@(Out.InterfaceType _ _ interfaces _) acc =
-        acc || foldr go (interfaceType == objectInterfaceType) interfaces
-instanceOf objectType (AbstractUnionType unionType) =
-    let Out.UnionType _ _ members = unionType
-     in foldr go False members
-  where
-    go unionMemberType acc = acc || objectType == unionMemberType
-
 executeField :: (MonadCatch m, Serialize a)
     => Out.Resolver m
     -> Type.Value

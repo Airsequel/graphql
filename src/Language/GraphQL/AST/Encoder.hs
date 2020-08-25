@@ -50,8 +50,8 @@ document formatter defs
     | Minified <-formatter = Lazy.Text.snoc (mconcat encodeDocument) '\n'
   where
     encodeDocument = foldr executableDefinition [] defs
-    executableDefinition (ExecutableDefinition x _) acc =
-        definition formatter x : acc
+    executableDefinition (ExecutableDefinition executableDefinition') acc =
+        definition formatter executableDefinition' : acc
     executableDefinition _ acc = acc
 
 -- | Converts a t'ExecutableDefinition' into a string.
@@ -68,12 +68,12 @@ definition formatter x
 -- | Converts a 'OperationDefinition into a string.
 operationDefinition :: Formatter -> OperationDefinition -> Lazy.Text
 operationDefinition formatter = \case
-    SelectionSet sels -> selectionSet formatter sels
-    OperationDefinition Query name vars dirs sels ->
+    SelectionSet sels _ -> selectionSet formatter sels
+    OperationDefinition Query name vars dirs sels _ ->
         "query " <> node formatter name vars dirs sels
-    OperationDefinition Mutation name vars dirs sels ->
+    OperationDefinition Mutation name vars dirs sels _ ->
         "mutation " <> node formatter name vars dirs sels
-    OperationDefinition Subscription name vars dirs sels ->
+    OperationDefinition Subscription name vars dirs sels _ ->
         "subscription " <> node formatter name vars dirs sels
 
 -- | Converts a Query or Mutation into a string.
@@ -190,7 +190,7 @@ inlineFragment formatter tc dirs sels = "... on "
     <> selectionSet formatter sels
 
 fragmentDefinition :: Formatter -> FragmentDefinition -> Lazy.Text
-fragmentDefinition formatter (FragmentDefinition name tc dirs sels)
+fragmentDefinition formatter (FragmentDefinition name tc dirs sels _)
     = "fragment " <> Lazy.Text.fromStrict name
     <> " on " <> Lazy.Text.fromStrict tc
     <> optempty (directives formatter) dirs

@@ -69,7 +69,7 @@ type Document = NonEmpty Definition
 
 -- | All kinds of definitions that can occur in a GraphQL document.
 data Definition
-    = ExecutableDefinition ExecutableDefinition Location
+    = ExecutableDefinition ExecutableDefinition
     | TypeSystemDefinition TypeSystemDefinition Location
     | TypeSystemExtension TypeSystemExtension Location
     deriving (Eq, Show)
@@ -84,13 +84,14 @@ data ExecutableDefinition
 
 -- | Operation definition.
 data OperationDefinition
-    = SelectionSet SelectionSet
+    = SelectionSet SelectionSet Location
     | OperationDefinition
         OperationType
         (Maybe Name)
         [VariableDefinition]
         [Directive]
         SelectionSet
+        Location
     deriving (Eq, Show)
 
 -- | GraphQL has 3 operation types:
@@ -195,7 +196,7 @@ type Alias = Name
 
 -- | Fragment definition.
 data FragmentDefinition
-    = FragmentDefinition Name TypeCondition [Directive] SelectionSet
+    = FragmentDefinition Name TypeCondition [Directive] SelectionSet Location
     deriving (Eq, Show)
 
 -- | Type condition.

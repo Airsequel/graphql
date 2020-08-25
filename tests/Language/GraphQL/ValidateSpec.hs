@@ -148,7 +148,7 @@ validate queryString =
 
 spec :: Spec
 spec =
-    describe "document" $
+    describe "document" $ do
         it "rejects type definitions" $
             let queryString = [r|
               query getDogName {
@@ -166,6 +166,46 @@ spec =
                     { message =
                         "Definition must be OperationDefinition or FragmentDefinition."
                     , locations = [AST.Location 9 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects multiple subscription root fields" $
+            let queryString = [r|
+              subscription sub {
+                newMessage {
+                  body
+                  sender
+                }
+                disallowedSecondRootField
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Subscription sub must select only one top level field."
+                    , locations = [AST.Location 2 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects multiple subscription root fields coming from a fragment" $
+            let queryString = [r|
+              subscription sub {
+                ...multipleSubscriptions
+              }
+
+              fragment multipleSubscriptions on Subscription {
+                newMessage {
+                  body
+                  sender
+                }
+                disallowedSecondRootField
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Subscription sub must select only one top level field."
+                    , locations = [AST.Location 2 15]
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected

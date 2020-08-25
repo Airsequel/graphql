@@ -123,7 +123,9 @@ spec = do
         it "indents block strings in arguments" $
             let arguments = [Argument "message" (String "line1\nline2")]
                 field = Field Nothing "field" arguments [] []
-                operation = DefinitionOperation $ SelectionSet $ pure field
+                operation = DefinitionOperation
+                    $ SelectionSet (pure field)
+                    $ Location 0 0
              in definition pretty operation `shouldBe` [r|{
   field(message: """
     line1

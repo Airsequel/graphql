@@ -255,18 +255,18 @@ defragment ast =
      in (, fragmentTable) <$> maybe emptyDocument Right nonEmptyOperations
   where
     defragment' definition (operations, fragments')
-        | (Full.ExecutableDefinition executable _) <- definition
+        | (Full.ExecutableDefinition executable) <- definition
         , (Full.DefinitionOperation operation') <- executable =
             (transform operation' : operations, fragments')
-        | (Full.ExecutableDefinition executable _) <- definition
+        | (Full.ExecutableDefinition executable) <- definition
         , (Full.DefinitionFragment fragment) <- executable
-        , (Full.FragmentDefinition name _ _ _) <- fragment =
+        , (Full.FragmentDefinition name _ _ _ _) <- fragment =
             (operations, HashMap.insert name fragment fragments')
     defragment' _ acc = acc
     transform = \case
-        Full.OperationDefinition type' name variables directives' selections ->
+        Full.OperationDefinition type' name variables directives' selections _ ->
             OperationDefinition type' name variables directives' selections
-        Full.SelectionSet selectionSet ->
+        Full.SelectionSet selectionSet _ ->
             OperationDefinition Full.Query Nothing mempty mempty selectionSet
 
 -- * Operation
@@ -324,8 +324,8 @@ selection (Full.InlineFragment type' directives' selections) = do
             case type' of
                 Nothing -> pure $ Left fragmentSelectionSet
                 Just typeName -> do
-                    typeCondition' <- lookupTypeCondition typeName
-                    case typeCondition' of
+                    types' <- gets types
+                    case lookupTypeCondition typeName types' of
                         Just typeCondition -> pure $
                             selectionFragment typeCondition fragmentSelectionSet
                         Nothing -> pure $ Left mempty
@@ -364,29 +364,17 @@ collectFragments = do
         _ <- fragmentDefinition nextValue
         collectFragments
 
-lookupTypeCondition :: Full.Name -> State (Replacement m) (Maybe (CompositeType m))
-lookupTypeCondition type' = do
-    types' <- gets types
-    case HashMap.lookup type' types' of
-        Just (ObjectType objectType) ->
-            lift $ pure $ Just $ CompositeObjectType objectType
-        Just (UnionType unionType) ->
-            lift $ pure $ Just $ CompositeUnionType unionType
-        Just (InterfaceType interfaceType) ->
-            lift $ pure $ Just $ CompositeInterfaceType interfaceType
-        _ -> lift $ pure Nothing
-
 fragmentDefinition
     :: Full.FragmentDefinition
     ->  State (Replacement m) (Maybe (Fragment m))
-fragmentDefinition (Full.FragmentDefinition name type' _ selections) = do
+fragmentDefinition (Full.FragmentDefinition name type' _ selections _) = do
     modify deleteFragmentDefinition
     fragmentSelection <- appendSelection selections
-    compositeType <- lookupTypeCondition type'
+    types' <- gets types
 
-    case compositeType of
-        Just compositeType' -> do
-            let newValue = Fragment compositeType' fragmentSelection
+    case lookupTypeCondition type' types' of
+        Just compositeType -> do
+            let newValue = Fragment compositeType fragmentSelection
             modify $ insertFragment newValue
             lift $ pure $ Just newValue
         _ -> lift $ pure Nothing
