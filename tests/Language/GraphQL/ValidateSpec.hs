@@ -209,3 +209,27 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects multiple anonymous operations" $
+            let queryString = [r|
+              {
+                dog {
+                  name
+                }
+              }
+
+              query getName {
+                dog {
+                  owner {
+                    name
+                  }
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "This anonymous operation must be the only defined operation."
+                    , locations = [AST.Location 2 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

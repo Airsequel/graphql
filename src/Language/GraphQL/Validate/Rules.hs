@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | This module contains default rules defined in the GraphQL specification.
@@ -27,22 +28,19 @@ specifiedRules :: forall m. [Rule m]
 specifiedRules =
     [ executableDefinitionsRule
     , singleFieldSubscriptionsRule
+    , loneAnonymousOperationRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
 executableDefinitionsRule :: forall m. Rule m
-executableDefinitionsRule = DefinitionRule go
-  where
-    go :: Definition -> RuleT m
-    go (ExecutableDefinition _) = lift Nothing
-    go _ = pure
-        "Definition must be OperationDefinition or FragmentDefinition."
+executableDefinitionsRule = DefinitionRule $ \case
+    ExecutableDefinition _ -> lift Nothing
+    _ -> pure "Definition must be OperationDefinition or FragmentDefinition."
 
 -- | Subscription operations must have exactly one root field.
 singleFieldSubscriptionsRule :: forall m. Rule m
-singleFieldSubscriptionsRule = OperationDefinitionRule go
-  where
-    go (OperationDefinition Subscription name' _ _ rootFields _) = do
+singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
+    OperationDefinition Subscription name' _ _ rootFields _ -> do
         groupedFieldSet <- evalStateT (collectFields rootFields) HashSet.empty
         case HashSet.size groupedFieldSet of
             1 -> lift Nothing
@@ -54,7 +52,8 @@ singleFieldSubscriptionsRule = OperationDefinitionRule go
                     ]
                 | otherwise -> pure
                     "Anonymous Subscription must select only one top level field."
-    go _ = lift Nothing
+    _ -> lift Nothing
+  where
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
     forEach accumulator (Field alias name _ directives _)
         | any skip directives = pure accumulator
@@ -98,3 +97,26 @@ singleFieldSubscriptionsRule = OperationDefinitionRule go
             Nothing -> pure accumulator
             Just (FragmentDefinition _ typeCondition _ selectionSet _) ->
                 collectFromFragment typeCondition selectionSet accumulator
+
+-- | GraphQL allows a short‐hand form for defining query operations when only
+-- that one operation exists in the document.
+loneAnonymousOperationRule :: forall m. Rule m
+loneAnonymousOperationRule = OperationDefinitionRule $ \case
+      SelectionSet _ thisLocation -> check thisLocation
+      OperationDefinition _ Nothing _ _ _ thisLocation -> check thisLocation
+      _ -> lift Nothing
+    where
+      check thisLocation = asks ast
+        >>= lift . foldr (filterAnonymousOperations thisLocation) Nothing
+      filterAnonymousOperations thisLocation definition Nothing
+          | ExecutableDefinition executableDefinition <- definition
+          , DefinitionOperation operationDefinition <- executableDefinition =
+              compareAnonymousOperations thisLocation operationDefinition
+      filterAnonymousOperations _ _ accumulator = accumulator
+      compareAnonymousOperations thisLocation operationDefinition
+          | OperationDefinition _ _ _ _ _ thatLocation <- operationDefinition
+          , thisLocation /= thatLocation = pure message
+          | SelectionSet _ thatLocation <- operationDefinition
+          , thisLocation /= thatLocation = pure message
+      compareAnonymousOperations _ _ = Nothing
+      message = "This anonymous operation must be the only defined operation."

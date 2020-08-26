@@ -62,6 +62,12 @@ data Location = Location
     , column :: Word
     } deriving (Eq, Show)
 
+instance Ord Location where
+    compare (Location thisLine thisColumn) (Location thatLine thatColumn)
+        | thisLine < thatLine = LT
+        | thisLine > thatLine = GT
+        | otherwise = compare thisColumn thatColumn
+
 -- ** Document
 
 -- | GraphQL document.
