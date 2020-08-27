@@ -233,3 +233,25 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects operations with the same name" $
+            let queryString = [r|
+              query dogOperation {
+                dog {
+                  name
+                }
+              }
+
+              mutation dogOperation {
+                mutateDog {
+                  id
+                }
+            }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one operation named \"dogOperation\"."
+                    , locations = [AST.Location 2 15, AST.Location 8 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

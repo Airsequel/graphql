@@ -4,16 +4,35 @@
 
 -- | Definitions used by the validation rules and the validator itself.
 module Language.GraphQL.Validate.Validation
-    ( Validation(..)
+    ( Error(..)
+    , Path(..)
     , Rule(..)
     , RuleT
+    , Validation(..)
     ) where
 
 import Control.Monad.Trans.Reader (ReaderT(..))
 import Data.HashMap.Strict (HashMap)
+import Data.Text (Text)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
+
+-- | If an error can be associated to a particular field in the GraphQL result,
+-- it must contain an entry with the key path that details the path of the
+-- response field which experienced the error. This allows clients to identify
+-- whether a null result is intentional or caused by a runtime error.
+data Path
+    = Segment Text -- ^ Field name.
+    | Index Int -- ^ List index if a field returned a list.
+    deriving (Eq, Show)
+
+-- | Validation error.
+data Error = Error
+    { message :: String
+    , locations :: [Location]
+    , path :: [Path]
+    } deriving (Eq, Show)
 
 -- | Validation rule context.
 data Validation m = Validation
@@ -31,4 +50,4 @@ data Rule m
     | OperationDefinitionRule (OperationDefinition -> RuleT m)
 
 -- | Monad transformer used by the rules.
-type RuleT m = ReaderT (Validation m) Maybe String
+type RuleT m = ReaderT (Validation m) Maybe Error

@@ -18,7 +18,6 @@ import Control.Monad.Trans.Reader (Reader, asks, mapReaderT, runReader)
 import Data.Foldable (foldrM)
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
-import Data.Text (Text)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.Type.Internal
 import Language.GraphQL.Type.Schema (Schema(..))
@@ -26,22 +25,6 @@ import Language.GraphQL.Validate.Rules
 import Language.GraphQL.Validate.Validation
 
 type ValidateT m = Reader (Validation m) (Seq Error)
-
--- | If an error can be associated to a particular field in the GraphQL result,
--- it must contain an entry with the key path that details the path of the
--- response field which experienced the error. This allows clients to identify
--- whether a null result is intentional or caused by a runtime error.
-data Path
-    = Segment Text -- ^ Field name.
-    | Index Int -- ^ List index if a field returned a list.
-    deriving (Eq, Show)
-
--- | Validation error.
-data Error = Error
-    { message :: String
-    , locations :: [Location]
-    , path :: [Path]
-    } deriving (Eq, Show)
 
 -- | Validates a document and returns a list of found errors. If the returned
 -- list is empty, the document is valid.
@@ -68,25 +51,12 @@ definition = \case
     applyRules definition' =
         asks rules >>= foldM (ruleFilter definition') Seq.empty
     ruleFilter definition' accumulator (DefinitionRule rule) =
-        flip mapReaderT (rule definition') $ \case
-            Just message' ->
-                pure $ accumulator |> Error
-                    { message = message'
-                    , locations = [definitionLocation definition']
-                    , path = []
-                    }
-            Nothing -> pure accumulator
+        mapReaderT (runRule accumulator) $ rule definition'
     ruleFilter _ accumulator _ = pure accumulator
-    definitionLocation (ExecutableDefinition executableDefinition')
-        | DefinitionOperation definitionOperation <- executableDefinition'
-        , SelectionSet _ location <- definitionOperation = location
-        | DefinitionOperation definitionOperation <- executableDefinition'
-        , OperationDefinition _ _ _ _ _ location <- definitionOperation =
-            location
-        | DefinitionFragment fragmentDefinition' <- executableDefinition'
-        , FragmentDefinition _ _ _ _ location <- fragmentDefinition' = location
-    definitionLocation (TypeSystemDefinition _ location) = location
-    definitionLocation (TypeSystemExtension _ location) = location
+
+runRule :: Applicative f => Seq Error -> Maybe Error -> f (Seq Error)
+runRule accumulator (Just error') = pure $ accumulator |> error'
+runRule accumulator Nothing = pure accumulator
 
 executableDefinition :: forall m. ExecutableDefinition -> ValidateT m
 executableDefinition (DefinitionOperation definition') =
@@ -99,17 +69,8 @@ operationDefinition operation =
     asks rules >>= foldM (ruleFilter operation) Seq.empty
   where
     ruleFilter definition' accumulator (OperationDefinitionRule rule) =
-        flip mapReaderT (rule definition') $ \case
-            Just message' ->
-                pure $ accumulator |> Error
-                    { message = message'
-                    , locations = [definitionLocation operation]
-                    , path = []
-                    }
-            Nothing -> pure accumulator
+        mapReaderT (runRule accumulator) $ rule definition'
     ruleFilter _ accumulator _ = pure accumulator
-    definitionLocation (SelectionSet _ location) = location
-    definitionLocation (OperationDefinition _ _ _ _ _ location) = location
 
 fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
 fragmentDefinition _fragment = pure Seq.empty

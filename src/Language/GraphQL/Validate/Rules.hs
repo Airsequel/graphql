@@ -5,11 +5,15 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | This module contains default rules defined in the GraphQL specification.
 module Language.GraphQL.Validate.Rules
     ( executableDefinitionsRule
+    , loneAnonymousOperationRule
+    , singleFieldSubscriptionsRule
     , specifiedRules
+    , uniqueOperationNamesRule
     ) where
 
 import Control.Monad (foldM)
@@ -29,31 +33,49 @@ specifiedRules =
     [ executableDefinitionsRule
     , singleFieldSubscriptionsRule
     , loneAnonymousOperationRule
+    , uniqueOperationNamesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
 executableDefinitionsRule :: forall m. Rule m
 executableDefinitionsRule = DefinitionRule $ \case
     ExecutableDefinition _ -> lift Nothing
-    _ -> pure "Definition must be OperationDefinition or FragmentDefinition."
+    TypeSystemDefinition _ location -> pure $ error' location
+    TypeSystemExtension _ location -> pure $ error' location
+  where
+    error' location = Error
+        { message =
+            "Definition must be OperationDefinition or FragmentDefinition."
+        , locations = [location]
+        , path = []
+        }
 
 -- | Subscription operations must have exactly one root field.
 singleFieldSubscriptionsRule :: forall m. Rule m
 singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
-    OperationDefinition Subscription name' _ _ rootFields _ -> do
+    OperationDefinition Subscription name' _ _ rootFields location -> do
         groupedFieldSet <- evalStateT (collectFields rootFields) HashSet.empty
         case HashSet.size groupedFieldSet of
             1 -> lift Nothing
             _
-                | Just name <- name' -> pure $ unwords
-                    [ "Subscription"
-                    , Text.unpack name
-                    , "must select only one top level field."
-                    ]
-                | otherwise -> pure
-                    "Anonymous Subscription must select only one top level field."
+                | Just name <- name' -> pure $ Error
+                    { message = unwords
+                        [ "Subscription"
+                        , Text.unpack name
+                        , "must select only one top level field."
+                        ]
+                    , locations = [location]
+                    , path = []
+                    }
+                | otherwise -> pure $ Error
+                    { message = errorMessage
+                    , locations = [location]
+                    , path = []
+                    }
     _ -> lift Nothing
   where
+    errorMessage =
+        "Anonymous Subscription must select only one top level field."
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
     forEach accumulator (Field alias name _ directives _)
         | any skip directives = pure accumulator
@@ -107,16 +129,54 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
       _ -> lift Nothing
     where
       check thisLocation = asks ast
-        >>= lift . foldr (filterAnonymousOperations thisLocation) Nothing
+          >>= lift . foldr (filterAnonymousOperations thisLocation) Nothing
       filterAnonymousOperations thisLocation definition Nothing
-          | ExecutableDefinition executableDefinition <- definition
-          , DefinitionOperation operationDefinition <- executableDefinition =
+          | (viewOperation -> Just operationDefinition) <- definition =
               compareAnonymousOperations thisLocation operationDefinition
       filterAnonymousOperations _ _ accumulator = accumulator
-      compareAnonymousOperations thisLocation operationDefinition
-          | OperationDefinition _ _ _ _ _ thatLocation <- operationDefinition
-          , thisLocation /= thatLocation = pure message
-          | SelectionSet _ thatLocation <- operationDefinition
-          , thisLocation /= thatLocation = pure message
-      compareAnonymousOperations _ _ = Nothing
-      message = "This anonymous operation must be the only defined operation."
+      compareAnonymousOperations thisLocation = \case
+          OperationDefinition _ _ _ _ _ thatLocation
+              | thisLocation /= thatLocation -> pure $ error' thisLocation
+          SelectionSet _ thatLocation
+              | thisLocation /= thatLocation -> pure $ error' thisLocation
+          _ -> Nothing
+      error' location = Error
+          { message =
+              "This anonymous operation must be the only defined operation."
+          , locations = [location]
+          , path = []
+          }
+
+-- | Each named operation definition must be unique within a document when
+-- referred to by its name.
+uniqueOperationNamesRule :: forall m. Rule m
+uniqueOperationNamesRule = OperationDefinitionRule $ \case
+    OperationDefinition _ (Just thisName) _ _ _ thisLocation -> do
+        ast' <- asks ast
+        let locations' = foldr (filterByName thisName) [] ast'
+        if length locations' > 1 && head locations' == thisLocation
+            then pure $ error' thisName locations'
+            else lift Nothing
+    _ -> lift Nothing
+  where
+    error' operationName locations' = Error 
+        { message = concat
+            [ "There can be only one operation named \""
+            , Text.unpack operationName
+            , "\"."
+            ]
+        , locations = locations'
+        , path = []
+        }
+    filterByName thisName definition' accumulator
+        | (viewOperation -> Just operationDefinition) <- definition'
+        , OperationDefinition _ (Just thatName) _ _ _ thatLocation <- operationDefinition
+        , thisName == thatName = thatLocation : accumulator
+        | otherwise = accumulator
+
+viewOperation :: Definition -> Maybe OperationDefinition
+viewOperation definition
+    | ExecutableDefinition executableDefinition <- definition
+    , DefinitionOperation operationDefinition <- executableDefinition =
+        Just operationDefinition
+viewOperation _ = Nothing
