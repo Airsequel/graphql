@@ -17,6 +17,7 @@ and this project adheres to
 ## Added
 - `Validate.Validation` contains data structures and functions used by the
   validator and concretet rules.
+- `Validate.Rules`: operation validation rules.
 
 ## [0.9.0.0] - 2020-07-24
 ## Fixed

@@ -66,11 +66,16 @@ executableDefinition (DefinitionFragment definition') =
 
 operationDefinition :: forall m. OperationDefinition -> ValidateT m
 operationDefinition operation =
-    asks rules >>= foldM (ruleFilter operation) Seq.empty
+    asks rules >>= foldM ruleFilter Seq.empty
   where
-    ruleFilter definition' accumulator (OperationDefinitionRule rule) =
-        mapReaderT (runRule accumulator) $ rule definition'
-    ruleFilter _ accumulator _ = pure accumulator
+    ruleFilter accumulator (OperationDefinitionRule rule) =
+        mapReaderT (runRule accumulator) $ rule operation
+    ruleFilter accumulator _ = pure accumulator
 
 fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
-fragmentDefinition _fragment = pure Seq.empty
+fragmentDefinition fragment =
+    asks rules >>= foldM ruleFilter Seq.empty
+  where
+    ruleFilter accumulator (FragmentDefinitionRule rule) =
+        mapReaderT (runRule accumulator) $ rule fragment
+    ruleFilter accumulator _ = pure accumulator

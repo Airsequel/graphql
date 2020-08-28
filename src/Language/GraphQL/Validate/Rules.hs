@@ -13,6 +13,7 @@ module Language.GraphQL.Validate.Rules
     , loneAnonymousOperationRule
     , singleFieldSubscriptionsRule
     , specifiedRules
+    , uniqueFragmentNamesRule
     , uniqueOperationNamesRule
     ) where
 
@@ -34,6 +35,7 @@ specifiedRules =
     , singleFieldSubscriptionsRule
     , loneAnonymousOperationRule
     , uniqueOperationNamesRule
+    , uniqueFragmentNamesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -151,28 +153,37 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
 -- referred to by its name.
 uniqueOperationNamesRule :: forall m. Rule m
 uniqueOperationNamesRule = OperationDefinitionRule $ \case
-    OperationDefinition _ (Just thisName) _ _ _ thisLocation -> do
-        ast' <- asks ast
-        let locations' = foldr (filterByName thisName) [] ast'
-        if length locations' > 1 && head locations' == thisLocation
-            then pure $ error' thisName locations'
-            else lift Nothing
+    OperationDefinition _ (Just thisName) _ _ _ thisLocation ->
+        findDuplicates (filterByName thisName) thisLocation (error' thisName)
     _ -> lift Nothing
   where
-    error' operationName locations' = Error 
-        { message = concat
-            [ "There can be only one operation named \""
-            , Text.unpack operationName
-            , "\"."
-            ]
-        , locations = locations'
-        , path = []
-        }
+    error' operationName = concat
+        [ "There can be only one operation named \""
+        , Text.unpack operationName
+        , "\"."
+        ]
     filterByName thisName definition' accumulator
         | (viewOperation -> Just operationDefinition) <- definition'
         , OperationDefinition _ (Just thatName) _ _ _ thatLocation <- operationDefinition
         , thisName == thatName = thatLocation : accumulator
         | otherwise = accumulator
+
+findDuplicates :: (Definition -> [Location] -> [Location])
+    -> Location
+    -> String
+    -> RuleT m
+findDuplicates filterByName thisLocation errorMessage = do
+    ast' <- asks ast
+    let locations' = foldr filterByName [] ast'
+    if length locations' > 1 && head locations' == thisLocation
+        then pure $ error' locations'
+        else lift Nothing
+  where
+    error' locations' = Error 
+        { message = errorMessage
+        , locations = locations'
+        , path = []
+        }
 
 viewOperation :: Definition -> Maybe OperationDefinition
 viewOperation definition
@@ -180,3 +191,25 @@ viewOperation definition
     , DefinitionOperation operationDefinition <- executableDefinition =
         Just operationDefinition
 viewOperation _ = Nothing
+
+-- | Fragment definitions are referenced in fragment spreads by name. To avoid
+-- ambiguity, each fragment’s name must be unique within a document.
+--
+-- Inline fragments are not considered fragment definitions, and are unaffected
+-- by this validation rule.
+uniqueFragmentNamesRule :: forall m. Rule m
+uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
+    FragmentDefinition thisName _ _ _ thisLocation ->
+        findDuplicates (filterByName thisName) thisLocation (error' thisName)
+  where
+    error' fragmentName = concat
+        [ "There can be only one fragment named \""
+        , Text.unpack fragmentName
+        , "\"."
+        ]
+    filterByName thisName definition accumulator
+        | ExecutableDefinition executableDefinition <- definition
+        , DefinitionFragment fragmentDefinition <- executableDefinition
+        , FragmentDefinition thatName _ _ _ thatLocation <- fragmentDefinition
+        , thisName == thatName = thatLocation : accumulator
+        | otherwise = accumulator

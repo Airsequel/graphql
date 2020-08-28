@@ -255,3 +255,29 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects fragments with the same name" $
+            let queryString = [r|
+              {
+                dog {
+                  ...fragmentOne
+                }
+              }
+
+              fragment fragmentOne on Dog {
+                name
+              }
+
+              fragment fragmentOne on Dog {
+                owner {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one fragment named \"fragmentOne\"."
+                    , locations = [AST.Location 8 15, AST.Location 12 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
