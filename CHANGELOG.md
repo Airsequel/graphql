@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [Unreleased]
+## [0.10.0.0] - 2020-08-29
 ## Changed
 - `Test.Hspec.GraphQL.*`: replace `IO` in the resolver with any `MonadCatch`.
 - The `Location` argument of `AST.Document.Definition.ExecutableDefinition` was
@@ -334,7 +334,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.9.0.0...HEAD
+[0.10.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.9.0.0...v0.10.0.0
 [0.9.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...v0.9.0.0
 [0.8.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.7.0.0...v0.8.0.0
 [0.7.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...v0.7.0.0
