@@ -163,7 +163,7 @@ type SelectionSetOpt = [Selection]
 -- @
 data Selection
     = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt
-    | FragmentSpread Name [Directive]
+    | FragmentSpread Name [Directive] Location
     | InlineFragment (Maybe TypeCondition) [Directive] SelectionSet
     deriving (Eq, Show)
 

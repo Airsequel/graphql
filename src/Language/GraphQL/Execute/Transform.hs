@@ -299,7 +299,7 @@ selection (Full.Field alias name arguments' directives' selections) =
     go arguments (Full.Argument name' value') =
         inputField arguments name' value'
 
-selection (Full.FragmentSpread name directives') =
+selection (Full.FragmentSpread name directives' _) =
     maybe (Left mempty) (Right . SelectionFragment) <$> do
         spreadDirectives <- Definition.selection <$> directives directives'
         fragments' <- gets fragments

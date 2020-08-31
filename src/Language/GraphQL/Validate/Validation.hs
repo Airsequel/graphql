@@ -49,6 +49,7 @@ data Rule m
     = DefinitionRule (Definition -> RuleT m)
     | OperationDefinitionRule (OperationDefinition -> RuleT m)
     | FragmentDefinitionRule (FragmentDefinition -> RuleT m)
+    | SelectionRule (Selection -> RuleT m)
 
 -- | Monad transformer used by the rules.
 type RuleT m = ReaderT (Validation m) Maybe Error

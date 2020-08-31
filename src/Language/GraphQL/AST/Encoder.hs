@@ -130,7 +130,7 @@ selection formatter = Lazy.Text.append indent' . encodeSelection
         field incrementIndent alias name args directives' selections
     encodeSelection (InlineFragment typeCondition directives' selections) =
         inlineFragment incrementIndent typeCondition directives' selections
-    encodeSelection (FragmentSpread name directives') =
+    encodeSelection (FragmentSpread name directives' _) =
         fragmentSpread incrementIndent name directives'
     incrementIndent
         | Pretty indentation <- formatter = Pretty $ indentation + 1

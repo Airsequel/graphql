@@ -281,3 +281,19 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects the fragment spread without a target" $
+            let queryString = [r|
+              {
+                dog {
+                  ...undefinedFragment
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment target \"undefinedFragment\" is undefined."
+                    , locations = [AST.Location 4 19]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

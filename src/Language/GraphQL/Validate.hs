@@ -15,7 +15,7 @@ module Language.GraphQL.Validate
 
 import Control.Monad (foldM)
 import Control.Monad.Trans.Reader (Reader, asks, mapReaderT, runReader)
-import Data.Foldable (foldrM)
+import Data.Foldable (fold, foldrM)
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.Document
@@ -66,15 +66,41 @@ executableDefinition (DefinitionFragment definition') =
 
 operationDefinition :: forall m. OperationDefinition -> ValidateT m
 operationDefinition operation =
-    asks rules >>= foldM ruleFilter Seq.empty
+    let selectionSet = getSelectionSet operation
+     in visitChildSelections ruleFilter selectionSet
   where
     ruleFilter accumulator (OperationDefinitionRule rule) =
         mapReaderT (runRule accumulator) $ rule operation
     ruleFilter accumulator _ = pure accumulator
+    getSelectionSet (SelectionSet selectionSet _) = selectionSet
+    getSelectionSet (OperationDefinition _ _ _ _ selectionSet _) = selectionSet
+
+selection :: forall m. Selection -> ValidateT m
+selection selection'@FragmentSpread{} =
+    asks rules >>= foldM ruleFilter Seq.empty
+  where
+    ruleFilter accumulator (SelectionRule rule) =
+        mapReaderT (runRule accumulator) $ rule selection'
+    ruleFilter accumulator _ = pure accumulator
+selection (Field _ _ _ _ selectionSet) = traverseSelectionSet selectionSet
+selection (InlineFragment _ _ selectionSet) = traverseSelectionSet selectionSet
+
+traverseSelectionSet :: Traversable t => forall m. t Selection -> ValidateT m
+traverseSelectionSet = fmap fold . traverse selection
+
+visitChildSelections :: Traversable t
+    => (Seq Error -> Rule m -> ValidateT m)
+    -> t Selection
+    -> ValidateT m
+visitChildSelections ruleFilter selectionSet = do
+    rules' <- asks rules
+    applied <- foldM ruleFilter Seq.empty rules'
+    children <- traverseSelectionSet selectionSet
+    pure $ children >< applied
 
 fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
-fragmentDefinition fragment =
-    asks rules >>= foldM ruleFilter Seq.empty
+fragmentDefinition fragment@(FragmentDefinition _ _ _ selectionSet _) =
+    visitChildSelections ruleFilter selectionSet
   where
     ruleFilter accumulator (FragmentDefinitionRule rule) =
         mapReaderT (runRule accumulator) $ rule fragment

@@ -6,28 +6,36 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [Unreleased]
+### Changed
+- Added location information to `AST.Document.Selection.FragmentSpread`.
+
+### Added
+- `Validate.Validation.Rule`: `SelectionRule` constructor.
+- `Validate.Rules`: `fragmentSpreadTargetDefinedRule`.
+
 ## [0.10.0.0] - 2020-08-29
-## Changed
+### Changed
 - `Test.Hspec.GraphQL.*`: replace `IO` in the resolver with any `MonadCatch`.
 - The `Location` argument of `AST.Document.Definition.ExecutableDefinition` was
   moved to `OperationDefinition` and `FragmentDefinition` since these are the
   actual elements that have a location in the document.
 - `Validate.Rules` get the whole validation context (AST and schema).
 
-## Added
+### Added
 - `Validate.Validation` contains data structures and functions used by the
   validator and concretet rules.
 - `Validate.Rules`: operation validation rules.
 
 ## [0.9.0.0] - 2020-07-24
-## Fixed
+### Fixed
 - Location of a parse error is returned in a singleton array with key
   `locations`.
 - Parsing comments in the front of definitions.
 - Some missing labels were added to the parsers, some labels were fixed to
   refer to the AST nodes being parsed. 
 
-## Added
+### Added
 - `AST` reexports `AST.Parser`.
 - `AST.Document.Location` is a token location as a line and column pair.
 - `Execute` reexports `Execute.Coerce`.
@@ -43,7 +51,7 @@ and this project adheres to
 - `Test.Hspec.GraphQL` contains some test helpers.
 - `Validate` contains the validator and standard rules.
 
-## Changed
+### Changed
 - `Type.Out.Resolver`: Interface fields don't have resolvers, object fields
   have value resolvers, root subscription type resolvers need an additional
   resolver that creates an event stream. `Resolver` represents these differences
@@ -67,7 +75,7 @@ and this project adheres to
 - The constraint of the base monad was changed to `MonadCatch` (and it implies
   `MonadThrow`).
 
-## Removed
+### Removed
 - `Trans.ActionT` is an unneeded layer of complexity. `Type.Out.Resolver`
   represents possible resolver configurations.
 - `Execute.executeWithName`. `Execute.execute` takes the operation name and
@@ -334,6 +342,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.10.0.0...HEAD
 [0.10.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.9.0.0...v0.10.0.0
 [0.9.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...v0.9.0.0
 [0.8.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.7.0.0...v0.8.0.0

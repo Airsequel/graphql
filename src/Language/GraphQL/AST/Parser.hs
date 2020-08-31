@@ -400,11 +400,12 @@ argument :: Parser Argument
 argument = Argument <$> name <* colon <*> value <?> "Argument"
 
 fragmentSpread :: Parser Selection
-fragmentSpread = FragmentSpread
-    <$ spread
-    <*> fragmentName
-    <*> directives
-    <?> "FragmentSpread"
+fragmentSpread = label "FragmentSpread" $ do
+    location <- getLocation
+    _ <- spread
+    fragmentName' <- fragmentName
+    directives' <- directives
+    pure $ FragmentSpread fragmentName' directives' location
 
 inlineFragment :: Parser Selection
 inlineFragment = InlineFragment

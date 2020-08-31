@@ -21,6 +21,7 @@ import Control.Monad (foldM)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (asks)
 import Control.Monad.Trans.State (evalStateT, gets, modify)
+import Data.Foldable (find)
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
@@ -36,6 +37,7 @@ specifiedRules =
     , loneAnonymousOperationRule
     , uniqueOperationNamesRule
     , uniqueFragmentNamesRule
+    , fragmentSpreadTargetDefinedRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -84,7 +86,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
         | Just aliasedName <- alias = pure
             $ HashSet.insert aliasedName accumulator
         | otherwise = pure $ HashSet.insert name accumulator
-    forEach accumulator (FragmentSpread fragmentName directives)
+    forEach accumulator (FragmentSpread fragmentName directives _)
         | any skip directives = pure accumulator
         | otherwise = do
             inVisitetFragments <- gets $ HashSet.member fragmentName
@@ -192,6 +194,13 @@ viewOperation definition
         Just operationDefinition
 viewOperation _ = Nothing
 
+viewFragment :: Definition -> Maybe FragmentDefinition
+viewFragment definition
+    | ExecutableDefinition executableDefinition <- definition
+    , DefinitionFragment fragmentDefinition <- executableDefinition =
+        Just fragmentDefinition
+viewFragment _ = Nothing
+
 -- | Fragment definitions are referenced in fragment spreads by name. To avoid
 -- ambiguity, each fragment’s name must be unique within a document.
 --
@@ -208,8 +217,32 @@ uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
         , "\"."
         ]
     filterByName thisName definition accumulator
-        | ExecutableDefinition executableDefinition <- definition
-        , DefinitionFragment fragmentDefinition <- executableDefinition
+        | Just fragmentDefinition <- viewFragment definition
         , FragmentDefinition thatName _ _ _ thatLocation <- fragmentDefinition
         , thisName == thatName = thatLocation : accumulator
         | otherwise = accumulator
+
+-- | Named fragment spreads must refer to fragments defined within the document.
+-- It is a validation error if the target of a spread is not defined.
+fragmentSpreadTargetDefinedRule :: forall m. Rule m
+fragmentSpreadTargetDefinedRule = SelectionRule $ \case
+    FragmentSpread fragmentName _ location -> do
+        ast' <- asks ast
+        case find (findTarget fragmentName) ast' of
+            Nothing -> pure $ Error
+                { message = error' fragmentName
+                , locations = [location]
+                , path = []
+                }
+            Just _ -> lift Nothing
+    _ -> lift Nothing
+  where
+    error' fragmentName = concat
+        [ "Fragment target \""
+        , Text.unpack fragmentName
+        , "\" is undefined."
+        ]
+    findTarget thisName (viewFragment -> Just fragmentDefinition)
+        | FragmentDefinition thatName _ _ _ _ <- fragmentDefinition
+        , thisName == thatName = True
+    findTarget _ _ = False
