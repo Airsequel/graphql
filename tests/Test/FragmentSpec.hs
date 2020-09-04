@@ -46,18 +46,15 @@ inlineQuery = [r|{
 }|]
 
 shirtType :: Out.ObjectType IO
-shirtType = Out.ObjectType "Shirt" Nothing []
-    $ HashMap.fromList
-        [ ("size", sizeFieldType)
-        , ("circumference", circumferenceFieldType)
-        ]
+shirtType = Out.ObjectType "Shirt" Nothing [] $ HashMap.fromList
+    [ ("size", sizeFieldType)
+    ]
 
 hatType :: Out.ObjectType IO
-hatType = Out.ObjectType "Hat" Nothing []
-    $ HashMap.fromList
-        [ ("size", sizeFieldType)
-        , ("circumference", circumferenceFieldType)
-        ]
+hatType = Out.ObjectType "Hat" Nothing [] $ HashMap.fromList
+    [ ("size", sizeFieldType)
+    , ("circumference", circumferenceFieldType)
+    ]
 
 circumferenceFieldType :: Out.Resolver IO
 circumferenceFieldType
@@ -73,9 +70,9 @@ toSchema :: Text -> (Text, Value) -> Schema IO
 toSchema t (_, resolve) = Schema
     { query = queryType, mutation = Nothing, subscription = Nothing }
   where
-    unionMember = if t == "Hat" then hatType else shirtType
+    garmentType = Out.UnionType "Garment" Nothing [hatType, shirtType]
     typeNameField = Out.Field Nothing (Out.NamedScalarType string) mempty
-    garmentField = Out.Field Nothing (Out.NamedObjectType unionMember) mempty
+    garmentField = Out.Field Nothing (Out.NamedUnionType garmentType) mempty
     queryType =
         case t of
             "circumference" -> hatType
@@ -118,9 +115,7 @@ spec = do
                 }
               }
             }|]
-                resolvers = ("garment", Object $ HashMap.fromList [circumference,  size])
-
-            actual <- graphql (toSchema "garment" resolvers) sourceQuery
+            actual <- graphql (toSchema "garment" $ garment "Hat") sourceQuery
             let expected = HashMap.singleton "data"
                     $ Aeson.object
                         [ "garment" .= Aeson.object

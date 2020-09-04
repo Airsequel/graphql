@@ -10,6 +10,8 @@
 -- | This module contains default rules defined in the GraphQL specification.
 module Language.GraphQL.Validate.Rules
     ( executableDefinitionsRule
+    , fragmentSpreadTargetDefinedRule
+    , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
     , singleFieldSubscriptionsRule
     , specifiedRules
@@ -22,7 +24,9 @@ import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (asks)
 import Control.Monad.Trans.State (evalStateT, gets, modify)
 import Data.Foldable (find)
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.HashSet as HashSet
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
 import Language.GraphQL.Type.Internal
@@ -32,12 +36,16 @@ import Language.GraphQL.Validate.Validation
 -- | Default rules given in the specification.
 specifiedRules :: forall m. [Rule m]
 specifiedRules =
+    -- Documents.
     [ executableDefinitionsRule
+    -- Operations.
     , singleFieldSubscriptionsRule
     , loneAnonymousOperationRule
     , uniqueOperationNamesRule
+    -- Fragments.
     , uniqueFragmentNamesRule
     , fragmentSpreadTargetDefinedRule
+    , fragmentSpreadTypeExistenceRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -228,7 +236,7 @@ fragmentSpreadTargetDefinedRule :: forall m. Rule m
 fragmentSpreadTargetDefinedRule = SelectionRule $ \case
     FragmentSpread fragmentName _ location -> do
         ast' <- asks ast
-        case find (findTarget fragmentName) ast' of
+        case find (isSpreadTarget fragmentName) ast' of
             Nothing -> pure $ Error
                 { message = error' fragmentName
                 , locations = [location]
@@ -242,7 +250,40 @@ fragmentSpreadTargetDefinedRule = SelectionRule $ \case
         , Text.unpack fragmentName
         , "\" is undefined."
         ]
-    findTarget thisName (viewFragment -> Just fragmentDefinition)
-        | FragmentDefinition thatName _ _ _ _ <- fragmentDefinition
-        , thisName == thatName = True
-    findTarget _ _ = False
+
+isSpreadTarget :: Text -> Definition -> Bool
+isSpreadTarget thisName (viewFragment -> Just fragmentDefinition)
+    | FragmentDefinition thatName _ _ _ _ <- fragmentDefinition
+    , thisName == thatName = True
+isSpreadTarget _ _ = False
+
+-- | Fragments must be specified on types that exist in the schema. This applies
+-- for both named and inline fragments. If they are not defined in the schema,
+-- the query does not validate.
+fragmentSpreadTypeExistenceRule :: forall m. Rule m
+fragmentSpreadTypeExistenceRule = SelectionRule $ \case
+    FragmentSpread fragmentName _ location -> do
+        ast' <- asks ast
+        target <- lift $ find (isSpreadTarget fragmentName) ast'
+        typeCondition <- extractTypeCondition target
+        types' <- asks types
+        case HashMap.lookup typeCondition types' of
+            Nothing -> pure $ Error
+                { message = error' fragmentName typeCondition
+                , locations = [location]
+                , path = []
+                }
+            Just _ -> lift Nothing
+    _ -> lift Nothing
+  where
+    extractTypeCondition (viewFragment -> Just fragmentDefinition) =
+        let FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
+         in pure typeCondition
+    extractTypeCondition _ = lift Nothing
+    error' fragmentName typeCondition = concat
+        [ "Fragment \""
+        , Text.unpack fragmentName
+        , "\" is specified on type \""
+        , Text.unpack typeCondition
+        , "\" which doesn't exist in the schema."
+        ]

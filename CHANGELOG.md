@@ -12,7 +12,12 @@ and this project adheres to
 
 ### Added
 - `Validate.Validation.Rule`: `SelectionRule` constructor.
-- `Validate.Rules`: `fragmentSpreadTargetDefinedRule`.
+- `Validate.Rules`:
+  - `fragmentSpreadTargetDefinedRule`
+  - `fragmentSpreadTypeExistenceRule`
+
+### Fixed
+- Collecting existing types from the schema considers subscriptions.
 
 ## [0.10.0.0] - 2020-08-29
 ### Changed

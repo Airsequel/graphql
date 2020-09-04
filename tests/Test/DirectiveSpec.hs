@@ -72,7 +72,7 @@ spec =
                 ...experimentalFragment @skip(if: true)
               }
 
-              fragment experimentalFragment on ExperimentalType {
+              fragment experimentalFragment on Query {
                 experimentalField
               }
             |]
@@ -83,7 +83,7 @@ spec =
         it "should be able to @skip an inline fragment" $ do
             let sourceQuery = [r|
               {
-                ... on ExperimentalType @skip(if: true) {
+                ... on Query @skip(if: true) {
                   experimentalField
                 }
               }

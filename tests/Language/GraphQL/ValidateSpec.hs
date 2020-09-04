@@ -26,7 +26,7 @@ schema :: Schema IO
 schema = Schema
     { query = queryType
     , mutation = Nothing
-    , subscription = Nothing
+    , subscription = Just subscriptionType
     } 
 
 queryType :: ObjectType IO
@@ -81,19 +81,27 @@ petType :: InterfaceType IO
 petType = InterfaceType "Pet" Nothing []
     $ HashMap.singleton "name"
     $ Field Nothing (Out.NonNullScalarType string) mempty
-{-
-alienType :: ObjectType IO
-alienType = ObjectType "Alien" Nothing [sentientType] $ HashMap.fromList
-    [ ("name", nameResolver)
-    , ("homePlanet", homePlanetResolver)
+
+subscriptionType :: ObjectType IO
+subscriptionType = ObjectType "Subscription" Nothing [] $ HashMap.fromList
+    [ ("newMessage", newMessageResolver)
     ]
   where
-    nameField = Field Nothing (Out.NonNullScalarType string) mempty
-    nameResolver = ValueResolver nameField $ pure "Name"
-    homePlanetField =
-        Field Nothing (Out.NamedScalarType string) mempty
-    homePlanetResolver = ValueResolver homePlanetField $ pure "Home planet"
--}
+    newMessageField = Field Nothing (Out.NonNullObjectType messageType) mempty
+    newMessageResolver = ValueResolver newMessageField
+        $ pure $ Object HashMap.empty
+
+messageType :: ObjectType IO
+messageType = ObjectType "Message" Nothing [] $ HashMap.fromList
+    [ ("sender", senderResolver)
+    , ("body", bodyResolver)
+    ]
+  where
+    senderField = Field Nothing (Out.NonNullScalarType string) mempty
+    senderResolver = ValueResolver senderField $ pure "Sender"
+    bodyField = Field Nothing (Out.NonNullScalarType string) mempty
+    bodyResolver = ValueResolver bodyField $ pure "Message body."
+
 humanType :: ObjectType IO
 humanType = ObjectType "Human" Nothing [sentientType] $ HashMap.fromList
     [ ("name", nameResolver)
@@ -133,12 +141,6 @@ catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
 
 catOrDogType :: UnionType IO
 catOrDogType = UnionType "CatOrDog" Nothing [catType, dogType]
-
-dogOrHumanType :: UnionType IO
-dogOrHumanType = UnionType "DogOrHuman" Nothing [dogType, humanType]
-
-humanOrAlienType :: UnionType IO
-humanOrAlienType = UnionType "HumanOrAlien" Nothing [humanType, alienType]
 -}
 validate :: Text -> Seq Error
 validate queryString =
@@ -293,6 +295,26 @@ spec =
                 expected = Error
                     { message =
                         "Fragment target \"undefinedFragment\" is undefined."
+                    , locations = [AST.Location 4 19]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects the fragment spread without a target" $
+            let queryString = [r|
+              {
+                dog {
+                  ...notOnExistingType
+                }
+              }
+              fragment notOnExistingType on NotInSchema {
+                name
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment \"notOnExistingType\" is specified on type \
+                        \\"NotInSchema\" which doesn't exist in the schema."
                     , locations = [AST.Location 4 19]
                     , path = []
                     }

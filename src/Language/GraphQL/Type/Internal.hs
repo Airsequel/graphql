@@ -38,7 +38,10 @@ data AbstractType m
 collectReferencedTypes :: forall m. Schema m -> HashMap Name (Type m)
 collectReferencedTypes schema =
     let queryTypes = traverseObjectType (query schema) HashMap.empty
-     in maybe queryTypes (`traverseObjectType` queryTypes) $ mutation schema
+        mutationTypes = maybe queryTypes (`traverseObjectType` queryTypes)
+            $ mutation schema
+     in maybe mutationTypes (`traverseObjectType` queryTypes)
+        $ subscription schema
   where
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes
