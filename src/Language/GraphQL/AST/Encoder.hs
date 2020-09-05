@@ -126,9 +126,9 @@ indent indentation = Lazy.Text.replicate (fromIntegral indentation) indentSymbol
 selection :: Formatter -> Selection -> Lazy.Text
 selection formatter = Lazy.Text.append indent' . encodeSelection
   where
-    encodeSelection (Field alias name args directives' selections) =
+    encodeSelection (Field alias name args directives' selections _) =
         field incrementIndent alias name args directives' selections
-    encodeSelection (InlineFragment typeCondition directives' selections) =
+    encodeSelection (InlineFragment typeCondition directives' selections _) =
         inlineFragment incrementIndent typeCondition directives' selections
     encodeSelection (FragmentSpread name directives' _) =
         fragmentSpread incrementIndent name directives'

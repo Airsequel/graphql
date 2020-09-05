@@ -288,7 +288,7 @@ operation operationDefinition replacement
 selection
     :: Full.Selection
     ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
-selection (Full.Field alias name arguments' directives' selections) =
+selection (Full.Field alias name arguments' directives' selections _) =
     maybe (Left mempty) (Right . SelectionField) <$> do
         fieldArguments <- foldM go HashMap.empty arguments'
         fieldSelections <- appendSelection selections
@@ -314,7 +314,7 @@ selection (Full.FragmentSpread name directives' _) =
                         Just fragment -> lift $ pure $ fragment <$ spreadDirectives
                         _ -> lift $ pure  Nothing
                 | otherwise -> lift $ pure  Nothing
-selection (Full.InlineFragment type' directives' selections) = do
+selection (Full.InlineFragment type' directives' selections _) = do
     fragmentDirectives <- Definition.selection <$> directives directives'
     case fragmentDirectives of
         Nothing -> pure $ Left mempty

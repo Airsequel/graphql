@@ -76,14 +76,17 @@ operationDefinition operation =
     getSelectionSet (OperationDefinition _ _ _ _ selectionSet _) = selectionSet
 
 selection :: forall m. Selection -> ValidateT m
-selection selection'@FragmentSpread{} =
-    asks rules >>= foldM ruleFilter Seq.empty
+selection selection'
+    | FragmentSpread{} <- selection' =
+        asks rules >>= foldM ruleFilter Seq.empty
+    | Field _ _ _ _ selectionSet _ <- selection' =
+        visitChildSelections ruleFilter selectionSet
+    | InlineFragment _ _ selectionSet _ <- selection' =
+        visitChildSelections ruleFilter selectionSet
   where
     ruleFilter accumulator (SelectionRule rule) =
         mapReaderT (runRule accumulator) $ rule selection'
     ruleFilter accumulator _ = pure accumulator
-selection (Field _ _ _ _ selectionSet) = traverseSelectionSet selectionSet
-selection (InlineFragment _ _ selectionSet) = traverseSelectionSet selectionSet
 
 traverseSelectionSet :: Traversable t => forall m. t Selection -> ValidateT m
 traverseSelectionSet = fmap fold . traverse selection

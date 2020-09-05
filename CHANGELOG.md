@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 ### Changed
-- Added location information to `AST.Document.Selection.FragmentSpread`.
+- Added location information to `AST.Document.Selection`.
 
 ### Added
 - `Validate.Validation.Rule`: `SelectionRule` constructor.

@@ -122,7 +122,7 @@ spec = do
     describe "definition" $
         it "indents block strings in arguments" $
             let arguments = [Argument "message" (String "line1\nline2")]
-                field = Field Nothing "field" arguments [] []
+                field = Field Nothing "field" arguments [] [] $ Location 0 0
                 operation = DefinitionOperation
                     $ SelectionSet (pure field)
                     $ Location 0 0

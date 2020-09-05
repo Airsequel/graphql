@@ -162,9 +162,9 @@ type SelectionSetOpt = [Selection]
 -- }
 -- @
 data Selection
-    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt
+    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt Location
     | FragmentSpread Name [Directive] Location
-    | InlineFragment (Maybe TypeCondition) [Directive] SelectionSet
+    | InlineFragment (Maybe TypeCondition) [Directive] SelectionSet Location
     deriving (Eq, Show)
 
 -- ** Arguments

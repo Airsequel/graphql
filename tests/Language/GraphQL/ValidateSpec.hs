@@ -300,7 +300,7 @@ spec =
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
-        it "rejects the fragment spread without a target" $
+        it "rejects fragment spreads without an unknown target type" $
             let queryString = [r|
               {
                 dog {
@@ -316,6 +316,23 @@ spec =
                         "Fragment \"notOnExistingType\" is specified on type \
                         \\"NotInSchema\" which doesn't exist in the schema."
                     , locations = [AST.Location 4 19]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects inline fragments without a target" $
+            let queryString = [r|
+              {
+                ... on NotInSchema {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Inline fragment is specified on type \"NotInSchema\" \
+                        \which doesn't exist in the schema."
+                    , locations = [AST.Location 3 17]
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected

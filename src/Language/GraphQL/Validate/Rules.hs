@@ -89,7 +89,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
     errorMessage =
         "Anonymous Subscription must select only one top level field."
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
-    forEach accumulator (Field alias name _ directives _)
+    forEach accumulator (Field alias name _ directives _ _)
         | any skip directives = pure accumulator
         | Just aliasedName <- alias = pure
             $ HashSet.insert aliasedName accumulator
@@ -101,7 +101,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             if inVisitetFragments
                then pure accumulator
                else collectFromSpread fragmentName accumulator
-    forEach accumulator (InlineFragment typeCondition' directives selectionSet)
+    forEach accumulator (InlineFragment typeCondition' directives selectionSet _)
         | any skip directives = pure accumulator
         | Just typeCondition <- typeCondition' =
             collectFromFragment typeCondition selectionSet accumulator
@@ -269,7 +269,16 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
         types' <- asks types
         case HashMap.lookup typeCondition types' of
             Nothing -> pure $ Error
-                { message = error' fragmentName typeCondition
+                { message = spreadError fragmentName typeCondition
+                , locations = [location]
+                , path = []
+                }
+            Just _ -> lift Nothing
+    InlineFragment (Just typeCondition) _ _ location -> do
+        types' <- asks types
+        case HashMap.lookup typeCondition types' of
+            Nothing -> pure $ Error
+                { message = inlineError typeCondition
                 , locations = [location]
                 , path = []
                 }
@@ -280,10 +289,15 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
         let FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
          in pure typeCondition
     extractTypeCondition _ = lift Nothing
-    error' fragmentName typeCondition = concat
+    spreadError fragmentName typeCondition = concat
         [ "Fragment \""
         , Text.unpack fragmentName
         , "\" is specified on type \""
+        , Text.unpack typeCondition
+        , "\" which doesn't exist in the schema."
+        ]
+    inlineError typeCondition = concat
+        [ "Inline fragment is specified on type \""
         , Text.unpack typeCondition
         , "\" which doesn't exist in the schema."
         ]

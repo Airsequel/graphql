@@ -382,13 +382,14 @@ selection = field
     <?> "Selection"
 
 field :: Parser Selection
-field = Field
-    <$> optional alias
-    <*> name
-    <*> arguments
-    <*> directives
-    <*> selectionSetOpt
-    <?> "Field"
+field = label "Field" $ do
+    location <- getLocation
+    alias' <- optional alias
+    name' <- name
+    arguments' <- arguments
+    directives' <- directives
+    selectionSetOpt' <- selectionSetOpt
+    pure $ Field alias' name' arguments' directives' selectionSetOpt' location
 
 alias :: Parser Alias
 alias = try (name <* colon) <?> "Alias"
@@ -408,12 +409,13 @@ fragmentSpread = label "FragmentSpread" $ do
     pure $ FragmentSpread fragmentName' directives' location
 
 inlineFragment :: Parser Selection
-inlineFragment = InlineFragment
-    <$ spread
-    <*> optional typeCondition
-    <*> directives
-    <*> selectionSet
-    <?> "InlineFragment"
+inlineFragment = label "InlineFragment" $ do
+    location <- getLocation
+    _ <- spread
+    typeCondition' <- optional typeCondition
+    directives' <- directives
+    selectionSet' <- selectionSet
+    pure $ InlineFragment typeCondition' directives' selectionSet' location
 
 fragmentDefinition :: Parser FragmentDefinition
 fragmentDefinition =  label "FragmentDefinition" $ do
