@@ -17,7 +17,9 @@ module Language.GraphQL.AST.Document
     , ExecutableDefinition(..)
     , FieldDefinition(..)
     , FragmentDefinition(..)
+    , FragmentSpread(..)
     , ImplementsInterfaces(..)
+    , InlineFragment(..)
     , InputValueDefinition(..)
     , Location(..)
     , Name
@@ -132,7 +134,28 @@ type SelectionSetOpt = [Selection]
 --   }
 -- }
 -- @
+data Selection
+    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt Location
+    | FragmentSpreadSelection FragmentSpread
+    | InlineFragmentSelection InlineFragment
+    deriving (Eq, Show)
+
+-- Inline fragments don't have any name and the type condition ("on UserType")
+-- is optional.
 --
+-- @
+-- {
+--   user {
+--     ... on UserType {
+--       id
+--       name
+--     }
+-- }
+-- @
+data InlineFragment = InlineFragment
+    (Maybe TypeCondition) [Directive] SelectionSet Location
+    deriving (Eq, Show)
+
 -- A fragment spread refers to a fragment defined outside the operation and is
 -- expanded at the execution time.
 --
@@ -148,23 +171,7 @@ type SelectionSetOpt = [Selection]
 --   name
 -- }
 -- @
---
--- Inline fragments are similar but they don't have any name and the type
--- condition ("on UserType") is optional.
---
--- @
--- {
---   user {
---     ... on UserType {
---       id
---       name
---     }
--- }
--- @
-data Selection
-    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt Location
-    | FragmentSpread Name [Directive] Location
-    | InlineFragment (Maybe TypeCondition) [Directive] SelectionSet Location
+data FragmentSpread = FragmentSpread Name [Directive] Location
     deriving (Eq, Show)
 
 -- ** Arguments

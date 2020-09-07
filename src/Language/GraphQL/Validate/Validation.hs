@@ -50,6 +50,8 @@ data Rule m
     | OperationDefinitionRule (OperationDefinition -> RuleT m)
     | FragmentDefinitionRule (FragmentDefinition -> RuleT m)
     | SelectionRule (Selection -> RuleT m)
+    | FragmentRule (FragmentDefinition -> RuleT m) (InlineFragment -> RuleT m)
+    | FragmentSpreadRule (FragmentSpread -> RuleT m)
 
 -- | Monad transformer used by the rules.
 type RuleT m = ReaderT (Validation m) Maybe Error

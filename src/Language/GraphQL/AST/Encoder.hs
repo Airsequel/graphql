@@ -128,10 +128,10 @@ selection formatter = Lazy.Text.append indent' . encodeSelection
   where
     encodeSelection (Field alias name args directives' selections _) =
         field incrementIndent alias name args directives' selections
-    encodeSelection (InlineFragment typeCondition directives' selections _) =
-        inlineFragment incrementIndent typeCondition directives' selections
-    encodeSelection (FragmentSpread name directives' _) =
-        fragmentSpread incrementIndent name directives'
+    encodeSelection (InlineFragmentSelection fragmentSelection) =
+        inlineFragment incrementIndent fragmentSelection
+    encodeSelection (FragmentSpreadSelection fragmentSelection) =
+        fragmentSpread incrementIndent fragmentSelection
     incrementIndent
         | Pretty indentation <- formatter = Pretty $ indentation + 1
         | otherwise = Minified
@@ -172,22 +172,18 @@ argument formatter (Argument name value')
 
 -- * Fragments
 
-fragmentSpread :: Formatter -> Name -> [Directive] -> Lazy.Text
-fragmentSpread formatter name directives'
+fragmentSpread :: Formatter -> FragmentSpread -> Lazy.Text
+fragmentSpread formatter (FragmentSpread name directives' _)
     = "..." <> Lazy.Text.fromStrict name
     <> optempty (directives formatter) directives'
 
-inlineFragment ::
-    Formatter ->
-    Maybe TypeCondition ->
-    [Directive] ->
-    SelectionSet ->
-    Lazy.Text
-inlineFragment formatter tc dirs sels = "... on "
-    <> Lazy.Text.fromStrict (fold tc)
-    <> directives formatter dirs
+inlineFragment :: Formatter -> InlineFragment -> Lazy.Text
+inlineFragment formatter (InlineFragment typeCondition directives' selections _)
+    = "... on "
+    <> Lazy.Text.fromStrict (fold typeCondition)
+    <> directives formatter directives'
     <> eitherFormat formatter " " mempty
-    <> selectionSet formatter sels
+    <> selectionSet formatter selections
 
 fragmentDefinition :: Formatter -> FragmentDefinition -> Lazy.Text
 fragmentDefinition formatter (FragmentDefinition name tc dirs sels _)

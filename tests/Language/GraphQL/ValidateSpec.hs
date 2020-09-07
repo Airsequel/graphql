@@ -336,3 +336,40 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects fragments on scalar types" $
+            let queryString = [r|
+              {
+                dog {
+                  ...fragOnScalar
+                }
+              }
+              fragment fragOnScalar on Int {
+                name
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment cannot condition on non composite type \
+                        \\"Int\"."
+                    , locations = [AST.Location 7 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects inline fragments on scalar types" $
+            let queryString = [r|
+              {
+                ... on Boolean {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment cannot condition on non composite type \
+                        \\"Boolean\"."
+                    , locations = [AST.Location 3 17]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

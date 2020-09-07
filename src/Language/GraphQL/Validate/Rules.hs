@@ -10,6 +10,7 @@
 -- | This module contains default rules defined in the GraphQL specification.
 module Language.GraphQL.Validate.Rules
     ( executableDefinitionsRule
+    , fragmentsOnCompositeTypesRule
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
@@ -46,6 +47,7 @@ specifiedRules =
     , uniqueFragmentNamesRule
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
+    , fragmentsOnCompositeTypesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -89,24 +91,29 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
     errorMessage =
         "Anonymous Subscription must select only one top level field."
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
-    forEach accumulator (Field alias name _ directives _ _)
-        | any skip directives = pure accumulator
-        | Just aliasedName <- alias = pure
-            $ HashSet.insert aliasedName accumulator
-        | otherwise = pure $ HashSet.insert name accumulator
-    forEach accumulator (FragmentSpread fragmentName directives _)
+    forEach accumulator = \case
+        Field alias name _ directives _ _
+            | any skip directives -> pure accumulator
+            | Just aliasedName <- alias -> pure
+                $ HashSet.insert aliasedName accumulator
+            | otherwise -> pure $ HashSet.insert name accumulator
+        FragmentSpreadSelection fragmentSelection ->
+            forSpread accumulator fragmentSelection
+        InlineFragmentSelection fragmentSelection ->
+            forInline accumulator fragmentSelection
+    forSpread accumulator (FragmentSpread fragmentName directives _)
         | any skip directives = pure accumulator
         | otherwise = do
             inVisitetFragments <- gets $ HashSet.member fragmentName
             if inVisitetFragments
                then pure accumulator
                else collectFromSpread fragmentName accumulator
-    forEach accumulator (InlineFragment typeCondition' directives selectionSet _)
+    forInline accumulator (InlineFragment maybeType directives selections _)
         | any skip directives = pure accumulator
-        | Just typeCondition <- typeCondition' =
-            collectFromFragment typeCondition selectionSet accumulator
+        | Just typeCondition <- maybeType =
+            collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
-            <$> collectFields selectionSet
+            <$> collectFields selections
     skip (Directive "skip" [Argument "if" (Boolean True)]) = True
     skip (Directive "include" [Argument "if" (Boolean False)]) = True
     skip _ = False
@@ -233,7 +240,7 @@ uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
 -- | Named fragment spreads must refer to fragments defined within the document.
 -- It is a validation error if the target of a spread is not defined.
 fragmentSpreadTargetDefinedRule :: forall m. Rule m
-fragmentSpreadTargetDefinedRule = SelectionRule $ \case
+fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
     FragmentSpread fragmentName _ location -> do
         ast' <- asks ast
         case find (isSpreadTarget fragmentName) ast' of
@@ -243,7 +250,6 @@ fragmentSpreadTargetDefinedRule = SelectionRule $ \case
                 , path = []
                 }
             Just _ -> lift Nothing
-    _ -> lift Nothing
   where
     error' fragmentName = concat
         [ "Fragment target \""
@@ -262,27 +268,30 @@ isSpreadTarget _ _ = False
 -- the query does not validate.
 fragmentSpreadTypeExistenceRule :: forall m. Rule m
 fragmentSpreadTypeExistenceRule = SelectionRule $ \case
-    FragmentSpread fragmentName _ location -> do
-        ast' <- asks ast
-        target <- lift $ find (isSpreadTarget fragmentName) ast'
-        typeCondition <- extractTypeCondition target
-        types' <- asks types
-        case HashMap.lookup typeCondition types' of
-            Nothing -> pure $ Error
-                { message = spreadError fragmentName typeCondition
-                , locations = [location]
-                , path = []
-                }
-            Just _ -> lift Nothing
-    InlineFragment (Just typeCondition) _ _ location -> do
-        types' <- asks types
-        case HashMap.lookup typeCondition types' of
-            Nothing -> pure $ Error
-                { message = inlineError typeCondition
-                , locations = [location]
-                , path = []
-                }
-            Just _ -> lift Nothing
+    FragmentSpreadSelection fragmentSelection
+        | FragmentSpread fragmentName _ location <- fragmentSelection -> do
+            ast' <- asks ast
+            target <- lift $ find (isSpreadTarget fragmentName) ast'
+            typeCondition <- extractTypeCondition target
+            types' <- asks types
+            case HashMap.lookup typeCondition types' of
+                Nothing -> pure $ Error
+                    { message = spreadError fragmentName typeCondition
+                    , locations = [location]
+                    , path = []
+                    }
+                Just _ -> lift Nothing
+    InlineFragmentSelection fragmentSelection
+        | InlineFragment maybeType _ _ location <- fragmentSelection
+        , Just typeCondition <- maybeType -> do
+            types' <- asks types
+            case HashMap.lookup typeCondition types' of
+                Nothing -> pure $ Error
+                    { message = inlineError typeCondition
+                    , locations = [location]
+                    , path = []
+                    }
+                Just _ -> lift Nothing
     _ -> lift Nothing
   where
     extractTypeCondition (viewFragment -> Just fragmentDefinition) =
@@ -300,4 +309,32 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
         [ "Inline fragment is specified on type \""
         , Text.unpack typeCondition
         , "\" which doesn't exist in the schema."
+        ]
+
+-- | Fragments can only be declared on unions, interfaces, and objects. They are
+-- invalid on scalars. They can only be applied on non‐leaf fields. This rule
+-- applies to both inline and named fragments.
+fragmentsOnCompositeTypesRule :: forall m. Rule m
+fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
+  where
+    inlineRule (InlineFragment (Just typeCondition) _ _ location) =
+        check typeCondition location
+    inlineRule _ = lift Nothing
+    definitionRule (FragmentDefinition _ typeCondition _ _ location) =
+        check typeCondition location
+    check typeCondition location = do
+        types' <- asks types
+        -- Skip unknown types, they are checked by another rule.
+        _ <- lift $ HashMap.lookup typeCondition types'
+        case lookupTypeCondition typeCondition types' of
+            Nothing -> pure $ Error
+                { message = errorMessage typeCondition
+                , locations = [location]
+                , path = []
+                }
+            Just _ -> lift Nothing
+    errorMessage typeCondition = concat
+        [ "Fragment cannot condition on non composite type \""
+        , Text.unpack typeCondition,
+        "\"."
         ]

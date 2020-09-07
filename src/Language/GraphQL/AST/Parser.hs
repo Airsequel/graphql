@@ -377,8 +377,8 @@ selectionSetOpt = listOptIn braces selection <?> "SelectionSet"
 
 selection :: Parser Selection
 selection = field
-    <|> try fragmentSpread
-    <|> inlineFragment
+    <|> FragmentSpreadSelection <$> try fragmentSpread
+    <|> InlineFragmentSelection <$> inlineFragment
     <?> "Selection"
 
 field :: Parser Selection
@@ -400,7 +400,7 @@ arguments = listOptIn parens argument <?> "Arguments"
 argument :: Parser Argument
 argument = Argument <$> name <* colon <*> value <?> "Argument"
 
-fragmentSpread :: Parser Selection
+fragmentSpread :: Parser FragmentSpread
 fragmentSpread = label "FragmentSpread" $ do
     location <- getLocation
     _ <- spread
@@ -408,7 +408,7 @@ fragmentSpread = label "FragmentSpread" $ do
     directives' <- directives
     pure $ FragmentSpread fragmentName' directives' location
 
-inlineFragment :: Parser Selection
+inlineFragment :: Parser InlineFragment
 inlineFragment = label "InlineFragment" $ do
     location <- getLocation
     _ <- spread

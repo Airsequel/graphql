@@ -298,8 +298,15 @@ selection (Full.Field alias name arguments' directives' selections _) =
   where
     go arguments (Full.Argument name' value') =
         inputField arguments name' value'
+selection (Full.FragmentSpreadSelection fragmentSelection) =
+    fragmentSpread fragmentSelection
+selection (Full.InlineFragmentSelection fragmentSelection) =
+    inlineFragment fragmentSelection
 
-selection (Full.FragmentSpread name directives' _) =
+fragmentSpread
+    :: Full.FragmentSpread
+    ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
+fragmentSpread (Full.FragmentSpread name directives' _) =
     maybe (Left mempty) (Right . SelectionFragment) <$> do
         spreadDirectives <- Definition.selection <$> directives directives'
         fragments' <- gets fragments
@@ -314,7 +321,11 @@ selection (Full.FragmentSpread name directives' _) =
                         Just fragment -> lift $ pure $ fragment <$ spreadDirectives
                         _ -> lift $ pure  Nothing
                 | otherwise -> lift $ pure  Nothing
-selection (Full.InlineFragment type' directives' selections _) = do
+
+inlineFragment
+    :: Full.InlineFragment
+    ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
+inlineFragment (Full.InlineFragment type' directives' selections _) = do
     fragmentDirectives <- Definition.selection <$> directives directives'
     case fragmentDirectives of
         Nothing -> pure $ Left mempty

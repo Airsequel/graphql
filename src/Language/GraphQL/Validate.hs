@@ -3,7 +3,6 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE LambdaCase #-}
 
 -- | GraphQL validator.
 module Language.GraphQL.Validate
@@ -41,18 +40,15 @@ document schema' rules' document' =
     go definition' accumulator = (accumulator ><) <$> definition definition'
 
 definition :: forall m. Definition -> ValidateT m
-definition = \case
-    definition'@(ExecutableDefinition executableDefinition') -> do
-        applied <- applyRules definition'
-        children <- executableDefinition executableDefinition'
-        pure $ children >< applied
-    definition' -> applyRules definition'
+definition definition'
+    | ExecutableDefinition executableDefinition' <- definition'
+        = visitChildSelections ruleFilter
+        $ executableDefinition executableDefinition'
+    | otherwise = asks rules >>= foldM ruleFilter Seq.empty
   where
-    applyRules definition' =
-        asks rules >>= foldM (ruleFilter definition') Seq.empty
-    ruleFilter definition' accumulator (DefinitionRule rule) =
+    ruleFilter accumulator (DefinitionRule rule) =
         mapReaderT (runRule accumulator) $ rule definition'
-    ruleFilter _ accumulator _ = pure accumulator
+    ruleFilter accumulator _ = pure accumulator
 
 runRule :: Applicative f => Seq Error -> Maybe Error -> f (Seq Error)
 runRule accumulator (Just error') = pure $ accumulator |> error'
@@ -67,7 +63,7 @@ executableDefinition (DefinitionFragment definition') =
 operationDefinition :: forall m. OperationDefinition -> ValidateT m
 operationDefinition operation =
     let selectionSet = getSelectionSet operation
-     in visitChildSelections ruleFilter selectionSet
+     in visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
   where
     ruleFilter accumulator (OperationDefinitionRule rule) =
         mapReaderT (runRule accumulator) $ rule operation
@@ -75,36 +71,54 @@ operationDefinition operation =
     getSelectionSet (SelectionSet selectionSet _) = selectionSet
     getSelectionSet (OperationDefinition _ _ _ _ selectionSet _) = selectionSet
 
+visitChildSelections :: forall  m
+    . (Seq Error -> Rule m -> ValidateT m)
+    -> ValidateT m
+    -> ValidateT m
+visitChildSelections ruleFilter children' = do
+    rules' <- asks rules
+    applied <- foldM ruleFilter Seq.empty rules'
+    children <- children'
+    pure $ children >< applied
+
 selection :: forall m. Selection -> ValidateT m
 selection selection'
-    | FragmentSpread{} <- selection' =
-        asks rules >>= foldM ruleFilter Seq.empty
+    | FragmentSpreadSelection fragmentSelection <- selection' =
+        visitChildSelections ruleFilter $ fragmentSpread fragmentSelection
     | Field _ _ _ _ selectionSet _ <- selection' =
-        visitChildSelections ruleFilter selectionSet
-    | InlineFragment _ _ selectionSet _ <- selection' =
-        visitChildSelections ruleFilter selectionSet
+        visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
+    | InlineFragmentSelection fragmentSelection <- selection' =
+        visitChildSelections ruleFilter $ inlineFragment fragmentSelection
   where
     ruleFilter accumulator (SelectionRule rule) =
         mapReaderT (runRule accumulator) $ rule selection'
     ruleFilter accumulator _ = pure accumulator
 
+inlineFragment :: forall m. InlineFragment -> ValidateT m
+inlineFragment fragment@(InlineFragment _ _ selections _) =
+    visitChildSelections ruleFilter $ traverseSelectionSet selections
+  where
+    ruleFilter accumulator (FragmentRule _ inlineRule) =
+        mapReaderT (runRule accumulator) $ inlineRule fragment
+    ruleFilter accumulator _ = pure accumulator
+
+fragmentSpread :: forall m. FragmentSpread -> ValidateT m
+fragmentSpread fragment =
+    asks rules >>= foldM ruleFilter Seq.empty
+  where
+    ruleFilter accumulator (FragmentSpreadRule rule) =
+        mapReaderT (runRule accumulator) $ rule fragment
+    ruleFilter accumulator _ = pure accumulator
+
 traverseSelectionSet :: Traversable t => forall m. t Selection -> ValidateT m
 traverseSelectionSet = fmap fold . traverse selection
 
-visitChildSelections :: Traversable t
-    => (Seq Error -> Rule m -> ValidateT m)
-    -> t Selection
-    -> ValidateT m
-visitChildSelections ruleFilter selectionSet = do
-    rules' <- asks rules
-    applied <- foldM ruleFilter Seq.empty rules'
-    children <- traverseSelectionSet selectionSet
-    pure $ children >< applied
-
 fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
 fragmentDefinition fragment@(FragmentDefinition _ _ _ selectionSet _) =
-    visitChildSelections ruleFilter selectionSet
+    visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
   where
     ruleFilter accumulator (FragmentDefinitionRule rule) =
         mapReaderT (runRule accumulator) $ rule fragment
+    ruleFilter accumulator (FragmentRule definitionRule _) =
+        mapReaderT (runRule accumulator) $ definitionRule fragment
     ruleFilter accumulator _ = pure accumulator
