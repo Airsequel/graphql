@@ -126,8 +126,8 @@ indent indentation = Lazy.Text.replicate (fromIntegral indentation) indentSymbol
 selection :: Formatter -> Selection -> Lazy.Text
 selection formatter = Lazy.Text.append indent' . encodeSelection
   where
-    encodeSelection (Field alias name args directives' selections _) =
-        field incrementIndent alias name args directives' selections
+    encodeSelection (FieldSelection fieldSelection) =
+        field incrementIndent fieldSelection
     encodeSelection (InlineFragmentSelection fragmentSelection) =
         inlineFragment incrementIndent fragmentSelection
     encodeSelection (FragmentSpreadSelection fragmentSelection) =
@@ -142,15 +142,9 @@ selection formatter = Lazy.Text.append indent' . encodeSelection
 colon :: Formatter -> Lazy.Text
 colon formatter = eitherFormat formatter ": " ":"
 
--- | Converts Field into a string
-field :: Formatter ->
-    Maybe Name ->
-    Name ->
-    [Argument] ->
-    [Directive] ->
-    [Selection] ->
-    Lazy.Text
-field formatter alias name args dirs set
+-- | Converts Field into a string.
+field :: Formatter -> Field -> Lazy.Text
+field formatter (Field alias name args dirs set _)
     = optempty prependAlias (fold alias)
     <> Lazy.Text.fromStrict name
     <> optempty (arguments formatter) args

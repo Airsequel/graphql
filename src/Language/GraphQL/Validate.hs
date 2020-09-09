@@ -85,13 +85,21 @@ selection :: forall m. Selection -> ValidateT m
 selection selection'
     | FragmentSpreadSelection fragmentSelection <- selection' =
         visitChildSelections ruleFilter $ fragmentSpread fragmentSelection
-    | Field _ _ _ _ selectionSet _ <- selection' =
-        visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
+    | FieldSelection fieldSelection <- selection' =
+        visitChildSelections ruleFilter $ field fieldSelection
     | InlineFragmentSelection fragmentSelection <- selection' =
         visitChildSelections ruleFilter $ inlineFragment fragmentSelection
   where
     ruleFilter accumulator (SelectionRule rule) =
         mapReaderT (runRule accumulator) $ rule selection'
+    ruleFilter accumulator _ = pure accumulator
+
+field :: forall m. Field -> ValidateT m
+field field'@(Field _ _ _ _ selections _) =
+    visitChildSelections ruleFilter $ traverseSelectionSet selections
+  where
+    ruleFilter accumulator (FieldRule rule) =
+        mapReaderT (runRule accumulator) $ rule field'
     ruleFilter accumulator _ = pure accumulator
 
 inlineFragment :: forall m. InlineFragment -> ValidateT m

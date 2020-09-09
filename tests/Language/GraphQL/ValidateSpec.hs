@@ -373,3 +373,23 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects unused fragments" $
+            let queryString = [r|
+              fragment nameFragment on Dog { # unused
+                name
+              }
+
+              {
+                dog {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment \"nameFragment\" is never used."
+                    , locations = [AST.Location 2 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

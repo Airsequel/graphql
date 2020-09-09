@@ -288,39 +288,42 @@ operation operationDefinition replacement
 selection
     :: Full.Selection
     ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
-selection (Full.Field alias name arguments' directives' selections _) =
-    maybe (Left mempty) (Right . SelectionField) <$> do
-        fieldArguments <- foldM go HashMap.empty arguments'
-        fieldSelections <- appendSelection selections
-        fieldDirectives <- Definition.selection <$> directives directives'
-        let field' = Field alias name fieldArguments fieldSelections
-        pure $ field' <$ fieldDirectives
-  where
-    go arguments (Full.Argument name' value') =
-        inputField arguments name' value'
-selection (Full.FragmentSpreadSelection fragmentSelection) =
-    fragmentSpread fragmentSelection
+selection (Full.FieldSelection fieldSelection) =
+    maybe (Left mempty) (Right . SelectionField) <$> field fieldSelection
+selection (Full.FragmentSpreadSelection fragmentSelection)
+    = maybe (Left mempty) (Right . SelectionFragment)
+    <$> fragmentSpread fragmentSelection
 selection (Full.InlineFragmentSelection fragmentSelection) =
     inlineFragment fragmentSelection
 
+field :: Full.Field ->  State (Replacement m) (Maybe (Field m))
+field (Full.Field alias name arguments' directives' selections _) = do
+    fieldArguments <- foldM go HashMap.empty arguments'
+    fieldSelections <- appendSelection selections
+    fieldDirectives <- Definition.selection <$> directives directives'
+    let field' = Field alias name fieldArguments fieldSelections
+    pure $ field' <$ fieldDirectives
+  where
+    go arguments (Full.Argument name' value') =
+        inputField arguments name' value'
+
 fragmentSpread
     :: Full.FragmentSpread
-    ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
-fragmentSpread (Full.FragmentSpread name directives' _) =
-    maybe (Left mempty) (Right . SelectionFragment) <$> do
-        spreadDirectives <- Definition.selection <$> directives directives'
-        fragments' <- gets fragments
+    -> State (Replacement m) (Maybe (Fragment m))
+fragmentSpread (Full.FragmentSpread name directives' _) = do
+    spreadDirectives <- Definition.selection <$> directives directives'
+    fragments' <- gets fragments
 
-        fragmentDefinitions' <- gets fragmentDefinitions
-        case HashMap.lookup name fragments' of
-            Just definition -> lift $ pure $ definition <$ spreadDirectives
-            Nothing
-                | Just definition <- HashMap.lookup name fragmentDefinitions' -> do
-                    fragDef <- fragmentDefinition definition
-                    case fragDef of
-                        Just fragment -> lift $ pure $ fragment <$ spreadDirectives
-                        _ -> lift $ pure  Nothing
-                | otherwise -> lift $ pure  Nothing
+    fragmentDefinitions' <- gets fragmentDefinitions
+    case HashMap.lookup name fragments' of
+        Just definition -> lift $ pure $ definition <$ spreadDirectives
+        Nothing
+            | Just definition <- HashMap.lookup name fragmentDefinitions' -> do
+                fragDef <- fragmentDefinition definition
+                case fragDef of
+                    Just fragment -> lift $ pure $ fragment <$ spreadDirectives
+                    _ -> lift $ pure  Nothing
+            | otherwise -> lift $ pure  Nothing
 
 inlineFragment
     :: Full.InlineFragment

@@ -5,8 +5,7 @@
 -- <https://facebook.github.io/graphql/ Facebook's GraphQL Specification>.
 -- for more information.
 module Language.GraphQL.AST.Document
-    ( Alias
-    , Argument(..)
+    ( Argument(..)
     , ArgumentsDefinition(..)
     , ConstValue(..)
     , Definition(..)
@@ -15,6 +14,7 @@ module Language.GraphQL.AST.Document
     , Document
     , EnumValueDefinition(..)
     , ExecutableDefinition(..)
+    , Field(..)
     , FieldDefinition(..)
     , FragmentDefinition(..)
     , FragmentSpread(..)
@@ -118,9 +118,14 @@ type SelectionSet = NonEmpty Selection
 -- | Field selection.
 type SelectionSetOpt = [Selection]
 
--- | Selection is a single entry in a selection set. It can be a single field,
--- fragment spread or inline fragment.
---
+-- | Selection is a single entry in a selection set. It can be a single 'Field',
+-- 'FragmentSpread' or an 'InlineFragment'.
+data Selection
+    = FieldSelection Field
+    | FragmentSpreadSelection FragmentSpread
+    | InlineFragmentSelection InlineFragment
+    deriving (Eq, Show)
+
 -- The only required property of a field is its name. Optionally it can also
 -- have an alias, arguments, directives and a list of subfields.
 --
@@ -134,10 +139,8 @@ type SelectionSetOpt = [Selection]
 --   }
 -- }
 -- @
-data Selection
-    = Field (Maybe Alias) Name [Argument] [Directive] SelectionSetOpt Location
-    | FragmentSpreadSelection FragmentSpread
-    | InlineFragmentSelection InlineFragment
+data Field =
+    Field (Maybe Name) Name [Argument] [Directive] SelectionSetOpt Location
     deriving (Eq, Show)
 
 -- Inline fragments don't have any name and the type condition ("on UserType")
@@ -188,22 +191,6 @@ data FragmentSpread = FragmentSpread Name [Directive] Location
 --
 --  Here "id" is an argument for the field "user" and its value is 4.
 data Argument = Argument Name Value deriving (Eq,Show)
-
--- ** Field Alias
-
--- | Alternative field name.
---
--- @
--- {
---   smallPic: profilePic(size: 64)
---   bigPic: profilePic(size: 1024)
--- }
--- @
---
--- Here "smallPic" and "bigPic" are aliases for the same field, "profilePic",
--- used to distinquish between profile pictures with different arguments
--- (sizes).
-type Alias = Name
 
 -- ** Fragments
 

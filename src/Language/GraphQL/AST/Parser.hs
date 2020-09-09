@@ -376,12 +376,12 @@ selectionSetOpt :: Parser SelectionSetOpt
 selectionSetOpt = listOptIn braces selection <?> "SelectionSet"
 
 selection :: Parser Selection
-selection = field
+selection = FieldSelection <$> field
     <|> FragmentSpreadSelection <$> try fragmentSpread
     <|> InlineFragmentSelection <$> inlineFragment
     <?> "Selection"
 
-field :: Parser Selection
+field :: Parser Field
 field = label "Field" $ do
     location <- getLocation
     alias' <- optional alias
@@ -391,7 +391,7 @@ field = label "Field" $ do
     selectionSetOpt' <- selectionSetOpt
     pure $ Field alias' name' arguments' directives' selectionSetOpt' location
 
-alias :: Parser Alias
+alias :: Parser Name
 alias = try (name <* colon) <?> "Alias"
 
 arguments :: Parser [Argument]

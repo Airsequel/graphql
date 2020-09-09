@@ -124,7 +124,7 @@ spec = do
             let arguments = [Argument "message" (String "line1\nline2")]
                 field = Field Nothing "field" arguments [] [] $ Location 0 0
                 operation = DefinitionOperation
-                    $ SelectionSet (pure field)
+                    $ SelectionSet (pure $ FieldSelection field)
                     $ Location 0 0
              in definition pretty operation `shouldBe` [r|{
   field(message: """

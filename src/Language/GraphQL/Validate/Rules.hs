@@ -14,6 +14,7 @@ module Language.GraphQL.Validate.Rules
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
+    , noUnusedFragmentsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
     , uniqueFragmentNamesRule
@@ -45,9 +46,10 @@ specifiedRules =
     , uniqueOperationNamesRule
     -- Fragments.
     , uniqueFragmentNamesRule
-    , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
     , fragmentsOnCompositeTypesRule
+    , noUnusedFragmentsRule
+    , fragmentSpreadTargetDefinedRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -92,15 +94,16 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
         "Anonymous Subscription must select only one top level field."
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
     forEach accumulator = \case
-        Field alias name _ directives _ _
-            | any skip directives -> pure accumulator
-            | Just aliasedName <- alias -> pure
-                $ HashSet.insert aliasedName accumulator
-            | otherwise -> pure $ HashSet.insert name accumulator
+        FieldSelection fieldSelection -> forField accumulator fieldSelection
         FragmentSpreadSelection fragmentSelection ->
             forSpread accumulator fragmentSelection
         InlineFragmentSelection fragmentSelection ->
             forInline accumulator fragmentSelection
+    forField accumulator (Field alias name _ directives _ _)
+        | any skip directives = pure accumulator
+        | Just aliasedName <- alias = pure
+            $ HashSet.insert aliasedName accumulator
+        | otherwise = pure $ HashSet.insert name accumulator
     forSpread accumulator (FragmentSpread fragmentName directives _)
         | any skip directives = pure accumulator
         | otherwise = do
@@ -129,7 +132,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             Just compositeType
                 | Just objectType <- Schema.subscription schema'
                 , True <- doesFragmentTypeApply compositeType objectType ->
-                    HashSet.union accumulator<$> collectFields selectionSet
+                    HashSet.union accumulator <$> collectFields selectionSet
                 | otherwise -> pure accumulator
     collectFromSpread fragmentName accumulator = do
         modify $ HashSet.insert fragmentName
@@ -338,3 +341,44 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
         , Text.unpack typeCondition,
         "\"."
         ]
+
+-- | Defined fragments must be used within a document.
+noUnusedFragmentsRule :: forall m. Rule m
+noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment ->
+    asks ast >>= findSpreadByName fragment
+  where
+    findSpreadByName (FragmentDefinition fragName _ _ _ location) definitions
+        | foldr (go fragName) False definitions = lift Nothing
+        | otherwise = pure $ Error
+            { message = errorMessage fragName
+            , locations = [location]
+            , path = []
+            }
+    errorMessage fragName = concat
+        [ "Fragment \""
+        , Text.unpack fragName
+        , "\" is never used."
+        ]
+    go fragName (viewOperation -> Just operation) accumulator
+        | SelectionSet selections _ <- operation =
+            evaluateSelections fragName accumulator selections
+        | OperationDefinition _ _ _ _ selections _ <- operation =
+            evaluateSelections fragName accumulator selections
+    go fragName (viewFragment -> Just fragment) accumulator
+        | FragmentDefinition _ _ _ selections _ <- fragment =
+            evaluateSelections fragName accumulator selections
+    go _ _ _ = False
+    evaluateSelection fragName selection accumulator
+        | FragmentSpreadSelection spreadSelection <- selection
+        , FragmentSpread spreadName _ _ <- spreadSelection
+        , spreadName == fragName = True
+        | FieldSelection fieldSelection <- selection
+        , Field _ _ _ _ selections _ <- fieldSelection =
+            evaluateSelections fragName accumulator selections
+        | InlineFragmentSelection inlineSelection <- selection
+        , InlineFragment _ _ selections _ <- inlineSelection =
+            evaluateSelections fragName accumulator selections
+        | otherwise = accumulator || False
+    evaluateSelections :: Foldable t => Name -> Bool -> t Selection -> Bool
+    evaluateSelections fragName accumulator selections =
+        foldr (evaluateSelection fragName) accumulator selections

@@ -8,21 +8,26 @@ and this project adheres to
 
 ## [Unreleased]
 ### Changed
-- `AST.Document.Selection` wraps additional new types: `FragmentSpread`
-  and  `InlineFragment`. Thus validation rules can be more concise.
+- `AST.Document.Selection` wraps additional new types: `Field`, `FragmentSpread`
+  and  `InlineFragment`. Thus validation rules can be defined more concise.
 
 ### Added
-- `Validate.Validation.Rule`: `SelectionRule`, `FragmentRule` and
+- `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule` and
   `FragmentSpreadRule` constructors.
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
   - `fragmentSpreadTypeExistenceRule`
+  - `noUnusedFragmentsRule`
+- `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.
 
 ### Fixed
 - Collecting existing types from the schema considers subscriptions.
+
+### Removed
+- `AST.Document.Alias`. Use `AST.Document.Name` instead.
 
 ## [0.10.0.0] - 2020-08-29
 ### Changed
