@@ -19,6 +19,7 @@ and this project adheres to
   - `fragmentSpreadTargetDefinedRule`
   - `fragmentSpreadTypeExistenceRule`
   - `noUnusedFragmentsRule`
+  - `noFragmentCyclesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

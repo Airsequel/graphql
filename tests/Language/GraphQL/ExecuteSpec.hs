@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
@@ -10,10 +11,11 @@ module Language.GraphQL.ExecuteSpec
 import Control.Exception (SomeException)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
+import Data.Aeson.Types (emptyObject)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Language.GraphQL.AST (Name)
+import Language.GraphQL.AST (Document, Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
@@ -21,6 +23,7 @@ import Language.GraphQL.Type as Type
 import Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
+import Text.RawString.QQ (r)
 
 schema :: Schema (Either SomeException)
 schema = Schema
@@ -71,9 +74,31 @@ quoteType = Out.ObjectType "Quote" Nothing []
     quoteField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
+type EitherStreamOrValue = Either
+    (ResponseEventStream (Either SomeException) Aeson.Value)
+    (Response Aeson.Value)
+
+execute' :: Document -> Either SomeException EitherStreamOrValue
+execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
+
 spec :: Spec
 spec =
     describe "execute" $ do
+        it "rejects recursive fragments" $
+            let sourceQuery = [r|
+              {
+                ...cyclicFragment
+              }
+
+              fragment cyclicFragment on Query {
+                ...cyclicFragment
+              }
+            |]
+                expected = Response emptyObject mempty
+                Right (Right actual) = either (pure . parseError) execute'
+                    $ parse document "" sourceQuery
+             in actual `shouldBe` expected
+
         context "Query" $ do
             it "skips unknown fields" $
                 let data'' = Aeson.object
@@ -82,7 +107,6 @@ spec =
                             ]
                         ]
                     expected = Response data'' mempty
-                    execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName surname } }"
                 in actual `shouldBe` expected
@@ -94,7 +118,6 @@ spec =
                             ]
                         ]
                     expected = Response data'' mempty
-                    execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
                 in actual `shouldBe` expected
@@ -106,7 +129,6 @@ spec =
                             ]
                         ]
                     expected = Response data'' mempty
-                    execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
                     Right (Left stream) = either (pure . parseError) execute'
                         $ parse document "" "subscription { newQuote { quote } }"
                     Right (Just actual) = runConduit $ stream .| await

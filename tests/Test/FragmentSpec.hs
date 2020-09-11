@@ -178,21 +178,6 @@ spec = do
                         ]
              in actual `shouldResolveTo` expected
 
-        it "rejects recursive fragments" $ do
-            let expected = HashMap.singleton "data" $ Aeson.object []
-                sourceQuery = [r|
-              {
-                ...circumferenceFragment
-              }
-
-              fragment circumferenceFragment on Hat {
-                ...circumferenceFragment
-              }
-            |]
-
-            actual <- graphql (toSchema "circumference" circumference) sourceQuery
-            actual `shouldResolveTo` expected
-
         it "considers type condition" $ do
             let sourceQuery = [r|
               {

@@ -14,6 +14,7 @@ module Language.GraphQL.Validate.Rules
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
+    , noFragmentCyclesRule
     , noUnusedFragmentsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
@@ -23,11 +24,15 @@ module Language.GraphQL.Validate.Rules
 
 import Control.Monad (foldM)
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Reader (asks)
-import Control.Monad.Trans.State (evalStateT, gets, modify)
+import Control.Monad.Trans.Reader (ReaderT, asks)
+import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
+import Data.Bifunctor (first)
 import Data.Foldable (find)
 import qualified Data.HashMap.Strict as HashMap
+import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet as HashSet
+import Data.List (sortBy)
+import Data.Ord (comparing)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
@@ -50,6 +55,7 @@ specifiedRules =
     , fragmentsOnCompositeTypesRule
     , noUnusedFragmentsRule
     , fragmentSpreadTargetDefinedRule
+    , noFragmentCyclesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -382,3 +388,62 @@ noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment ->
     evaluateSelections :: Foldable t => Name -> Bool -> t Selection -> Bool
     evaluateSelections fragName accumulator selections =
         foldr (evaluateSelection fragName) accumulator selections
+
+-- | The graph of fragment spreads must not form any cycles including spreading
+-- itself. Otherwise an operation could infinitely spread or infinitely execute
+-- on cycles in the underlying data.
+noFragmentCyclesRule :: forall m. Rule m
+noFragmentCyclesRule = FragmentDefinitionRule $ \case
+    FragmentDefinition fragmentName _ _ selections location -> do
+        state <- evalStateT (collectFields selections)
+            (0, fragmentName)
+        let spreadPath = fst <$> sortBy (comparing snd) (HashMap.toList state)
+        case reverse spreadPath of
+            x : _ | x == fragmentName -> pure $ Error
+                { message = concat
+                    [ "Cannot spread fragment \""
+                    , Text.unpack fragmentName
+                    , "\" within itself (via "
+                    , Text.unpack $ Text.intercalate " -> " $ fragmentName : spreadPath
+                    , ")."
+                    ]
+                , locations = [location]
+                , path = []
+                }
+            _ -> lift Nothing
+  where
+    collectFields :: Traversable t
+        => forall m
+        . t Selection
+        -> StateT (Int, Name) (ReaderT (Validation m) Maybe) (HashMap Name Int)
+    collectFields selectionSet = foldM forEach HashMap.empty selectionSet
+    forEach accumulator = \case
+        FieldSelection fieldSelection -> forField accumulator fieldSelection
+        InlineFragmentSelection fragmentSelection ->
+            forInline accumulator fragmentSelection
+        FragmentSpreadSelection fragmentSelection ->
+            forSpread accumulator fragmentSelection
+    forSpread accumulator (FragmentSpread fragmentName _ _) = do
+        firstFragmentName <- gets snd
+        modify $ first (+ 1)
+        lastIndex <- gets fst
+        let newAccumulator = HashMap.insert fragmentName lastIndex accumulator
+        let inVisitetFragment =HashMap.member fragmentName accumulator
+        if fragmentName == firstFragmentName || inVisitetFragment
+            then pure newAccumulator
+            else collectFromSpread fragmentName newAccumulator
+    forInline accumulator (InlineFragment _ _ selections _) =
+        (accumulator <>) <$> collectFields selections
+    forField accumulator (Field _ _ _ _ selections _) =
+        (accumulator <>) <$> collectFields selections
+    findFragmentDefinition n (ExecutableDefinition executableDefinition) Nothing
+        | DefinitionFragment fragmentDefinition <- executableDefinition
+        , FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition
+        , fragmentName == n = Just fragmentDefinition
+    findFragmentDefinition _ _ accumulator = accumulator
+    collectFromSpread _fragmentName accumulator = do
+        ast' <- lift $ asks ast
+        case foldr (findFragmentDefinition _fragmentName) Nothing ast' of
+            Nothing -> pure accumulator
+            Just (FragmentDefinition _ _ _ selections _) ->
+                (accumulator <>) <$> collectFields selections

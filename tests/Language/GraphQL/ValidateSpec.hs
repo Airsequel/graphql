@@ -393,3 +393,37 @@ spec =
                     , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects spreads that form cycles" $
+            let queryString = [r|
+              {
+                dog {
+                  ...nameFragment
+                }
+              }
+              fragment nameFragment on Dog {
+                name
+                ...barkVolumeFragment
+              }
+              fragment barkVolumeFragment on Dog {
+                barkVolume
+                ...nameFragment
+              }
+            |]
+                error1 = Error
+                    { message =
+                        "Cannot spread fragment \"barkVolumeFragment\" within \
+                        \itself (via barkVolumeFragment -> nameFragment -> \
+                        \barkVolumeFragment)."
+                    , locations = [AST.Location 11 15]
+                    , path = []
+                    }
+                error2 = Error
+                    { message =
+                        "Cannot spread fragment \"nameFragment\" within itself \
+                        \(via nameFragment -> barkVolumeFragment -> \
+                        \nameFragment)."
+                    , locations = [AST.Location 7 15]
+                    , path = []
+                    }
+             in validate queryString `shouldBe` Seq.fromList [error1, error2]
