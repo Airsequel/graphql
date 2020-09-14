@@ -304,7 +304,7 @@ field (Full.Field alias name arguments' directives' selections _) = do
     let field' = Field alias name fieldArguments fieldSelections
     pure $ field' <$ fieldDirectives
   where
-    go arguments (Full.Argument name' value') =
+    go arguments (Full.Argument name' value' _) =
         inputField arguments name' value'
 
 fragmentSpread
@@ -363,7 +363,7 @@ directives = traverse directive
     directive (Full.Directive directiveName directiveArguments)
         = Definition.Directive directiveName . Type.Arguments
         <$> foldM go HashMap.empty directiveArguments
-    go arguments (Full.Argument name value') = do
+    go arguments (Full.Argument name value' _) = do
         substitutedValue <- value value'
         return $ HashMap.insert name substitutedValue arguments
 

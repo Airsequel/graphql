@@ -12,9 +12,9 @@ module Language.GraphQL.Validate
     , module Language.GraphQL.Validate.Rules
     ) where
 
-import Control.Monad (foldM)
-import Control.Monad.Trans.Reader (Reader, asks, mapReaderT, runReader)
-import Data.Foldable (fold, foldrM)
+import Control.Monad (join)
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Trans.Reader (runReaderT)
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.Document
@@ -23,110 +23,79 @@ import Language.GraphQL.Type.Schema (Schema(..))
 import Language.GraphQL.Validate.Rules
 import Language.GraphQL.Validate.Validation
 
-type ValidateT m = Reader (Validation m) (Seq Error)
-
 -- | Validates a document and returns a list of found errors. If the returned
 -- list is empty, the document is valid.
 document :: forall m. Schema m -> [Rule m] -> Document -> Seq Error
 document schema' rules' document' =
-    runReader (foldrM go Seq.empty document') context
+    runReaderT reader context
   where
     context = Validation
         { ast = document'
         , schema = schema'
         , types = collectReferencedTypes schema'
-        , rules = rules'
         }
-    go definition' accumulator = (accumulator ><) <$> definition definition'
+    reader = do
+        rule' <- lift $ Seq.fromList rules'
+        join $ lift $ foldr (definition rule') Seq.empty document'
 
-definition :: forall m. Definition -> ValidateT m
-definition definition'
-    | ExecutableDefinition executableDefinition' <- definition'
-        = visitChildSelections ruleFilter
-        $ executableDefinition executableDefinition'
-    | otherwise = asks rules >>= foldM ruleFilter Seq.empty
+definition :: Rule m -> Definition -> Seq (RuleT m) -> Seq (RuleT m)
+definition (DefinitionRule rule) definition' acc =
+    acc |> rule definition'
+definition rule (ExecutableDefinition executableDefinition') acc =
+    acc >< executableDefinition rule executableDefinition'
+definition _ _ acc = acc
+
+executableDefinition :: Rule m -> ExecutableDefinition -> Seq (RuleT m)
+executableDefinition rule (DefinitionOperation operation) =
+    operationDefinition rule operation
+executableDefinition rule (DefinitionFragment fragment) =
+    fragmentDefinition rule fragment
+
+operationDefinition :: Rule m -> OperationDefinition -> Seq (RuleT m)
+operationDefinition (OperationDefinitionRule rule) operationDefinition' =
+    pure $ rule operationDefinition'
+operationDefinition rule (SelectionSet selections _) =
+    selectionSet rule selections
+operationDefinition rule (OperationDefinition _ _ _ _ selections _) =
+    selectionSet rule selections
+
+fragmentDefinition :: Rule m -> FragmentDefinition -> Seq (RuleT m)
+fragmentDefinition (FragmentDefinitionRule rule) fragmentDefinition' =
+    pure $ rule fragmentDefinition'
+fragmentDefinition rule fragmentDefinition'@(FragmentDefinition _ _ _ selections _)
+    | FragmentRule definitionRule _ <- rule =
+        applyToChildren |> definitionRule fragmentDefinition'
+    | otherwise = applyToChildren
   where
-    ruleFilter accumulator (DefinitionRule rule) =
-        mapReaderT (runRule accumulator) $ rule definition'
-    ruleFilter accumulator _ = pure accumulator
+    applyToChildren = selectionSet rule selections
 
-runRule :: Applicative f => Seq Error -> Maybe Error -> f (Seq Error)
-runRule accumulator (Just error') = pure $ accumulator |> error'
-runRule accumulator Nothing = pure accumulator
+selectionSet :: Traversable t => Rule m -> t Selection -> Seq (RuleT m)
+selectionSet = foldMap . selection
 
-executableDefinition :: forall m. ExecutableDefinition -> ValidateT m
-executableDefinition (DefinitionOperation definition') =
-    operationDefinition definition'
-executableDefinition (DefinitionFragment definition') =
-    fragmentDefinition definition'
-
-operationDefinition :: forall m. OperationDefinition -> ValidateT m
-operationDefinition operation =
-    let selectionSet = getSelectionSet operation
-     in visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
+selection :: Rule m -> Selection -> Seq (RuleT m)
+selection rule selection'
+    | SelectionRule selectionRule <- rule =
+        applyToChildren |> selectionRule selection'
+    | otherwise = applyToChildren
   where
-    ruleFilter accumulator (OperationDefinitionRule rule) =
-        mapReaderT (runRule accumulator) $ rule operation
-    ruleFilter accumulator _ = pure accumulator
-    getSelectionSet (SelectionSet selectionSet _) = selectionSet
-    getSelectionSet (OperationDefinition _ _ _ _ selectionSet _) = selectionSet
+    applyToChildren =
+        case selection' of
+            FieldSelection field' -> field rule field'
+            InlineFragmentSelection inlineFragment' ->
+                inlineFragment rule inlineFragment'
+            FragmentSpreadSelection fragmentSpread' ->
+                pure $ fragmentSpread rule fragmentSpread'
 
-visitChildSelections :: forall  m
-    . (Seq Error -> Rule m -> ValidateT m)
-    -> ValidateT m
-    -> ValidateT m
-visitChildSelections ruleFilter children' = do
-    rules' <- asks rules
-    applied <- foldM ruleFilter Seq.empty rules'
-    children <- children'
-    pure $ children >< applied
+field :: Rule m -> Field -> Seq (RuleT m)
+field (FieldRule rule) field' = pure $ rule field'
+field rule (Field _ _ _ _ selections _) = selectionSet rule selections
 
-selection :: forall m. Selection -> ValidateT m
-selection selection'
-    | FragmentSpreadSelection fragmentSelection <- selection' =
-        visitChildSelections ruleFilter $ fragmentSpread fragmentSelection
-    | FieldSelection fieldSelection <- selection' =
-        visitChildSelections ruleFilter $ field fieldSelection
-    | InlineFragmentSelection fragmentSelection <- selection' =
-        visitChildSelections ruleFilter $ inlineFragment fragmentSelection
-  where
-    ruleFilter accumulator (SelectionRule rule) =
-        mapReaderT (runRule accumulator) $ rule selection'
-    ruleFilter accumulator _ = pure accumulator
+inlineFragment :: Rule m -> InlineFragment -> Seq (RuleT m)
+inlineFragment (FragmentRule _ rule) inlineFragment' =
+    pure $ rule inlineFragment'
+inlineFragment rule (InlineFragment _ _ selections _) =
+    selectionSet rule selections
 
-field :: forall m. Field -> ValidateT m
-field field'@(Field _ _ _ _ selections _) =
-    visitChildSelections ruleFilter $ traverseSelectionSet selections
-  where
-    ruleFilter accumulator (FieldRule rule) =
-        mapReaderT (runRule accumulator) $ rule field'
-    ruleFilter accumulator _ = pure accumulator
-
-inlineFragment :: forall m. InlineFragment -> ValidateT m
-inlineFragment fragment@(InlineFragment _ _ selections _) =
-    visitChildSelections ruleFilter $ traverseSelectionSet selections
-  where
-    ruleFilter accumulator (FragmentRule _ inlineRule) =
-        mapReaderT (runRule accumulator) $ inlineRule fragment
-    ruleFilter accumulator _ = pure accumulator
-
-fragmentSpread :: forall m. FragmentSpread -> ValidateT m
-fragmentSpread fragment =
-    asks rules >>= foldM ruleFilter Seq.empty
-  where
-    ruleFilter accumulator (FragmentSpreadRule rule) =
-        mapReaderT (runRule accumulator) $ rule fragment
-    ruleFilter accumulator _ = pure accumulator
-
-traverseSelectionSet :: Traversable t => forall m. t Selection -> ValidateT m
-traverseSelectionSet = fmap fold . traverse selection
-
-fragmentDefinition :: forall m. FragmentDefinition -> ValidateT m
-fragmentDefinition fragment@(FragmentDefinition _ _ _ selectionSet _) =
-    visitChildSelections ruleFilter $ traverseSelectionSet selectionSet
-  where
-    ruleFilter accumulator (FragmentDefinitionRule rule) =
-        mapReaderT (runRule accumulator) $ rule fragment
-    ruleFilter accumulator (FragmentRule definitionRule _) =
-        mapReaderT (runRule accumulator) $ definitionRule fragment
-    ruleFilter accumulator _ = pure accumulator
+fragmentSpread :: Rule m -> FragmentSpread -> RuleT m
+fragmentSpread (FragmentSpreadRule rule) fragmentSpread' = rule fragmentSpread'
+fragmentSpread _ _ = lift mempty

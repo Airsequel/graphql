@@ -121,11 +121,11 @@ spec = do
 
     describe "definition" $
         it "indents block strings in arguments" $
-            let arguments = [Argument "message" (String "line1\nline2")]
-                field = Field Nothing "field" arguments [] [] $ Location 0 0
+            let location = Location 0 0
+                arguments = [Argument "message" (String "line1\nline2") location]
+                field = Field Nothing "field" arguments [] [] location
                 operation = DefinitionOperation
-                    $ SelectionSet (pure $ FieldSelection field)
-                    $ Location 0 0
+                    $ SelectionSet (pure $ FieldSelection field) location
              in definition pretty operation `shouldBe` [r|{
   field(message: """
     line1

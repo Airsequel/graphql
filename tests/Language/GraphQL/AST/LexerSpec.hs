@@ -75,7 +75,7 @@ spec = describe "Lexer" $ do
             parse dollar "" "$" `shouldParse` "$"
             runBetween parens `shouldSucceedOn` "()"
             parse spread "" "..." `shouldParse` "..."
-            parse colon "" ":" `shouldParse` ":"
+            parse colon "" `shouldSucceedOn` ":"
             parse equals "" "=" `shouldParse` "="
             parse at "" "@" `shouldParse` "@"
             runBetween brackets `shouldSucceedOn` "[]"

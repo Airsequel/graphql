@@ -33,6 +33,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet as HashSet
 import Data.List (sortBy)
 import Data.Ord (comparing)
+import Data.Sequence (Seq(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
@@ -61,7 +62,7 @@ specifiedRules =
 -- | Definition must be OperationDefinition or FragmentDefinition.
 executableDefinitionsRule :: forall m. Rule m
 executableDefinitionsRule = DefinitionRule $ \case
-    ExecutableDefinition _ -> lift Nothing
+    ExecutableDefinition _ -> lift mempty
     TypeSystemDefinition _ location -> pure $ error' location
     TypeSystemExtension _ location -> pure $ error' location
   where
@@ -78,7 +79,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
     OperationDefinition Subscription name' _ _ rootFields location -> do
         groupedFieldSet <- evalStateT (collectFields rootFields) HashSet.empty
         case HashSet.size groupedFieldSet of
-            1 -> lift Nothing
+            1 -> lift mempty
             _
                 | Just name <- name' -> pure $ Error
                     { message = unwords
@@ -94,7 +95,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
                     , locations = [location]
                     , path = []
                     }
-    _ -> lift Nothing
+    _ -> lift mempty
   where
     errorMessage =
         "Anonymous Subscription must select only one top level field."
@@ -123,8 +124,8 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
             <$> collectFields selections
-    skip (Directive "skip" [Argument "if" (Boolean True)]) = True
-    skip (Directive "include" [Argument "if" (Boolean False)]) = True
+    skip (Directive "skip" [Argument "if" (Boolean True) _]) = True
+    skip (Directive "include" [Argument "if" (Boolean False) _]) = True
     skip _ = False
     findFragmentDefinition (ExecutableDefinition executableDefinition) Nothing
         | DefinitionFragment fragmentDefinition <- executableDefinition =
@@ -154,11 +155,11 @@ loneAnonymousOperationRule :: forall m. Rule m
 loneAnonymousOperationRule = OperationDefinitionRule $ \case
       SelectionSet _ thisLocation -> check thisLocation
       OperationDefinition _ Nothing _ _ _ thisLocation -> check thisLocation
-      _ -> lift Nothing
+      _ -> lift mempty
     where
       check thisLocation = asks ast
-          >>= lift . foldr (filterAnonymousOperations thisLocation) Nothing
-      filterAnonymousOperations thisLocation definition Nothing
+          >>= lift . foldr (filterAnonymousOperations thisLocation) mempty
+      filterAnonymousOperations thisLocation definition Empty
           | (viewOperation -> Just operationDefinition) <- definition =
               compareAnonymousOperations thisLocation operationDefinition
       filterAnonymousOperations _ _ accumulator = accumulator
@@ -167,7 +168,7 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
               | thisLocation /= thatLocation -> pure $ error' thisLocation
           SelectionSet _ thatLocation
               | thisLocation /= thatLocation -> pure $ error' thisLocation
-          _ -> Nothing
+          _ -> mempty
       error' location = Error
           { message =
               "This anonymous operation must be the only defined operation."
@@ -181,7 +182,7 @@ uniqueOperationNamesRule :: forall m. Rule m
 uniqueOperationNamesRule = OperationDefinitionRule $ \case
     OperationDefinition _ (Just thisName) _ _ _ thisLocation ->
         findDuplicates (filterByName thisName) thisLocation (error' thisName)
-    _ -> lift Nothing
+    _ -> lift mempty
   where
     error' operationName = concat
         [ "There can be only one operation named \""
@@ -203,7 +204,7 @@ findDuplicates filterByName thisLocation errorMessage = do
     let locations' = foldr filterByName [] ast'
     if length locations' > 1 && head locations' == thisLocation
         then pure $ error' locations'
-        else lift Nothing
+        else lift mempty
   where
     error' locations' = Error 
         { message = errorMessage
@@ -258,7 +259,7 @@ fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
                 , locations = [location]
                 , path = []
                 }
-            Just _ -> lift Nothing
+            Just _ -> lift mempty
   where
     error' fragmentName = concat
         [ "Fragment target \""
@@ -280,8 +281,8 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
     FragmentSpreadSelection fragmentSelection
         | FragmentSpread fragmentName _ location <- fragmentSelection -> do
             ast' <- asks ast
-            target <- lift $ find (isSpreadTarget fragmentName) ast'
-            typeCondition <- extractTypeCondition target
+            let target = find (isSpreadTarget fragmentName) ast'
+            typeCondition <- lift $ maybeToSeq $ target >>= extractTypeCondition
             types' <- asks types
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
@@ -289,7 +290,7 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
                     , locations = [location]
                     , path = []
                     }
-                Just _ -> lift Nothing
+                Just _ -> lift mempty
     InlineFragmentSelection fragmentSelection
         | InlineFragment maybeType _ _ location <- fragmentSelection
         , Just typeCondition <- maybeType -> do
@@ -300,13 +301,13 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
                     , locations = [location]
                     , path = []
                     }
-                Just _ -> lift Nothing
-    _ -> lift Nothing
+                Just _ -> lift mempty
+    _ -> lift mempty
   where
     extractTypeCondition (viewFragment -> Just fragmentDefinition) =
         let FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
-         in pure typeCondition
-    extractTypeCondition _ = lift Nothing
+         in Just typeCondition
+    extractTypeCondition _ = Nothing
     spreadError fragmentName typeCondition = concat
         [ "Fragment \""
         , Text.unpack fragmentName
@@ -320,6 +321,10 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
         , "\" which doesn't exist in the schema."
         ]
 
+maybeToSeq :: forall a. Maybe a -> Seq a
+maybeToSeq (Just x) = pure x
+maybeToSeq Nothing = mempty
+
 -- | Fragments can only be declared on unions, interfaces, and objects. They are
 -- invalid on scalars. They can only be applied on non‐leaf fields. This rule
 -- applies to both inline and named fragments.
@@ -328,20 +333,20 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
   where
     inlineRule (InlineFragment (Just typeCondition) _ _ location) =
         check typeCondition location
-    inlineRule _ = lift Nothing
+    inlineRule _ = lift mempty
     definitionRule (FragmentDefinition _ typeCondition _ _ location) =
         check typeCondition location
     check typeCondition location = do
         types' <- asks types
         -- Skip unknown types, they are checked by another rule.
-        _ <- lift $ HashMap.lookup typeCondition types'
+        _ <- lift $ maybeToSeq $ HashMap.lookup typeCondition types'
         case lookupTypeCondition typeCondition types' of
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
                 , locations = [location]
                 , path = []
                 }
-            Just _ -> lift Nothing
+            Just _ -> lift mempty
     errorMessage typeCondition = concat
         [ "Fragment cannot condition on non composite type \""
         , Text.unpack typeCondition,
@@ -354,7 +359,7 @@ noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment ->
     asks ast >>= findSpreadByName fragment
   where
     findSpreadByName (FragmentDefinition fragName _ _ _ location) definitions
-        | foldr (go fragName) False definitions = lift Nothing
+        | foldr (go fragName) False definitions = lift mempty
         | otherwise = pure $ Error
             { message = errorMessage fragName
             , locations = [location]
@@ -410,12 +415,12 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
                 , locations = [location]
                 , path = []
                 }
-            _ -> lift Nothing
+            _ -> lift mempty
   where
     collectFields :: Traversable t
         => forall m
         . t Selection
-        -> StateT (Int, Name) (ReaderT (Validation m) Maybe) (HashMap Name Int)
+        -> StateT (Int, Name) (ReaderT (Validation m) Seq) (HashMap Name Int)
     collectFields selectionSet = foldM forEach HashMap.empty selectionSet
     forEach accumulator = \case
         FieldSelection fieldSelection -> forField accumulator fieldSelection

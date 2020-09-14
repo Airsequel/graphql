@@ -398,7 +398,12 @@ arguments :: Parser [Argument]
 arguments = listOptIn parens argument <?> "Arguments"
 
 argument :: Parser Argument
-argument = Argument <$> name <* colon <*> value <?> "Argument"
+argument = label "Argument" $ do
+    location <- getLocation
+    name' <- name
+    colon
+    value' <- value
+    pure $ Argument name' value' location
 
 fragmentSpread :: Parser FragmentSpread
 fragmentSpread = label "FragmentSpread" $ do

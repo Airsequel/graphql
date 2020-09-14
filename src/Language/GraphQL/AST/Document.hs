@@ -49,7 +49,7 @@ import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Language.GraphQL.AST.DirectiveLocation
+import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation)
 
 -- * Language
 
@@ -126,7 +126,7 @@ data Selection
     | InlineFragmentSelection InlineFragment
     deriving (Eq, Show)
 
--- The only required property of a field is its name. Optionally it can also
+-- | The only required property of a field is its name. Optionally it can also
 -- have an alias, arguments, directives and a list of subfields.
 --
 -- In the following query "user" is a field with two subfields, "id" and "name":
@@ -143,7 +143,7 @@ data Field =
     Field (Maybe Name) Name [Argument] [Directive] SelectionSetOpt Location
     deriving (Eq, Show)
 
--- Inline fragments don't have any name and the type condition ("on UserType")
+-- | Inline fragments don't have any name and the type condition ("on UserType")
 -- is optional.
 --
 -- @
@@ -159,7 +159,7 @@ data InlineFragment = InlineFragment
     (Maybe TypeCondition) [Directive] SelectionSet Location
     deriving (Eq, Show)
 
--- A fragment spread refers to a fragment defined outside the operation and is
+-- | A fragment spread refers to a fragment defined outside the operation and is
 -- expanded at the execution time.
 --
 -- @
@@ -190,7 +190,7 @@ data FragmentSpread = FragmentSpread Name [Directive] Location
 -- @
 --
 --  Here "id" is an argument for the field "user" and its value is 4.
-data Argument = Argument Name Value deriving (Eq,Show)
+data Argument = Argument Name Value Location deriving (Eq,Show)
 
 -- ** Fragments
 

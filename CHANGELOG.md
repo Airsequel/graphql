@@ -10,9 +10,16 @@ and this project adheres to
 ### Changed
 - `AST.Document.Selection` wraps additional new types: `Field`, `FragmentSpread`
   and  `InlineFragment`. Thus validation rules can be defined more concise.
+- `AST.Document.Argument` contains the argument location.
+- `AST.Lexer.colon` ignores the result (it is always a colon).
+- `Validate.Validation`: `Validation.rules` was removed. `Validation.rules`
+  contained the list of rules, but the executed rules shouldn't know about other
+  rules. `rules` was a part of the `Validation` context to pass it easier
+  around, but since the rules are traversed once now and applied to all nodes in
+  the tree at the beginning, it isn't required anymore.
 
 ### Added
-- `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule` and
+- `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule`,
   `FragmentSpreadRule` constructors.
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`

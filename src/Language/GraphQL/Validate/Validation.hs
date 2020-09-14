@@ -11,8 +11,9 @@ module Language.GraphQL.Validate.Validation
     , Validation(..)
     ) where
 
-import Control.Monad.Trans.Reader (ReaderT(..))
+import Control.Monad.Trans.Reader (ReaderT)
 import Data.HashMap.Strict (HashMap)
+import Data.Sequence (Seq)
 import Data.Text (Text)
 import Language.GraphQL.AST.Document
 import Language.GraphQL.Type.Schema (Schema)
@@ -39,7 +40,6 @@ data Validation m = Validation
     { ast :: Document
     , schema :: Schema m
     , types :: HashMap Name (Schema.Type m)
-    , rules :: [Rule m]
     }
 
 -- | 'Rule' assigns a function to each AST node that can be validated. If the
@@ -55,4 +55,4 @@ data Rule m
     | FieldRule (Field -> RuleT m)
 
 -- | Monad transformer used by the rules.
-type RuleT m = ReaderT (Validation m) Maybe Error
+type RuleT m = ReaderT (Validation m) Seq Error

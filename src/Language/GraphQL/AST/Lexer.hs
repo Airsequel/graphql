@@ -100,8 +100,8 @@ amp :: Parser T.Text
 amp = symbol "&"
 
 -- | Parser for ":".
-colon :: Parser T.Text
-colon = symbol ":"
+colon :: Parser ()
+colon = symbol ":" >> pure ()
 
 -- | Parser for "=".
 equals :: Parser T.Text
