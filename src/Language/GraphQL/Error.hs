@@ -8,6 +8,7 @@ module Language.GraphQL.Error
     ( parseError
     , CollectErrsT
     , Error(..)
+    , Path(..)
     , Resolution(..)
     , ResolverException(..)
     , Response(..)
@@ -57,6 +58,7 @@ parseError ParseErrorBundle{..}  =
     errorObject s SourcePos{..} = Error
         { message = Text.pack $ init $ parseErrorTextPretty s
         , locations = [Location (unPos' sourceLine) (unPos' sourceColumn)]
+        , path = []
         }
     unPos' = fromIntegral . unPos
     go (result, state) x =
@@ -75,7 +77,7 @@ addErr v = modify appender
     appender resolution@Resolution{..} = resolution{ errors = errors |> v }
 
 makeErrorMessage :: Text -> Error
-makeErrorMessage s = Error s []
+makeErrorMessage s = Error s [] []
 
 -- | Constructs a response object containing only the error with the given
 -- message.
@@ -86,10 +88,20 @@ singleError message = Response null $ Seq.singleton $ makeErrorMessage message
 addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
 addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null
 
+-- | If an error can be associated to a particular field in the GraphQL result,
+-- it must contain an entry with the key path that details the path of the
+-- response field which experienced the error. This allows clients to identify
+-- whether a null result is intentional or caused by a runtime error.
+data Path
+    = Segment Text -- ^ Field name.
+    | Index Int -- ^ List index if a field returned a list.
+    deriving (Eq, Show)
+
 -- | @GraphQL@ error.
 data Error = Error
     { message :: Text
     , locations :: [Location]
+    , path :: [Path]
     } deriving (Eq, Show)
 
 -- | The server\'s response describes the result of executing the requested

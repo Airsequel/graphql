@@ -17,6 +17,10 @@ and this project adheres to
   rules. `rules` was a part of the `Validation` context to pass it easier
   around, but since the rules are traversed once now and applied to all nodes in
   the tree at the beginning, it isn't required anymore.
+- `Validate.Validation.Error`: `path` is removed since it isn't possible to get
+  the path without executing the query.
+- `Error.Error`: `path` added. It is currently always empty.
+- `Validate.Validation.Path` was moved to `Error`.
 
 ### Added
 - `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule`,

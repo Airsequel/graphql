@@ -43,7 +43,7 @@ resolveFieldValue result args resolver =
         => ResolverException
         -> CollectErrsT m Type.Value
     handleFieldError e =
-        addErr (Error (Text.pack $ displayException e) []) >> pure Type.Null
+        addErr (Error (Text.pack $ displayException e) [] []) >> pure Type.Null
     context = Type.Context
         { Type.arguments = Type.Arguments args
         , Type.values = result

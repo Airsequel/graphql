@@ -168,7 +168,6 @@ spec =
                     { message =
                         "Definition must be OperationDefinition or FragmentDefinition."
                     , locations = [AST.Location 9 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -186,7 +185,6 @@ spec =
                     { message =
                         "Subscription sub must select only one top level field."
                     , locations = [AST.Location 2 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -208,7 +206,6 @@ spec =
                     { message =
                         "Subscription sub must select only one top level field."
                     , locations = [AST.Location 2 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -232,7 +229,6 @@ spec =
                     { message =
                         "This anonymous operation must be the only defined operation."
                     , locations = [AST.Location 2 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -254,7 +250,6 @@ spec =
                     { message =
                         "There can be only one operation named \"dogOperation\"."
                     , locations = [AST.Location 2 15, AST.Location 8 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -280,7 +275,6 @@ spec =
                     { message =
                         "There can be only one fragment named \"fragmentOne\"."
                     , locations = [AST.Location 8 15, AST.Location 12 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -296,7 +290,6 @@ spec =
                     { message =
                         "Fragment target \"undefinedFragment\" is undefined."
                     , locations = [AST.Location 4 19]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -316,7 +309,6 @@ spec =
                         "Fragment \"notOnExistingType\" is specified on type \
                         \\"NotInSchema\" which doesn't exist in the schema."
                     , locations = [AST.Location 4 19]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -333,7 +325,6 @@ spec =
                         "Inline fragment is specified on type \"NotInSchema\" \
                         \which doesn't exist in the schema."
                     , locations = [AST.Location 3 17]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -353,7 +344,6 @@ spec =
                         "Fragment cannot condition on non composite type \
                         \\"Int\"."
                     , locations = [AST.Location 7 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -370,7 +360,6 @@ spec =
                         "Fragment cannot condition on non composite type \
                         \\"Boolean\"."
                     , locations = [AST.Location 3 17]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -390,7 +379,6 @@ spec =
                     { message =
                         "Fragment \"nameFragment\" is never used."
                     , locations = [AST.Location 2 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.singleton expected
 
@@ -416,7 +404,6 @@ spec =
                         \itself (via barkVolumeFragment -> nameFragment -> \
                         \barkVolumeFragment)."
                     , locations = [AST.Location 11 15]
-                    , path = []
                     }
                 error2 = Error
                     { message =
@@ -424,6 +411,5 @@ spec =
                         \(via nameFragment -> barkVolumeFragment -> \
                         \nameFragment)."
                     , locations = [AST.Location 7 15]
-                    , path = []
                     }
              in validate queryString `shouldBe` Seq.fromList [error1, error2]

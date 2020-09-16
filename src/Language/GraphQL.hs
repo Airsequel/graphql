@@ -11,6 +11,7 @@ import Control.Monad.Catch (MonadCatch)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe (catMaybes)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import Language.GraphQL.AST
@@ -55,24 +56,19 @@ graphqlSubs schema operationName variableValues document' =
         [ ("data", data'')
         , ("errors", Aeson.toJSON $ fromError <$> errors')
         ]
-    fromError Error{ locations = [], ..} =
-        Aeson.object [("message", Aeson.toJSON message)]
-    fromError Error{..} = Aeson.object
+    fromError Error{..} = Aeson.object $ catMaybes
+        [ Just ("message", Aeson.toJSON message)
+        , toMaybe fromLocation "locations" locations
+        , toMaybe fromPath "path" path
+        ]
+    fromValidationError Validate.Error{..} = Aeson.object
         [ ("message", Aeson.toJSON message)
         , ("locations", Aeson.listValue fromLocation locations)
         ]
-    fromValidationError Validate.Error{..}
-        | [] <- path = Aeson.object
-            [ ("message", Aeson.toJSON message)
-            , ("locations", Aeson.listValue fromLocation locations)
-            ]
-        | otherwise = Aeson.object
-            [ ("message", Aeson.toJSON message)
-            , ("locations", Aeson.listValue fromLocation locations)
-            , ("path", Aeson.listValue fromPath path)
-            ]
-    fromPath (Validate.Segment segment) = Aeson.String segment
-    fromPath (Validate.Index index) = Aeson.toJSON index
+    toMaybe _ _ [] = Nothing
+    toMaybe f key xs = Just (key, Aeson.listValue f xs)
+    fromPath (Segment segment) = Aeson.String segment
+    fromPath (Index index) = Aeson.toJSON index
     fromLocation Location{..} = Aeson.object
         [ ("line", Aeson.toJSON line)
         , ("column", Aeson.toJSON column)

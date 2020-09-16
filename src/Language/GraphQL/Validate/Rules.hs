@@ -70,7 +70,6 @@ executableDefinitionsRule = DefinitionRule $ \case
         { message =
             "Definition must be OperationDefinition or FragmentDefinition."
         , locations = [location]
-        , path = []
         }
 
 -- | Subscription operations must have exactly one root field.
@@ -88,12 +87,10 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
                         , "must select only one top level field."
                         ]
                     , locations = [location]
-                    , path = []
                     }
                 | otherwise -> pure $ Error
                     { message = errorMessage
                     , locations = [location]
-                    , path = []
                     }
     _ -> lift mempty
   where
@@ -173,7 +170,6 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
           { message =
               "This anonymous operation must be the only defined operation."
           , locations = [location]
-          , path = []
           }
 
 -- | Each named operation definition must be unique within a document when
@@ -209,7 +205,6 @@ findDuplicates filterByName thisLocation errorMessage = do
     error' locations' = Error 
         { message = errorMessage
         , locations = locations'
-        , path = []
         }
 
 viewOperation :: Definition -> Maybe OperationDefinition
@@ -257,7 +252,6 @@ fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
             Nothing -> pure $ Error
                 { message = error' fragmentName
                 , locations = [location]
-                , path = []
                 }
             Just _ -> lift mempty
   where
@@ -288,7 +282,6 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
                 Nothing -> pure $ Error
                     { message = spreadError fragmentName typeCondition
                     , locations = [location]
-                    , path = []
                     }
                 Just _ -> lift mempty
     InlineFragmentSelection fragmentSelection
@@ -299,7 +292,6 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ \case
                 Nothing -> pure $ Error
                     { message = inlineError typeCondition
                     , locations = [location]
-                    , path = []
                     }
                 Just _ -> lift mempty
     _ -> lift mempty
@@ -344,7 +336,6 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
                 , locations = [location]
-                , path = []
                 }
             Just _ -> lift mempty
     errorMessage typeCondition = concat
@@ -363,7 +354,6 @@ noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment ->
         | otherwise = pure $ Error
             { message = errorMessage fragName
             , locations = [location]
-            , path = []
             }
     errorMessage fragName = concat
         [ "Fragment \""
@@ -413,7 +403,6 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
                     , ")."
                     ]
                 , locations = [location]
-                , path = []
                 }
             _ -> lift mempty
   where

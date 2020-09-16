@@ -19,6 +19,6 @@ import Test.Hspec ( Spec
 spec :: Spec
 spec = describe "singleError" $
     it "constructs an error with the given message" $
-        let errors'' = Seq.singleton $ Error "Message." []
+        let errors'' = Seq.singleton $ Error "Message." [] []
             expected = Response Aeson.Null errors''
          in singleError "Message." `shouldBe` expected

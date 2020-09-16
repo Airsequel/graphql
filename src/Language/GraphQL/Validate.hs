@@ -7,7 +7,6 @@
 -- | GraphQL validator.
 module Language.GraphQL.Validate
     ( Error(..)
-    , Path(..)
     , document
     , module Language.GraphQL.Validate.Rules
     ) where
