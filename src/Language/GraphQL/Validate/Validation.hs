@@ -41,6 +41,7 @@ data Rule m
     | FragmentRule (FragmentDefinition -> RuleT m) (InlineFragment -> RuleT m)
     | FragmentSpreadRule (FragmentSpread -> RuleT m)
     | FieldRule (Field -> RuleT m)
+    | ArgumentsRule (Field -> RuleT m) (Directive -> RuleT m)
 
 -- | Monad transformer used by the rules.
 type RuleT m = ReaderT (Validation m) Seq Error

@@ -413,3 +413,18 @@ spec =
                     , locations = [AST.Location 7 15]
                     }
              in validate queryString `shouldBe` Seq.fromList [error1, error2]
+
+        it "rejects duplicate field arguments" $ do
+            let queryString = [r|
+              {
+                dog {
+                  isHousetrained(atOtherHomes: true, atOtherHomes: true)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one argument named \"atOtherHomes\"."
+                    , locations = [AST.Location 4 34, AST.Location 4 54]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

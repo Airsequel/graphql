@@ -24,13 +24,14 @@ and this project adheres to
 
 ### Added
 - `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule`,
-  `FragmentSpreadRule` constructors.
+  `FragmentSpreadRule`, `ArgumentsRule` constructors.
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
   - `fragmentSpreadTypeExistenceRule`
   - `noUnusedFragmentsRule`
   - `noFragmentCyclesRule`
+  - `uniqueArgumentNamesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

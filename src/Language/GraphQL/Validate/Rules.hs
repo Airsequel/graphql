@@ -18,6 +18,7 @@ module Language.GraphQL.Validate.Rules
     , noUnusedFragmentsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
+    , uniqueArgumentNamesRule
     , uniqueFragmentNamesRule
     , uniqueOperationNamesRule
     ) where
@@ -31,9 +32,10 @@ import Data.Foldable (find)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashSet as HashSet
-import Data.List (sortBy)
+import Data.List (groupBy, sortBy, sortOn)
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..))
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
@@ -50,6 +52,8 @@ specifiedRules =
     , singleFieldSubscriptionsRule
     , loneAnonymousOperationRule
     , uniqueOperationNamesRule
+    -- Arguments.
+    , uniqueArgumentNamesRule
     -- Fragments.
     , uniqueFragmentNamesRule
     , fragmentSpreadTypeExistenceRule
@@ -441,3 +445,29 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
             Nothing -> pure accumulator
             Just (FragmentDefinition _ _ _ selections _) ->
                 (accumulator <>) <$> collectFields selections
+
+-- | Fields and directives treat arguments as a mapping of argument name to
+-- value. More than one argument with the same name in an argument set is
+-- ambiguous and invalid.
+uniqueArgumentNamesRule :: forall m. Rule m
+uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
+  where
+    fieldRule (Field _ _ arguments _ _ _) = filterDuplicates arguments
+    directiveRule (Directive _ arguments) = filterDuplicates arguments
+    filterDuplicates = lift
+        . Seq.fromList
+        . fmap makeError
+        . filter ((> 1) . length)
+        . groupBy equalByName
+        . sortOn getName
+    getName (Argument argumentName _ _) = argumentName
+    makeError arguments = Error
+        { message = makeMessage $ head arguments
+        , locations = (\(Argument _ _ location) -> location) <$> arguments
+        }
+    makeMessage argument = concat
+        [ "There can be only one argument named \""
+        , Text.unpack $ getName argument
+        , "\"."
+        ]
+    equalByName lhs rhs = getName lhs == getName rhs
