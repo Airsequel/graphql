@@ -19,6 +19,7 @@ module Language.GraphQL.Validate.Rules
     , singleFieldSubscriptionsRule
     , specifiedRules
     , uniqueArgumentNamesRule
+    , uniqueDirectiveNamesRule
     , uniqueFragmentNamesRule
     , uniqueOperationNamesRule
     ) where
@@ -61,6 +62,8 @@ specifiedRules =
     , noUnusedFragmentsRule
     , fragmentSpreadTargetDefinedRule
     , noFragmentCyclesRule
+    -- Directives.
+    , uniqueDirectiveNamesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -125,8 +128,8 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
             <$> collectFields selections
-    skip (Directive "skip" [Argument "if" (Boolean True) _]) = True
-    skip (Directive "include" [Argument "if" (Boolean False) _]) = True
+    skip (Directive "skip" [Argument "if" (Boolean True) _] _) = True
+    skip (Directive "include" [Argument "if" (Boolean False) _] _) = True
     skip _ = False
     findFragmentDefinition (ExecutableDefinition executableDefinition) Nothing
         | DefinitionFragment fragmentDefinition <- executableDefinition =
@@ -452,22 +455,40 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
 uniqueArgumentNamesRule :: forall m. Rule m
 uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
-    fieldRule (Field _ _ arguments _ _ _) = filterDuplicates arguments
-    directiveRule (Directive _ arguments) = filterDuplicates arguments
-    filterDuplicates = lift
-        . Seq.fromList
-        . fmap makeError
-        . filter ((> 1) . length)
-        . groupBy equalByName
-        . sortOn getName
-    getName (Argument argumentName _ _) = argumentName
-    makeError arguments = Error
-        { message = makeMessage $ head arguments
-        , locations = (\(Argument _ _ location) -> location) <$> arguments
+    fieldRule (Field _ _ arguments _ _ _) =
+        filterDuplicates extract "argument" arguments
+    directiveRule (Directive _ arguments _) =
+        filterDuplicates extract "argument" arguments
+    extract (Argument argumentName _ location) = (argumentName, location)
+
+-- | Directives are used to describe some metadata or behavioral change on the
+-- definition they apply to. When more than one directive of the same name is
+-- used, the expected metadata or behavior becomes ambiguous, therefore only one
+-- of each directive is allowed per location.
+uniqueDirectiveNamesRule :: forall m. Rule m
+uniqueDirectiveNamesRule = DirectivesRule
+    $ filterDuplicates extract "directive"
+  where
+    extract (Directive directiveName _ location) = (directiveName, location)
+
+filterDuplicates :: (a -> (Text, Location)) -> String -> [a] -> RuleT m
+filterDuplicates extract nodeType = lift
+    . Seq.fromList
+    . fmap makeError
+    . filter ((> 1) . length)
+    . groupBy equalByName
+    . sortOn getName
+  where
+    getName = fst . extract
+    equalByName lhs rhs = getName lhs == getName rhs
+    makeError directives = Error
+        { message = makeMessage $ head directives
+        , locations = snd . extract <$> directives
         }
-    makeMessage argument = concat
-        [ "There can be only one argument named \""
-        , Text.unpack $ getName argument
+    makeMessage directive = concat
+        [ "There can be only one "
+        , nodeType
+        , " named \""
+        , Text.unpack $ fst $ extract directive
         , "\"."
         ]
-    equalByName lhs rhs = getName lhs == getName rhs

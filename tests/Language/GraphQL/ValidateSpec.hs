@@ -428,3 +428,16 @@ spec =
                     , locations = [AST.Location 4 34, AST.Location 4 54]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects more than one directive per location" $ do
+            let queryString = [r|
+              query ($foo: Boolean = true, $bar: Boolean = false) {
+                field @skip(if: $foo) @skip(if: $bar)
+              }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one directive named \"skip\"."
+                    , locations = [AST.Location 3 23, AST.Location 3 39]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

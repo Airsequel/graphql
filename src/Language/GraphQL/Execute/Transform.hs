@@ -360,7 +360,7 @@ appendSelection = foldM go mempty
 directives :: [Full.Directive] ->  State (Replacement m) [Definition.Directive]
 directives = traverse directive
   where
-    directive (Full.Directive directiveName directiveArguments)
+    directive (Full.Directive directiveName directiveArguments _)
         = Definition.Directive directiveName . Type.Arguments
         <$> foldM go HashMap.empty directiveArguments
     go arguments (Full.Argument name value' _) = do

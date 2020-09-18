@@ -92,8 +92,8 @@ dollar :: Parser T.Text
 dollar = symbol "$"
 
 -- | Parser for "@".
-at :: Parser Text
-at = symbol "@"
+at :: Parser ()
+at = symbol "@" >> pure ()
 
 -- | Parser for "&".
 amp :: Parser T.Text

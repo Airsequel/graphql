@@ -15,6 +15,7 @@ module Language.GraphQL.Validate
 import Control.Monad (join)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (runReaderT)
+import Data.Foldable (toList)
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.Document
@@ -185,7 +186,13 @@ fragmentSpread rule fragmentSpread'@(FragmentSpread _ directives' _)
     applyToChildren = directives rule directives'
 
 directives :: Traversable t => Rule m -> t Directive -> Seq (RuleT m)
-directives = foldMap . fmap pure . directive
+directives rule directives'
+    | DirectivesRule directivesRule <- rule =
+        applyToChildren |> directivesRule directiveList
+    | otherwise = applyToChildren
+  where
+    directiveList = toList directives'
+    applyToChildren = Seq.fromList $ fmap (directive rule) directiveList
 
 directive :: Rule m -> Directive -> RuleT m
 directive (ArgumentsRule _ rule) = rule

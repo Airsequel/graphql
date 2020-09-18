@@ -128,7 +128,7 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` [r|extend schema { query: Query }|]
 
     it "parses schema extension with an operation type and directive" $
-        let newDirective = Directive "newDirective" []
+        let newDirective = Directive "newDirective" [] $ Location 1 15
             schemaExtension = SchemaExtension
                 $ SchemaOperationExtension [newDirective]
                 $ OperationTypeDefinition Query "Query" :| []

@@ -10,8 +10,9 @@ and this project adheres to
 ### Changed
 - `AST.Document.Selection` wraps additional new types: `Field`, `FragmentSpread`
   and  `InlineFragment`. Thus validation rules can be defined more concise.
-- `AST.Document.Argument` contains the argument location.
-- `AST.Lexer.colon` ignores the result (it is always a colon).
+- `AST.Document`: `Argument` and `Directive` contain token location.
+- `AST.Lexer.colon` and `AST.Lexer.at` ignore the result (it is always the
+- same).
 - `Validate.Validation`: `Validation.rules` was removed. `Validation.rules`
   contained the list of rules, but the executed rules shouldn't know about other
   rules. `rules` was a part of the `Validation` context to pass it easier
@@ -24,7 +25,7 @@ and this project adheres to
 
 ### Added
 - `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule`,
-  `FragmentSpreadRule`, `ArgumentsRule` constructors.
+  `FragmentSpreadRule`, `ArgumentsRule`, `DirectivesRule` constructors.
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
@@ -32,6 +33,7 @@ and this project adheres to
   - `noUnusedFragmentsRule`
   - `noFragmentCyclesRule`
   - `uniqueArgumentNamesRule`
+  - `uniqueDirectiveNamesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

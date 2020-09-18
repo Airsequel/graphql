@@ -520,11 +520,12 @@ directives :: Parser [Directive]
 directives = many directive <?> "Directives"
 
 directive :: Parser Directive
-directive = Directive
-    <$  at
-    <*> name
-    <*> arguments
-    <?> "Directive"
+directive = label "Directive" $ do
+    location <- getLocation
+    at
+    directiveName <- name
+    directiveArguments <- arguments
+    pure $ Directive directiveName directiveArguments location
 
 listOptIn :: (Parser [a] -> Parser [a]) -> Parser a -> Parser [a]
 listOptIn surround = option [] . surround . some

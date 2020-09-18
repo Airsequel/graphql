@@ -280,7 +280,7 @@ data NonNullType
 --
 -- Directives begin with "@", can accept arguments, and can be applied to the
 -- most GraphQL elements, providing additional information.
-data Directive = Directive Name [Argument] deriving (Eq, Show)
+data Directive = Directive Name [Argument] Location deriving (Eq, Show)
 
 -- * Type System
 

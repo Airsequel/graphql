@@ -191,7 +191,7 @@ fragmentDefinition formatter (FragmentDefinition name tc dirs sels _)
 
 -- | Converts a 'Directive' into a string.
 directive :: Formatter -> Directive -> Lazy.Text
-directive formatter (Directive name args)
+directive formatter (Directive name args _)
     = "@" <> Lazy.Text.fromStrict name <> optempty (arguments formatter) args
 
 directives :: Formatter -> [Directive] -> Lazy.Text
