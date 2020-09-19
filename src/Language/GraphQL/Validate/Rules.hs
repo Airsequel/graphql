@@ -22,6 +22,7 @@ module Language.GraphQL.Validate.Rules
     , uniqueDirectiveNamesRule
     , uniqueFragmentNamesRule
     , uniqueOperationNamesRule
+    , uniqueVariableNamesRule
     ) where
 
 import Control.Monad (foldM)
@@ -64,6 +65,8 @@ specifiedRules =
     , noFragmentCyclesRule
     -- Directives.
     , uniqueDirectiveNamesRule
+    -- Variables.
+    , uniqueVariableNamesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -492,3 +495,13 @@ filterDuplicates extract nodeType = lift
         , Text.unpack $ fst $ extract directive
         , "\"."
         ]
+
+-- | If any operation defines more than one variable with the same name, it is
+-- ambiguous and invalid. It is invalid even if the type of the duplicate
+-- variable is the same.
+uniqueVariableNamesRule :: forall m. Rule m
+uniqueVariableNamesRule = VariablesRule
+    $ filterDuplicates extract "variable"
+  where
+    extract (VariableDefinition variableName _ _ location) =
+        (variableName, location)

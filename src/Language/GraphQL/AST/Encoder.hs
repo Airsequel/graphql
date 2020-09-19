@@ -95,7 +95,7 @@ variableDefinitions formatter
     = parensCommas formatter $ variableDefinition formatter
 
 variableDefinition :: Formatter -> VariableDefinition -> Lazy.Text
-variableDefinition formatter (VariableDefinition var ty defaultValue')
+variableDefinition formatter (VariableDefinition var ty defaultValue' _)
     = variable var
     <> eitherFormat formatter ": " ":"
     <> type' ty

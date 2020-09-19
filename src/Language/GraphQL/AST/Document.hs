@@ -253,7 +253,8 @@ data ObjectField a = ObjectField Name a
 --
 -- Variables are usually passed along with the query, but not in the query
 -- itself. They make queries reusable.
-data VariableDefinition = VariableDefinition Name Type (Maybe ConstValue)
+data VariableDefinition =
+    VariableDefinition Name Type (Maybe ConstValue) Location
     deriving (Eq, Show)
 
 -- ** Type References

@@ -180,7 +180,7 @@ coerceVariableValues types operationDefinition variableValues =
         $ foldr forEach (Just HashMap.empty) variableDefinitions
   where
     forEach variableDefinition coercedValues = do
-        let Full.VariableDefinition variableName variableTypeName defaultValue =
+        let Full.VariableDefinition variableName variableTypeName defaultValue _ =
                 variableDefinition
         let defaultValue' = constValue <$> defaultValue
         variableType <- lookupInputType variableTypeName types

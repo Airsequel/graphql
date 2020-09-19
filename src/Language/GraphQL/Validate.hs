@@ -125,12 +125,15 @@ inputValueDefinition rule (InputValueDefinition _ _ _ _ directives') =
     directives rule directives'
 
 operationDefinition :: Rule m -> OperationDefinition -> Seq (RuleT m)
-operationDefinition (OperationDefinitionRule rule) operationDefinition' =
-    pure $ rule operationDefinition'
-operationDefinition rule (SelectionSet selections _) =
-    selectionSet rule selections
-operationDefinition rule (OperationDefinition _ _ _ directives' selections _) =
-    selectionSet rule selections >< directives rule directives'
+operationDefinition rule operation
+    | OperationDefinitionRule operationRule <- rule =
+        pure $ operationRule operation
+    | VariablesRule variablesRule <- rule
+    , OperationDefinition _ _ variables _ _ _ <- operation =
+        pure $ variablesRule variables
+    | SelectionSet selections _ <- operation = selectionSet rule selections
+    | OperationDefinition _ _ _ directives' selections _  <- operation =
+        selectionSet rule selections >< directives rule directives'
 
 fragmentDefinition :: Rule m -> FragmentDefinition -> Seq (RuleT m)
 fragmentDefinition (FragmentDefinitionRule rule) fragmentDefinition' =

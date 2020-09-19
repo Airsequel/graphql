@@ -492,12 +492,13 @@ variableDefinitions = listOptIn parens variableDefinition
     <?> "VariableDefinitions"
 
 variableDefinition :: Parser VariableDefinition
-variableDefinition = VariableDefinition
-    <$> variable
-    <*  colon
-    <*> type'
-    <*> defaultValue
-    <?> "VariableDefinition"
+variableDefinition = label "VariableDefinition" $ do
+    location <- getLocation
+    variableName <- variable
+    colon
+    variableType <- type'
+    variableValue <- defaultValue
+    pure $ VariableDefinition variableName variableType variableValue location
 
 variable :: Parser Name
 variable = dollar *> name <?> "Variable"

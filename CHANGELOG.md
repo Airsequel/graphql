@@ -24,8 +24,15 @@ and this project adheres to
 - `Validate.Validation.Path` was moved to `Error`.
 
 ### Added
-- `Validate.Validation.Rule`: `SelectionRule`, `FieldRule`, `FragmentRule`,
-  `FragmentSpreadRule`, `ArgumentsRule`, `DirectivesRule` constructors.
+- `Validate.Validation.Rule` constructors:
+  - `SelectionRule`
+  - `FieldRule`
+  - `FragmentRule`
+  - `FragmentSpreadRule`
+  - `ArgumentsRule`
+  - `DirectivesRule`
+  - `VariablesRule`
+
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
@@ -34,6 +41,7 @@ and this project adheres to
   - `noFragmentCyclesRule`
   - `uniqueArgumentNamesRule`
   - `uniqueDirectiveNamesRule`
+  - `uniqueVariableNamesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

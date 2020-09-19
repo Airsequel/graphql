@@ -441,3 +441,18 @@ spec =
                     , locations = [AST.Location 3 23, AST.Location 3 39]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects duplicate variables" $
+            let queryString = [r|
+              query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
+                dog {
+                  isHousetrained(atOtherHomes: $atOtherHomes)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one variable named \"atOtherHomes\"."
+                    , locations = [AST.Location 2 39, AST.Location 2 63]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
