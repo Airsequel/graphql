@@ -42,6 +42,7 @@ and this project adheres to
   - `uniqueArgumentNamesRule`
   - `uniqueDirectiveNamesRule`
   - `uniqueVariableNamesRule`
+  - `variablesAreInputTypesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

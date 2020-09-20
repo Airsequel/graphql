@@ -23,9 +23,10 @@ module Language.GraphQL.Validate.Rules
     , uniqueFragmentNamesRule
     , uniqueOperationNamesRule
     , uniqueVariableNamesRule
+    , variablesAreInputTypesRule
     ) where
 
-import Control.Monad (foldM)
+import Control.Monad ((>=>), foldM)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (ReaderT, asks)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
@@ -67,6 +68,7 @@ specifiedRules =
     , uniqueDirectiveNamesRule
     -- Variables.
     , uniqueVariableNamesRule
+    , variablesAreInputTypesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -505,3 +507,29 @@ uniqueVariableNamesRule = VariablesRule
   where
     extract (VariableDefinition variableName _ _ location) =
         (variableName, location)
+
+-- | Variables can only be input types. Objects, unions and interfaces cannot be
+-- used as inputs.
+variablesAreInputTypesRule :: forall m. Rule m
+variablesAreInputTypesRule = VariablesRule
+    $ (traverse check . Seq.fromList) >=> lift
+  where
+    check (VariableDefinition name typeName _ location)
+        = asks types
+        >>= lift
+        . maybe (makeError name typeName location) (const mempty)
+        . lookupInputType typeName
+    makeError name typeName location = pure $ Error
+        { message = concat
+            [ "Variable \"$"
+            , Text.unpack name
+            , "\" cannot be non-input type \""
+            , Text.unpack $ getTypeName typeName
+            , "\"."
+            ]
+        , locations = [location]
+        }
+    getTypeName (TypeNamed name) = name
+    getTypeName (TypeList name) = getTypeName name
+    getTypeName (TypeNonNull (NonNullTypeNamed nonNull)) = nonNull
+    getTypeName (TypeNonNull (NonNullTypeList nonNull)) = getTypeName nonNull

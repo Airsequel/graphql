@@ -10,12 +10,13 @@ module Language.GraphQL.Type.Internal
     , collectReferencedTypes
     , doesFragmentTypeApply
     , instanceOf
+    , lookupInputType
     , lookupTypeCondition
     ) where
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Language.GraphQL.AST (Name)
+import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -35,7 +36,7 @@ data AbstractType m
     deriving Eq
 
 -- | Traverses the schema and finds all referenced types.
-collectReferencedTypes :: forall m. Schema m -> HashMap Name (Type m)
+collectReferencedTypes :: forall m. Schema m -> HashMap Full.Name (Type m)
 collectReferencedTypes schema =
     let queryTypes = traverseObjectType (query schema) HashMap.empty
         mutationTypes = maybe queryTypes (`traverseObjectType` queryTypes)
@@ -121,8 +122,8 @@ instanceOf objectType (AbstractUnionType unionType) =
     go unionMemberType acc = acc || objectType == unionMemberType
 
 lookupTypeCondition :: forall m
-    . Name
-    -> HashMap Name (Type m)
+    . Full.Name
+    -> HashMap Full.Name (Type m)
     -> Maybe (CompositeType m)
 lookupTypeCondition type' types' =
     case HashMap.lookup type' types' of
@@ -131,3 +132,32 @@ lookupTypeCondition type' types' =
         Just (InterfaceType interfaceType) ->
             Just $ CompositeInterfaceType interfaceType
         _ -> Nothing
+
+lookupInputType
+    :: Full.Type
+    -> HashMap.HashMap Full.Name (Type m)
+    -> Maybe In.Type
+lookupInputType (Full.TypeNamed name) types =
+    case HashMap.lookup name types of
+        Just (ScalarType scalarType) ->
+            Just $ In.NamedScalarType scalarType
+        Just (EnumType enumType) ->
+            Just $ In.NamedEnumType enumType
+        Just (InputObjectType objectType) ->
+            Just $ In.NamedInputObjectType objectType
+        _ -> Nothing
+lookupInputType (Full.TypeList list) types
+    = In.ListType
+    <$> lookupInputType list types
+lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
+    case HashMap.lookup nonNull types of
+        Just (ScalarType scalarType) ->
+            Just $ In.NonNullScalarType scalarType
+        Just (EnumType enumType) ->
+            Just $ In.NonNullEnumType enumType
+        Just (InputObjectType objectType) ->
+            Just $ In.NonNullInputObjectType objectType
+        _ -> Nothing
+lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
+    = In.NonNullListType
+    <$> lookupInputType nonNull types

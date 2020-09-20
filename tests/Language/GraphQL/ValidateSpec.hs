@@ -456,3 +456,18 @@ spec =
                     , locations = [AST.Location 2 39, AST.Location 2 63]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects non-input types as variables" $
+            let queryString = [r|
+              query takesDogBang($dog: Dog!) {
+                dog {
+                  isHousetrained(atOtherHomes: $dog)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Variable \"$dog\" cannot be non-input type \"Dog\"."
+                    , locations = [AST.Location 2 34]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

@@ -47,7 +47,6 @@ import Language.GraphQL.AST (Name)
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type as Type
-import qualified Language.GraphQL.Type.In as In
 import Language.GraphQL.Type.Internal
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
@@ -138,35 +137,6 @@ getOperation (Just operationName) operations
   where
     matchingName (OperationDefinition _ name _ _ _) =
         name == Just operationName
-
-lookupInputType
-    :: Full.Type
-    -> HashMap.HashMap Full.Name (Type m)
-    -> Maybe In.Type
-lookupInputType (Full.TypeNamed name) types =
-    case HashMap.lookup name types of
-        Just (ScalarType scalarType) ->
-            Just $ In.NamedScalarType scalarType
-        Just (EnumType enumType) ->
-            Just $ In.NamedEnumType enumType
-        Just (InputObjectType objectType) ->
-            Just $ In.NamedInputObjectType objectType
-        _ -> Nothing
-lookupInputType (Full.TypeList list) types
-    = In.ListType
-    <$> lookupInputType list types
-lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
-    case HashMap.lookup nonNull types of
-        Just (ScalarType scalarType) ->
-            Just $ In.NonNullScalarType scalarType
-        Just (EnumType enumType) ->
-            Just $ In.NonNullEnumType enumType
-        Just (InputObjectType objectType) ->
-            Just $ In.NonNullInputObjectType objectType
-        _ -> Nothing
-lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
-    = In.NonNullListType
-    <$> lookupInputType nonNull types
 
 coerceVariableValues :: Coerce.VariableValue a
     => forall m
