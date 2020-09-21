@@ -402,7 +402,7 @@ argument = label "Argument" $ do
     location <- getLocation
     name' <- name
     colon
-    value' <- value
+    value' <- valueNode
     pure $ Argument name' value' location
 
 fragmentSpread :: Parser FragmentSpread
@@ -438,6 +438,12 @@ fragmentName = but (symbol "on") *> name <?> "FragmentName"
 
 typeCondition :: Parser TypeCondition
 typeCondition = symbol "on" *> name <?> "TypeCondition"
+
+valueNode :: Parser (Node Value)
+valueNode = do
+    location <- getLocation
+    value' <- value
+    pure $ Node value' location
 
 value :: Parser Value
 value = Variable <$> variable

@@ -24,6 +24,7 @@ module Language.GraphQL.AST.Document
     , Location(..)
     , Name
     , NamedType
+    , Node(..)
     , NonNullType(..)
     , ObjectField(..)
     , OperationDefinition(..)
@@ -69,6 +70,9 @@ instance Ord Location where
         | thisLine < thatLine = LT
         | thisLine > thatLine = GT
         | otherwise = compare thisColumn thatColumn
+
+-- | Contains some tree node with a location.
+data Node a = Node a Location deriving (Eq, Show)
 
 -- ** Document
 
@@ -190,7 +194,7 @@ data FragmentSpread = FragmentSpread Name [Directive] Location
 -- @
 --
 --  Here "id" is an argument for the field "user" and its value is 4.
-data Argument = Argument Name Value Location deriving (Eq,Show)
+data Argument = Argument Name (Node Value) Location deriving (Eq, Show)
 
 -- ** Fragments
 

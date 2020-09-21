@@ -11,6 +11,7 @@ and this project adheres to
 - `AST.Document.Selection` wraps additional new types: `Field`, `FragmentSpread`
   and  `InlineFragment`. Thus validation rules can be defined more concise.
 - `AST.Document`: `Argument` and `Directive` contain token location.
+- `AST.Document.Argument` contains the `Value` wrapped in the `Node`.
 - `AST.Lexer.colon` and `AST.Lexer.at` ignore the result (it is always the
 - same).
 - `Validate.Validation`: `Validation.rules` was removed. `Validation.rules`
@@ -32,7 +33,6 @@ and this project adheres to
   - `ArgumentsRule`
   - `DirectivesRule`
   - `VariablesRule`
-
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
@@ -43,9 +43,12 @@ and this project adheres to
   - `uniqueDirectiveNamesRule`
   - `uniqueVariableNamesRule`
   - `variablesAreInputTypesRule`
+  - `noUndefinedVariablesRule`
+  - `noUndefinedVariablesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.
+- `AST.Document.Node`.
 
 ### Fixed
 - Collecting existing types from the schema considers subscriptions.

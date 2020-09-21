@@ -471,3 +471,24 @@ spec =
                     , locations = [AST.Location 2 34]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects undefined variables" $
+            let queryString = [r|
+              query variableIsNotDefinedUsedInSingleFragment {
+                dog {
+                  ...isHousetrainedFragment
+                }
+              }
+
+              fragment isHousetrainedFragment on Dog {
+                isHousetrained(atOtherHomes: $atOtherHomes)
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Variable \"$atOtherHomes\" is not defined by \
+                        \operation \
+                        \\"variableIsNotDefinedUsedInSingleFragment\"."
+                    , locations = [AST.Location 9 46]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

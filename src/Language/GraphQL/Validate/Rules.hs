@@ -2,9 +2,9 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | This module contains default rules defined in the GraphQL specification.
@@ -15,6 +15,7 @@ module Language.GraphQL.Validate.Rules
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
     , noFragmentCyclesRule
+    , noUndefinedVariablesRule
     , noUnusedFragmentsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
@@ -28,14 +29,16 @@ module Language.GraphQL.Validate.Rules
 
 import Control.Monad ((>=>), foldM)
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Reader (ReaderT, asks)
+import Control.Monad.Trans.Reader (ReaderT(..), asks, mapReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.Bifunctor (first)
-import Data.Foldable (find)
+import Data.Foldable (find, toList)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashMap.Strict (HashMap)
+import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
+import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..))
 import qualified Data.Sequence as Seq
@@ -45,6 +48,9 @@ import Language.GraphQL.AST.Document
 import Language.GraphQL.Type.Internal
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Validate.Validation
+
+-- Local help type that contains a hash set to track visited fragments.
+type ValidationState m a = StateT (HashSet Name) (ReaderT (Validation m) Seq) a
 
 -- | Default rules given in the specification.
 specifiedRules :: forall m. [Rule m]
@@ -69,6 +75,7 @@ specifiedRules =
     -- Variables.
     , uniqueVariableNamesRule
     , variablesAreInputTypesRule
+    , noUndefinedVariablesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -133,8 +140,10 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
             <$> collectFields selections
-    skip (Directive "skip" [Argument "if" (Boolean True) _] _) = True
-    skip (Directive "include" [Argument "if" (Boolean False) _] _) = True
+    skip (Directive "skip" [Argument "if" (Node argumentValue _) _] _) =
+        Boolean True == argumentValue
+    skip (Directive "include" [Argument "if" (Node argumentValue _) _] _) =
+        Boolean False == argumentValue
     skip _ = False
     findFragmentDefinition (ExecutableDefinition executableDefinition) Nothing
         | DefinitionFragment fragmentDefinition <- executableDefinition =
@@ -358,43 +367,57 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
 
 -- | Defined fragments must be used within a document.
 noUnusedFragmentsRule :: forall m. Rule m
-noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment ->
-    asks ast >>= findSpreadByName fragment
+noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment -> do
+    let FragmentDefinition fragmentName _ _ _ location = fragment
+     in mapReaderT (checkFragmentName fragmentName location)
+        $ asks ast
+        >>= flip evalStateT HashSet.empty
+        . filterSelections evaluateSelection
+        . foldMap definitionSelections
   where
-    findSpreadByName (FragmentDefinition fragName _ _ _ location) definitions
-        | foldr (go fragName) False definitions = lift mempty
-        | otherwise = pure $ Error
-            { message = errorMessage fragName
-            , locations = [location]
-            }
+    checkFragmentName fragmentName location elements
+        | fragmentName `elem` elements = mempty
+        | otherwise = pure $ makeError fragmentName location
+    makeError fragName location = Error
+        { message = errorMessage fragName
+        , locations = [location]
+        }
     errorMessage fragName = concat
         [ "Fragment \""
         , Text.unpack fragName
         , "\" is never used."
         ]
-    go fragName (viewOperation -> Just operation) accumulator
-        | SelectionSet selections _ <- operation =
-            evaluateSelections fragName accumulator selections
-        | OperationDefinition _ _ _ _ selections _ <- operation =
-            evaluateSelections fragName accumulator selections
-    go fragName (viewFragment -> Just fragment) accumulator
-        | FragmentDefinition _ _ _ selections _ <- fragment =
-            evaluateSelections fragName accumulator selections
-    go _ _ _ = False
-    evaluateSelection fragName selection accumulator
+    evaluateSelection selection
         | FragmentSpreadSelection spreadSelection <- selection
-        , FragmentSpread spreadName _ _ <- spreadSelection
-        , spreadName == fragName = True
+        , FragmentSpread spreadName _ _ <- spreadSelection =
+            lift $ pure spreadName
+    evaluateSelection _ = lift $ lift mempty
+
+definitionSelections :: Definition -> SelectionSetOpt
+definitionSelections (viewOperation -> Just operation)
+    | OperationDefinition _ _ _ _ selections _ <- operation = toList selections
+    | SelectionSet selections _ <- operation = toList selections
+definitionSelections (viewFragment -> Just fragment)
+    | FragmentDefinition _ _ _ selections _ <- fragment = toList selections
+definitionSelections _ = []
+
+filterSelections :: Foldable t
+    => forall a m
+    . (Selection -> ValidationState m a)
+    -> t Selection
+    -> ValidationState m a
+filterSelections applyFilter selections
+    = (lift . lift) (Seq.fromList $ foldr evaluateSelection mempty selections)
+    >>= applyFilter
+  where
+    evaluateSelection selection accumulator
+        | FragmentSpreadSelection{} <- selection = selection : accumulator
         | FieldSelection fieldSelection <- selection
-        , Field _ _ _ _ selections _ <- fieldSelection =
-            evaluateSelections fragName accumulator selections
+        , Field _ _ _ _ subselections _ <- fieldSelection =
+            selection : foldr evaluateSelection accumulator subselections
         | InlineFragmentSelection inlineSelection <- selection
-        , InlineFragment _ _ selections _ <- inlineSelection =
-            evaluateSelections fragName accumulator selections
-        | otherwise = accumulator || False
-    evaluateSelections :: Foldable t => Name -> Bool -> t Selection -> Bool
-    evaluateSelections fragName accumulator selections =
-        foldr (evaluateSelection fragName) accumulator selections
+        , InlineFragment _ _ subselections _ <- inlineSelection =
+            selection : foldr evaluateSelection accumulator subselections
 
 -- | The graph of fragment spreads must not form any cycles including spreading
 -- itself. Otherwise an operation could infinitely spread or infinitely execute
@@ -419,8 +442,7 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
             _ -> lift mempty
   where
     collectFields :: Traversable t
-        => forall m
-        . t Selection
+        => t Selection
         -> StateT (Int, Name) (ReaderT (Validation m) Seq) (HashMap Name Int)
     collectFields selectionSet = foldM forEach HashMap.empty selectionSet
     forEach accumulator = \case
@@ -434,7 +456,7 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
         modify $ first (+ 1)
         lastIndex <- gets fst
         let newAccumulator = HashMap.insert fragmentName lastIndex accumulator
-        let inVisitetFragment =HashMap.member fragmentName accumulator
+        let inVisitetFragment = HashMap.member fragmentName accumulator
         if fragmentName == firstFragmentName || inVisitetFragment
             then pure newAccumulator
             else collectFromSpread fragmentName newAccumulator
@@ -533,3 +555,69 @@ variablesAreInputTypesRule = VariablesRule
     getTypeName (TypeList name) = getTypeName name
     getTypeName (TypeNonNull (NonNullTypeNamed nonNull)) = nonNull
     getTypeName (TypeNonNull (NonNullTypeList nonNull)) = getTypeName nonNull
+
+-- | Variables are scoped on a per‐operation basis. That means that any variable
+-- used within the context of an operation must be defined at the top level of
+-- that operation.
+noUndefinedVariablesRule :: forall m. Rule m
+noUndefinedVariablesRule = OperationDefinitionRule $ \case
+    SelectionSet _ _ -> lift mempty
+    OperationDefinition _ operationName variables _ selections _ ->
+        let variableNames = HashMap.fromList $ getVariableName <$> variables
+         in mapReaderT (readerMapper operationName variableNames)
+            $ flip evalStateT HashSet.empty
+            $ filterSelections'
+            $ toList selections
+  where
+    readerMapper operationName variableNames' = Seq.fromList
+        . fmap (makeError operationName)
+        . HashMap.toList
+        . flip HashMap.difference variableNames'
+        . HashMap.fromListWith (++)
+        . toList
+    getVariableName (VariableDefinition variableName _ _ _) = (variableName, [])
+    filterSelections' :: Foldable t
+        => t Selection
+        -> ValidationState m (Name, [Location])
+    filterSelections' = filterSelections variableFilter
+    variableFilter :: Selection -> ValidationState m (Name, [Location])
+    variableFilter (InlineFragmentSelection inline)
+        | InlineFragment _ directives _ _ <- inline =
+            lift $ lift $ mapDirectives directives
+    variableFilter (FieldSelection fieldSelection)
+        | Field _ _ arguments directives _ _ <- fieldSelection =
+            lift $ lift $ mapArguments arguments <> mapDirectives directives
+    variableFilter (FragmentSpreadSelection spread)
+        | FragmentSpread fragmentName _ _ <- spread = do
+            definitions <- lift $ asks ast
+            visited <- gets (HashSet.member fragmentName)
+            modify (HashSet.insert fragmentName)
+            case find (isSpreadTarget fragmentName) definitions of
+                Just (viewFragment -> Just fragmentDefinition)
+                    | not visited -> diveIntoSpread fragmentDefinition
+                _ -> lift $ lift mempty
+    diveIntoSpread (FragmentDefinition _ _ directives selections _)
+        = filterSelections' selections
+        >>= lift . mapReaderT (<> mapDirectives directives) . pure
+    findDirectiveVariables (Directive _ arguments _) = mapArguments arguments
+    mapArguments = Seq.fromList . mapMaybe findArgumentVariables
+    mapDirectives = foldMap findDirectiveVariables
+    findArgumentVariables (Argument _ (Node (Variable value) location) _) =
+        Just (value, [location])
+    findArgumentVariables _ = Nothing
+    makeError operationName (variableName, locations') = Error
+        { message = errorMessage operationName variableName
+        , locations = locations'
+        }
+    errorMessage Nothing variableName = concat
+        [ "Variable \"$"
+        , Text.unpack variableName
+        , "\" is not defined."
+        ]
+    errorMessage (Just operationName) variableName = concat
+        [ "Variable \"$"
+        , Text.unpack variableName
+        , "\" is not defined by operation \""
+        , Text.unpack operationName
+        , "\"."
+        ]

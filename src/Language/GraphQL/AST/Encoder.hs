@@ -159,7 +159,7 @@ arguments :: Formatter -> [Argument] -> Lazy.Text
 arguments formatter = parensCommas formatter $ argument formatter
 
 argument :: Formatter -> Argument -> Lazy.Text
-argument formatter (Argument name value' _)
+argument formatter (Argument name (Node value' _) _)
     = Lazy.Text.fromStrict name
     <> colon formatter
     <> value formatter value'
