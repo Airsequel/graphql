@@ -45,6 +45,7 @@ and this project adheres to
   - `variablesAreInputTypesRule`
   - `noUndefinedVariablesRule`
   - `noUndefinedVariablesRule`
+  - `noUnusedVariablesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

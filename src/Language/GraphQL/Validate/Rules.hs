@@ -17,6 +17,7 @@ module Language.GraphQL.Validate.Rules
     , noFragmentCyclesRule
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
+    , noUnusedVariablesRule
     , singleFieldSubscriptionsRule
     , specifiedRules
     , uniqueArgumentNamesRule
@@ -76,6 +77,7 @@ specifiedRules =
     , uniqueVariableNamesRule
     , variablesAreInputTypesRule
     , noUndefinedVariablesRule
+    , noUnusedVariablesRule
     ]
 
 -- | Definition must be OperationDefinition or FragmentDefinition.
@@ -560,7 +562,27 @@ variablesAreInputTypesRule = VariablesRule
 -- used within the context of an operation must be defined at the top level of
 -- that operation.
 noUndefinedVariablesRule :: forall m. Rule m
-noUndefinedVariablesRule = OperationDefinitionRule $ \case
+noUndefinedVariablesRule =
+    variableUsageDifference (flip HashMap.difference) errorMessage
+  where
+    errorMessage Nothing variableName = concat
+        [ "Variable \"$"
+        , Text.unpack variableName
+        , "\" is not defined."
+        ]
+    errorMessage (Just operationName) variableName = concat
+        [ "Variable \"$"
+        , Text.unpack variableName
+        , "\" is not defined by operation \""
+        , Text.unpack operationName
+        , "\"."
+        ]
+
+variableUsageDifference :: forall m
+    . (HashMap Name [Location] -> HashMap Name [Location] -> HashMap Name [Location])
+    -> (Maybe Name -> Name -> String)
+    -> Rule m
+variableUsageDifference difference errorMessage = OperationDefinitionRule $ \case
     SelectionSet _ _ -> lift mempty
     OperationDefinition _ operationName variables _ selections _ ->
         let variableNames = HashMap.fromList $ getVariableName <$> variables
@@ -572,10 +594,11 @@ noUndefinedVariablesRule = OperationDefinitionRule $ \case
     readerMapper operationName variableNames' = Seq.fromList
         . fmap (makeError operationName)
         . HashMap.toList
-        . flip HashMap.difference variableNames'
+        . difference variableNames'
         . HashMap.fromListWith (++)
         . toList
-    getVariableName (VariableDefinition variableName _ _ _) = (variableName, [])
+    getVariableName (VariableDefinition variableName _ _ location) =
+        (variableName, [location])
     filterSelections' :: Foldable t
         => t Selection
         -> ValidationState m (Name, [Location])
@@ -609,15 +632,22 @@ noUndefinedVariablesRule = OperationDefinitionRule $ \case
         { message = errorMessage operationName variableName
         , locations = locations'
         }
+
+-- | All variables defined by an operation must be used in that operation or a
+-- fragment transitively included by that operation. Unused variables cause a
+-- validation error.
+noUnusedVariablesRule :: forall m. Rule m
+noUnusedVariablesRule = variableUsageDifference HashMap.difference errorMessage
+  where
     errorMessage Nothing variableName = concat
         [ "Variable \"$"
         , Text.unpack variableName
-        , "\" is not defined."
+        , "\" is never used."
         ]
     errorMessage (Just operationName) variableName = concat
         [ "Variable \"$"
         , Text.unpack variableName
-        , "\" is not defined by operation \""
+        , "\" is never used in operation \""
         , Text.unpack operationName
         , "\"."
         ]

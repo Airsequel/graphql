@@ -492,3 +492,19 @@ spec =
                     , locations = [AST.Location 9 46]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects unused variables" $
+            let queryString = [r|
+              query variableUnused($atOtherHomes: Boolean) {
+                dog {
+                  isHousetrained
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Variable \"$atOtherHomes\" is never used in operation \
+                        \\"variableUnused\"."
+                    , locations = [AST.Location 2 36]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected
