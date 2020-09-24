@@ -236,7 +236,7 @@ data ConstValue
 -- | Key-value pair.
 --
 -- A list of 'ObjectField's represents a GraphQL object type.
-data ObjectField a = ObjectField Name a
+data ObjectField a = ObjectField Name a Location
     deriving (Eq, Show)
 
 -- ** Variables

@@ -487,11 +487,12 @@ nullValue :: Parser Text
 nullValue = symbol "null" <?> "NullValue"
 
 objectField :: Parser a -> Parser (ObjectField a)
-objectField valueParser = ObjectField
-    <$> name
-    <* colon
-    <*> valueParser
-    <?> "ObjectField"
+objectField valueParser = label "ObjectField" $ do
+    location <- getLocation
+    fieldName <- name
+    colon
+    fieldValue <- valueParser
+    pure $ ObjectField fieldName fieldValue location
 
 variableDefinitions :: Parser [VariableDefinition]
 variableDefinitions = listOptIn parens variableDefinition

@@ -508,3 +508,16 @@ spec =
                     , locations = [AST.Location 2 36]
                     }
              in validate queryString `shouldBe` Seq.singleton expected
+
+        it "rejects duplicate fields in input objects" $
+            let queryString = [r|
+              {
+                findDog(complex: { name: "Fido", name: "Jack" })
+              }
+            |]
+                expected = Error
+                    { message =
+                        "There can be only one input field named \"name\"."
+                    , locations = [AST.Location 3 36, AST.Location 3 50]
+                    }
+             in validate queryString `shouldBe` Seq.singleton expected

@@ -92,7 +92,7 @@ typeSystemDefinition :: Rule m -> TypeSystemDefinition -> Seq (RuleT m)
 typeSystemDefinition rule = \case
     SchemaDefinition directives' _ -> directives rule directives'
     TypeDefinition typeDefinition' -> typeDefinition rule typeDefinition'
-    DirectiveDefinition _ _ arguments _ -> argumentsDefinition rule arguments
+    DirectiveDefinition _ _ arguments' _ -> argumentsDefinition rule arguments'
 
 typeDefinition :: Rule m -> TypeDefinition -> Seq (RuleT m)
 typeDefinition rule = \case
@@ -113,8 +113,8 @@ enumValueDefinition rule (EnumValueDefinition _ _ directives') =
     directives rule directives'
 
 fieldDefinition :: Rule m -> FieldDefinition -> Seq (RuleT m)
-fieldDefinition rule (FieldDefinition _ _ arguments _ directives') =
-    directives rule directives' >< argumentsDefinition rule arguments
+fieldDefinition rule (FieldDefinition _ _ arguments' _ directives') =
+    directives rule directives' >< argumentsDefinition rule arguments'
 
 argumentsDefinition :: Rule m -> ArgumentsDefinition -> Seq (RuleT m)
 argumentsDefinition rule (ArgumentsDefinition definitions) =
@@ -129,11 +129,17 @@ operationDefinition rule operation
     | OperationDefinitionRule operationRule <- rule =
         pure $ operationRule operation
     | VariablesRule variablesRule <- rule
-    , OperationDefinition _ _ variables _ _ _ <- operation =
-        pure $ variablesRule variables
+    , OperationDefinition _ _ variables _ _ _ <- operation
+        = Seq.fromList (variableDefinition rule <$> variables)
+        |> variablesRule variables
     | SelectionSet selections _ <- operation = selectionSet rule selections
     | OperationDefinition _ _ _ directives' selections _  <- operation =
         selectionSet rule selections >< directives rule directives'
+
+variableDefinition :: Rule m -> VariableDefinition -> RuleT m
+variableDefinition (ValueRule _ rule) (VariableDefinition _ _ value _) =
+    maybe (lift mempty) rule value
+variableDefinition _ _ = lift mempty
 
 fragmentDefinition :: Rule m -> FragmentDefinition -> Seq (RuleT m)
 fragmentDefinition (FragmentDefinitionRule rule) fragmentDefinition' =
@@ -164,12 +170,21 @@ selection rule selection'
                 fragmentSpread rule fragmentSpread'
 
 field :: Rule m -> Field -> Seq (RuleT m)
-field rule field'@(Field _ _ _ directives' selections _)
+field rule field'@(Field _ _ arguments' directives' selections _)
     | FieldRule fieldRule <- rule = applyToChildren |> fieldRule field'
     | ArgumentsRule fieldRule _  <- rule = applyToChildren |> fieldRule field'
     | otherwise = applyToChildren
   where
-    applyToChildren = selectionSet rule selections >< directives rule directives'
+    applyToChildren = selectionSet rule selections
+        >< directives rule directives'
+        >< arguments rule arguments'
+
+arguments :: Rule m -> [Argument] -> Seq (RuleT m)
+arguments = (.) Seq.fromList . fmap . argument
+
+argument :: Rule m -> Argument -> RuleT m
+argument (ValueRule rule _) (Argument _ (Node value _) _) = rule value
+argument _ _ = lift mempty
 
 inlineFragment :: Rule m -> InlineFragment -> Seq (RuleT m)
 inlineFragment rule inlineFragment'@(InlineFragment _ directives' selections _)
@@ -195,8 +210,9 @@ directives rule directives'
     | otherwise = applyToChildren
   where
     directiveList = toList directives'
-    applyToChildren = Seq.fromList $ fmap (directive rule) directiveList
+    applyToChildren = foldMap (directive rule) directiveList
 
-directive :: Rule m -> Directive -> RuleT m
-directive (ArgumentsRule _ rule) = rule
-directive _ = lift . const mempty
+directive :: Rule m -> Directive -> Seq (RuleT m)
+directive (ArgumentsRule _ argumentsRule) directive' =
+    pure $ argumentsRule directive'
+directive rule (Directive _ arguments' _) = arguments rule arguments'

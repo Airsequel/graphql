@@ -177,7 +177,7 @@ constValue (Full.ConstList l) = Type.List $ constValue <$> l
 constValue (Full.ConstObject o) =
     Type.Object $ HashMap.fromList $ constObjectField <$> o
   where
-    constObjectField (Full.ObjectField key value') = (key, constValue value')
+    constObjectField (Full.ObjectField key value' _) = (key, constValue value')
 
 -- | Rewrites the original syntax tree into an intermediate representation used
 -- for query execution.
@@ -383,7 +383,7 @@ value (Full.List list) = Type.List <$> traverse value list
 value (Full.Object object) =
     Type.Object . HashMap.fromList <$> traverse objectField object
   where
-    objectField (Full.ObjectField name value') = (name,) <$> value value'
+    objectField (Full.ObjectField name value' _) = (name,) <$> value value'
 
 input :: forall m. Full.Value -> State (Replacement m) (Maybe Input)
 input (Full.Variable name) =
@@ -399,7 +399,7 @@ input (Full.Object object) = do
     objectFields <- foldM objectField HashMap.empty object
     pure $ pure $ Object objectFields
   where
-    objectField resultMap (Full.ObjectField name value') =
+    objectField resultMap (Full.ObjectField name value' _) =
         inputField resultMap name value'
 
 inputField :: forall m

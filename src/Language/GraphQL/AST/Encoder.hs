@@ -220,8 +220,8 @@ fromConstValue (ConstEnum x) = Enum x
 fromConstValue (ConstList x) = List $ fromConstValue <$> x
 fromConstValue (ConstObject x) = Object $ fromConstObjectField <$> x
   where
-    fromConstObjectField (ObjectField key value') =
-        ObjectField key $ fromConstValue value'
+    fromConstObjectField (ObjectField key value' location) =
+        ObjectField key (fromConstValue value') location
 
 booleanValue :: Bool -> Lazy.Text
 booleanValue True  = "true"
@@ -290,7 +290,7 @@ objectValue formatter = intercalate $ objectField formatter
         . fmap f
 
 objectField :: Formatter -> ObjectField Value -> Lazy.Text
-objectField formatter (ObjectField name value') =
+objectField formatter (ObjectField name value' _) =
     Lazy.Text.fromStrict name <> colon formatter <> value formatter value'
 
 -- | Converts a 'Type' a type into a string.

@@ -23,6 +23,7 @@ module Language.GraphQL.Validate.Rules
     , uniqueArgumentNamesRule
     , uniqueDirectiveNamesRule
     , uniqueFragmentNamesRule
+    , uniqueInputFieldNamesRule
     , uniqueOperationNamesRule
     , uniqueVariableNamesRule
     , variablesAreInputTypesRule
@@ -71,6 +72,8 @@ specifiedRules =
     , noUnusedFragmentsRule
     , fragmentSpreadTargetDefinedRule
     , noFragmentCyclesRule
+    -- Values
+    , uniqueInputFieldNamesRule
     -- Directives.
     , uniqueDirectiveNamesRule
     -- Variables.
@@ -485,9 +488,9 @@ uniqueArgumentNamesRule :: forall m. Rule m
 uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
     fieldRule (Field _ _ arguments _ _ _) =
-        filterDuplicates extract "argument" arguments
+        lift $ filterDuplicates extract "argument" arguments
     directiveRule (Directive _ arguments _) =
-        filterDuplicates extract "argument" arguments
+        lift $ filterDuplicates extract "argument" arguments
     extract (Argument argumentName _ location) = (argumentName, location)
 
 -- | Directives are used to describe some metadata or behavioral change on the
@@ -496,13 +499,12 @@ uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
 -- of each directive is allowed per location.
 uniqueDirectiveNamesRule :: forall m. Rule m
 uniqueDirectiveNamesRule = DirectivesRule
-    $ filterDuplicates extract "directive"
+    $ lift . filterDuplicates extract "directive"
   where
     extract (Directive directiveName _ location) = (directiveName, location)
 
-filterDuplicates :: (a -> (Text, Location)) -> String -> [a] -> RuleT m
-filterDuplicates extract nodeType = lift
-    . Seq.fromList
+filterDuplicates :: (a -> (Text, Location)) -> String -> [a] -> Seq Error
+filterDuplicates extract nodeType = Seq.fromList
     . fmap makeError
     . filter ((> 1) . length)
     . groupBy equalByName
@@ -527,7 +529,7 @@ filterDuplicates extract nodeType = lift
 -- variable is the same.
 uniqueVariableNamesRule :: forall m. Rule m
 uniqueVariableNamesRule = VariablesRule
-    $ filterDuplicates extract "variable"
+    $ lift . filterDuplicates extract "variable"
   where
     extract (VariableDefinition variableName _ _ location) =
         (variableName, location)
@@ -651,3 +653,22 @@ noUnusedVariablesRule = variableUsageDifference HashMap.difference errorMessage
         , Text.unpack operationName
         , "\"."
         ]
+
+-- | Input objects must not contain more than one field of the same name,
+-- otherwise an ambiguity would exist which includes an ignored portion of
+-- syntax.
+uniqueInputFieldNamesRule :: forall m. Rule m
+uniqueInputFieldNamesRule = ValueRule (lift . go) (lift . constGo)
+  where
+    go (Object fields) = foldMap (objectField go) fields
+        <> filterFieldDuplicates fields
+    go (List values) = foldMap go values
+    go _ = mempty
+    objectField go' (ObjectField _ fieldValue _) = go' fieldValue
+    filterFieldDuplicates fields =
+        filterDuplicates getFieldName "input field" fields
+    getFieldName (ObjectField fieldName _ location) = (fieldName, location)
+    constGo (ConstObject fields) = foldMap (objectField constGo) fields
+        <> filterFieldDuplicates fields
+    constGo (ConstList values) = foldMap constGo values
+    constGo _ = mempty
