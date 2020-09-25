@@ -10,6 +10,7 @@
 -- | This module contains default rules defined in the GraphQL specification.
 module Language.GraphQL.Validate.Rules
     ( executableDefinitionsRule
+    , fieldsOnCorrectTypeRule
     , fragmentsOnCompositeTypesRule
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
@@ -40,14 +41,16 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (isJust, mapMaybe)
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.Type.Definition as Definition
 import Language.GraphQL.Type.Internal
+import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Validate.Validation
 
@@ -63,6 +66,8 @@ specifiedRules =
     , singleFieldSubscriptionsRule
     , loneAnonymousOperationRule
     , uniqueOperationNamesRule
+    -- Fields
+    , fieldsOnCorrectTypeRule
     -- Arguments.
     , uniqueArgumentNamesRule
     -- Fragments.
@@ -297,7 +302,7 @@ isSpreadTarget _ _ = False
 -- for both named and inline fragments. If they are not defined in the schema,
 -- the query does not validate.
 fragmentSpreadTypeExistenceRule :: forall m. Rule m
-fragmentSpreadTypeExistenceRule = SelectionRule $ \case
+fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
     FragmentSpreadSelection fragmentSelection
         | FragmentSpread fragmentName _ location <- fragmentSelection -> do
             ast' <- asks ast
@@ -672,3 +677,36 @@ uniqueInputFieldNamesRule = ValueRule (lift . go) (lift . constGo)
         <> filterFieldDuplicates fields
     constGo (ConstList values) = foldMap constGo values
     constGo _ = mempty
+
+-- | The target field of a field selection must be defined on the scoped type of
+-- the selection set. There are no limitations on alias names.
+fieldsOnCorrectTypeRule :: forall m. Rule m
+fieldsOnCorrectTypeRule = SelectionRule go
+  where
+    go (Just objectType) (FieldSelection fieldSelection) =
+       fieldRule objectType fieldSelection
+    go _ _ = lift mempty
+    fieldRule objectType (Field _ fieldName _ _ _ location)
+        | isJust (lookupTypeField fieldName objectType) = lift mempty
+        | otherwise = pure $ Error
+            { message = errorMessage fieldName objectType
+            , locations = [location]
+            }
+    errorMessage fieldName objectType = concat
+        [ "Cannot query field \""
+        , Text.unpack fieldName
+        , "\" on type \""
+        , Text.unpack $ outputTypeName objectType
+        , "\"."
+        ]
+    outputTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
+        typeName
+    outputTypeName (Out.InterfaceBaseType (Out.InterfaceType typeName _ _ _)) =
+        typeName
+    outputTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
+        typeName
+    outputTypeName (Out.ScalarBaseType (Definition.ScalarType typeName _)) =
+        typeName
+    outputTypeName (Out.EnumBaseType (Definition.EnumType typeName _ _)) =
+        typeName
+    outputTypeName (Out.ListBaseType wrappedType) = outputTypeName wrappedType

@@ -41,72 +41,88 @@ schema = Schema
     droidFieldResolver = ValueResolver droidField droid
 
 heroObject :: Out.ObjectType (Either SomeException)
-heroObject = Out.ObjectType "Human" Nothing [] $ HashMap.fromList
+heroObject = Out.ObjectType "Human" Nothing [characterType] $ HashMap.fromList
     [ ("id", idFieldType)
     , ("name", nameFieldType)
-    , ("friends", friendsFieldType)
-    , ("appearsIn", appearsInField)
+    , ("friends", friendsFieldResolver)
+    , ("appearsIn", appearsInFieldResolver)
     , ("homePlanet", homePlanetFieldType)
-    , ("secretBackstory", secretBackstoryFieldType)
-    , ("__typename", typenameFieldType)
+    , ("secretBackstory", secretBackstoryFieldResolver)
+    , ("__typename", typenameFieldResolver)
     ]
   where
     homePlanetFieldType
       = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
-      $ idField "homePlanet"
+      $ defaultResolver "homePlanet"
 
 droidObject :: Out.ObjectType (Either SomeException)
-droidObject = Out.ObjectType "Droid" Nothing [] $ HashMap.fromList
+droidObject = Out.ObjectType "Droid" Nothing [characterType] $ HashMap.fromList
     [ ("id", idFieldType)
     , ("name", nameFieldType)
-    , ("friends", friendsFieldType)
-    , ("appearsIn", appearsInField)
+    , ("friends", friendsFieldResolver)
+    , ("appearsIn", appearsInFieldResolver)
     , ("primaryFunction", primaryFunctionFieldType)
-    , ("secretBackstory", secretBackstoryFieldType)
-    , ("__typename", typenameFieldType)
+    , ("secretBackstory", secretBackstoryFieldResolver)
+    , ("__typename", typenameFieldResolver)
     ]
   where
     primaryFunctionFieldType
         = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
-        $ idField "primaryFunction"
+        $ defaultResolver "primaryFunction"
 
-typenameFieldType :: Resolver (Either SomeException)
-typenameFieldType
+typenameFieldResolver :: Resolver (Either SomeException)
+typenameFieldResolver
     = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
-    $ idField "__typename"
+    $ defaultResolver "__typename"
 
 idFieldType :: Resolver (Either SomeException)
-idFieldType
-    = ValueResolver (Out.Field Nothing (Out.NamedScalarType id) mempty)
-    $ idField "id"
+idFieldType = ValueResolver idField $ defaultResolver "id"
 
 nameFieldType :: Resolver (Either SomeException)
-nameFieldType
-    = ValueResolver (Out.Field Nothing (Out.NamedScalarType string) mempty)
-    $ idField "name"
+nameFieldType = ValueResolver nameField $ defaultResolver "name"
 
-friendsFieldType :: Resolver (Either SomeException)
-friendsFieldType
-    = ValueResolver (Out.Field Nothing fieldType mempty)
-    $ idField "friends"
+friendsFieldResolver :: Resolver (Either SomeException)
+friendsFieldResolver = ValueResolver friendsField $ defaultResolver "friends"
+
+characterType :: InterfaceType (Either SomeException)
+characterType = InterfaceType "Character" Nothing [] $ HashMap.fromList
+    [ ("id", idField)
+    , ("name", nameField)
+    , ("friends", friendsField)
+    , ("appearsIn", appearsInField)
+    , ("secretBackstory", secretBackstoryField)
+    ]
+
+idField :: Field (Either SomeException)
+idField = Field Nothing (Out.NonNullScalarType id) mempty
+
+nameField :: Field (Either SomeException)
+nameField = Field Nothing (Out.NamedScalarType string) mempty
+
+friendsField :: Field (Either SomeException)
+friendsField = Field Nothing friendsFieldType mempty
   where
-    fieldType = Out.ListType $ Out.NamedObjectType droidObject
+    friendsFieldType = Out.ListType (Out.NamedInterfaceType characterType)
 
-appearsInField :: Resolver (Either SomeException)
-appearsInField
-    = ValueResolver (Out.Field (Just description) fieldType mempty)
-    $ idField "appearsIn"
+appearsInField :: Field (Either SomeException)
+appearsInField = Field appearsInDescription appearsInFieldType mempty
   where
-    fieldType = Out.ListType $ Out.NamedEnumType episodeEnum
-    description = "Which movies they appear in."
+    appearsInDescription = Just "Which movies they appear in."
+    appearsInFieldType = Out.ListType $ Out.NamedEnumType episodeEnum
 
-secretBackstoryFieldType :: Resolver (Either SomeException)
-secretBackstoryFieldType = ValueResolver field secretBackstory
-  where
-    field = Out.Field Nothing (Out.NamedScalarType string) mempty
+secretBackstoryField :: Field (Either SomeException)
+secretBackstoryField =
+    Out.Field Nothing (Out.NamedScalarType string) mempty
 
-idField :: Text -> Resolve (Either SomeException)
-idField f = do
+appearsInFieldResolver :: Resolver (Either SomeException)
+appearsInFieldResolver = ValueResolver appearsInField
+    $ defaultResolver "appearsIn"
+
+secretBackstoryFieldResolver :: Resolver (Either SomeException)
+secretBackstoryFieldResolver = ValueResolver secretBackstoryField secretBackstory
+
+defaultResolver :: Text -> Resolve (Either SomeException)
+defaultResolver f = do
     v <- asks values
     let (Object v') = v
     pure $ v' HashMap.! f

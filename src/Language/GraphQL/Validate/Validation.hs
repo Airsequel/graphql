@@ -14,6 +14,7 @@ import Control.Monad.Trans.Reader (ReaderT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq)
 import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
 
@@ -37,10 +38,9 @@ data Rule m
     = DefinitionRule (Definition -> RuleT m)
     | OperationDefinitionRule (OperationDefinition -> RuleT m)
     | FragmentDefinitionRule (FragmentDefinition -> RuleT m)
-    | SelectionRule (Selection -> RuleT m)
+    | SelectionRule (Maybe (Out.Type m) -> Selection -> RuleT m)
     | FragmentRule (FragmentDefinition -> RuleT m) (InlineFragment -> RuleT m)
     | FragmentSpreadRule (FragmentSpread -> RuleT m)
-    | FieldRule (Field -> RuleT m)
     | ArgumentsRule (Field -> RuleT m) (Directive -> RuleT m)
     | DirectivesRule ([Directive] -> RuleT m)
     | VariablesRule ([VariableDefinition] -> RuleT m)

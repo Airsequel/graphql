@@ -124,7 +124,7 @@ completeValue outputType@(Out.EnumBaseType enumType) _ (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
      in if HashMap.member enum enumMembers
         then coerceResult outputType $ Enum enum
-        else addErrMsg "Value completion failed."
+        else addErrMsg "Enum value completion failed."
 completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
@@ -134,7 +134,7 @@ completeValue (Out.InterfaceBaseType interfaceType) fields result
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
-            Nothing -> addErrMsg "Value completion failed."
+            Nothing -> addErrMsg "Interface value completion failed."
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = AbstractUnionType unionType
@@ -142,7 +142,7 @@ completeValue (Out.UnionBaseType unionType) fields result
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
-            Nothing -> addErrMsg "Value completion failed."
+            Nothing -> addErrMsg "Union value completion failed."
 completeValue _ _ _ = addErrMsg "Value completion failed."
 
 mergeSelectionSets :: MonadCatch m

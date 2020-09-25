@@ -23,9 +23,9 @@ spec = describe "Star Wars Query Tests" $ do
       it "R2-D2 hero" $ testQuery
         [r| query HeroNameQuery {
             hero {
-                id
+              id
             }
-            }
+          }
         |]
         $ Aeson.object
             [ "data" .= Aeson.object
@@ -35,13 +35,13 @@ spec = describe "Star Wars Query Tests" $ do
       it "R2-D2 ID and friends" $ testQuery
         [r| query HeroNameAndFriendsQuery {
             hero {
-                id
+              id
+              name
+              friends {
                 name
-                friends {
-                  name
-                }
+              }
             }
-            }
+          }
         |]
         $ Aeson.object [ "data" .= Aeson.object [
             "hero" .= Aeson.object
@@ -266,7 +266,7 @@ spec = describe "Star Wars Query Tests" $ do
             query HeroNameQuery {
               hero {
                 name
-                  secretBackstory
+                secretBackstory
               }
             }
           |]

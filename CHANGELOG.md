@@ -27,7 +27,6 @@ and this project adheres to
 ### Added
 - `Validate.Validation.Rule` constructors:
   - `SelectionRule`
-  - `FieldRule`
   - `FragmentRule`
   - `FragmentSpreadRule`
   - `ArgumentsRule`
@@ -47,6 +46,7 @@ and this project adheres to
   - `noUndefinedVariablesRule`
   - `noUnusedVariablesRule`
   - `uniqueInputFieldNamesRule`
+  - `fieldsOnCorrectTypeRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

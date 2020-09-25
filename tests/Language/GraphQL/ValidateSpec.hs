@@ -9,8 +9,7 @@ module Language.GraphQL.ValidateSpec
     ( spec
     ) where
 
-import Data.Sequence (Seq(..))
-import qualified Data.Sequence as Seq
+import Data.Foldable (toList)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Language.GraphQL.AST as AST
@@ -18,7 +17,7 @@ import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Validate
-import Test.Hspec (Spec, describe, it, shouldBe)
+import Test.Hspec (Spec, describe, it, shouldBe, shouldContain)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
@@ -30,11 +29,17 @@ schema = Schema
     } 
 
 queryType :: ObjectType IO
-queryType = ObjectType "Query" Nothing []
-    $ HashMap.singleton "dog" dogResolver
+queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
+    [ ("dog", dogResolver)
+    , ("findDog", findDogResolver)
+    ]
   where
     dogField = Field Nothing (Out.NamedObjectType dogType) mempty
     dogResolver = ValueResolver dogField $ pure Null
+    findDogArguments = HashMap.singleton "complex"
+        $ In.Argument Nothing (In.NonNullInputObjectType dogDataType) Nothing
+    findDogField = Field Nothing (Out.NamedObjectType dogType) findDogArguments
+    findDogResolver = ValueResolver findDogField $ pure Null
 
 dogCommandType :: EnumType
 dogCommandType = EnumType "DogCommand" Nothing $ HashMap.fromList
@@ -71,6 +76,12 @@ dogType = ObjectType "Dog" Nothing [petType] $ HashMap.fromList
         $ pure $ Boolean True
     ownerField = Field Nothing (Out.NamedObjectType humanType) mempty
     ownerResolver = ValueResolver ownerField $ pure Null
+
+dogDataType :: InputObjectType
+dogDataType = InputObjectType "DogData" Nothing
+    $ HashMap.singleton "name" nameInputField
+  where
+    nameInputField = InputField Nothing (In.NonNullScalarType string) Nothing
 
 sentientType :: InterfaceType IO
 sentientType = InterfaceType "Sentient" Nothing []
@@ -114,39 +125,14 @@ humanType = ObjectType "Human" Nothing [sentientType] $ HashMap.fromList
         Field Nothing (Out.ListType $ Out.NonNullInterfaceType petType) mempty
     petsResolver = ValueResolver petsField $ pure $ List []
 {-
-catCommandType :: EnumType
-catCommandType = EnumType "CatCommand" Nothing $ HashMap.fromList
-    [ ("JUMP", EnumValue Nothing)
-    ]
-
-catType :: ObjectType IO
-catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
-    [ ("name", nameResolver)
-    , ("nickname", nicknameResolver)
-    , ("doesKnowCommand", doesKnowCommandResolver)
-    , ("meowVolume", meowVolumeResolver)
-    ]
-  where
-    nameField = Field Nothing (Out.NonNullScalarType string) mempty
-    nameResolver = ValueResolver nameField $ pure "Name"
-    nicknameField = Field Nothing (Out.NamedScalarType string) mempty
-    nicknameResolver = ValueResolver nicknameField $ pure "Nickname"
-    doesKnowCommandField = Field Nothing (Out.NonNullScalarType boolean)
-        $ HashMap.singleton "catCommand"
-        $ In.Argument Nothing (In.NonNullEnumType catCommandType) Nothing
-    doesKnowCommandResolver = ValueResolver doesKnowCommandField
-        $ pure $ Boolean True
-    meowVolumeField = Field Nothing (Out.NamedScalarType int) mempty
-    meowVolumeResolver = ValueResolver meowVolumeField $ pure $ Int 2
-
 catOrDogType :: UnionType IO
 catOrDogType = UnionType "CatOrDog" Nothing [catType, dogType]
 -}
-validate :: Text -> Seq Error
+validate :: Text -> [Error]
 validate queryString =
     case parse AST.document "" queryString of
-        Left _ -> Seq.empty
-        Right ast -> document schema specifiedRules ast
+        Left _ -> []
+        Right ast -> toList $ document schema specifiedRules ast
 
 spec :: Spec
 spec =
@@ -169,7 +155,7 @@ spec =
                         "Definition must be OperationDefinition or FragmentDefinition."
                     , locations = [AST.Location 9 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+               in validate queryString `shouldContain` [expected]
 
         it "rejects multiple subscription root fields" $
             let queryString = [r|
@@ -186,7 +172,7 @@ spec =
                         "Subscription sub must select only one top level field."
                     , locations = [AST.Location 2 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldContain` [expected]
 
         it "rejects multiple subscription root fields coming from a fragment" $
             let queryString = [r|
@@ -207,7 +193,7 @@ spec =
                         "Subscription sub must select only one top level field."
                     , locations = [AST.Location 2 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldContain` [expected]
 
         it "rejects multiple anonymous operations" $
             let queryString = [r|
@@ -230,7 +216,7 @@ spec =
                         "This anonymous operation must be the only defined operation."
                     , locations = [AST.Location 2 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects operations with the same name" $
             let queryString = [r|
@@ -251,7 +237,7 @@ spec =
                         "There can be only one operation named \"dogOperation\"."
                     , locations = [AST.Location 2 15, AST.Location 8 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects fragments with the same name" $
             let queryString = [r|
@@ -276,7 +262,7 @@ spec =
                         "There can be only one fragment named \"fragmentOne\"."
                     , locations = [AST.Location 8 15, AST.Location 12 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects the fragment spread without a target" $
             let queryString = [r|
@@ -291,7 +277,7 @@ spec =
                         "Fragment target \"undefinedFragment\" is undefined."
                     , locations = [AST.Location 4 19]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects fragment spreads without an unknown target type" $
             let queryString = [r|
@@ -310,7 +296,7 @@ spec =
                         \\"NotInSchema\" which doesn't exist in the schema."
                     , locations = [AST.Location 4 19]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects inline fragments without a target" $
             let queryString = [r|
@@ -326,7 +312,7 @@ spec =
                         \which doesn't exist in the schema."
                     , locations = [AST.Location 3 17]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects fragments on scalar types" $
             let queryString = [r|
@@ -345,7 +331,7 @@ spec =
                         \\"Int\"."
                     , locations = [AST.Location 7 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldContain` [expected]
 
         it "rejects inline fragments on scalar types" $
             let queryString = [r|
@@ -361,7 +347,7 @@ spec =
                         \\"Boolean\"."
                     , locations = [AST.Location 3 17]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldContain` [expected]
 
         it "rejects unused fragments" $
             let queryString = [r|
@@ -380,7 +366,7 @@ spec =
                         "Fragment \"nameFragment\" is never used."
                     , locations = [AST.Location 2 15]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects spreads that form cycles" $
             let queryString = [r|
@@ -412,7 +398,7 @@ spec =
                         \nameFragment)."
                     , locations = [AST.Location 7 15]
                     }
-             in validate queryString `shouldBe` Seq.fromList [error1, error2]
+             in validate queryString `shouldBe` [error1, error2]
 
         it "rejects duplicate field arguments" $ do
             let queryString = [r|
@@ -427,20 +413,22 @@ spec =
                         "There can be only one argument named \"atOtherHomes\"."
                     , locations = [AST.Location 4 34, AST.Location 4 54]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects more than one directive per location" $ do
             let queryString = [r|
               query ($foo: Boolean = true, $bar: Boolean = false) {
-                field @skip(if: $foo) @skip(if: $bar)
+                dog @skip(if: $foo) @skip(if: $bar) {
+                  name
+                }
               }
             |]
                 expected = Error
                     { message =
                         "There can be only one directive named \"skip\"."
-                    , locations = [AST.Location 3 23, AST.Location 3 39]
+                    , locations = [AST.Location 3 21, AST.Location 3 37]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects duplicate variables" $
             let queryString = [r|
@@ -455,7 +443,7 @@ spec =
                         "There can be only one variable named \"atOtherHomes\"."
                     , locations = [AST.Location 2 39, AST.Location 2 63]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects non-input types as variables" $
             let queryString = [r|
@@ -470,7 +458,7 @@ spec =
                         "Variable \"$dog\" cannot be non-input type \"Dog\"."
                     , locations = [AST.Location 2 34]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects undefined variables" $
             let queryString = [r|
@@ -491,7 +479,7 @@ spec =
                         \\"variableIsNotDefinedUsedInSingleFragment\"."
                     , locations = [AST.Location 9 46]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects unused variables" $
             let queryString = [r|
@@ -507,7 +495,7 @@ spec =
                         \\"variableUnused\"."
                     , locations = [AST.Location 2 36]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]
 
         it "rejects duplicate fields in input objects" $
             let queryString = [r|
@@ -520,4 +508,4 @@ spec =
                         "There can be only one input field named \"name\"."
                     , locations = [AST.Location 3 36, AST.Location 3 50]
                     }
-             in validate queryString `shouldBe` Seq.singleton expected
+             in validate queryString `shouldBe` [expected]

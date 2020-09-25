@@ -108,20 +108,16 @@ spec = do
 
         it "embeds inline fragments without type" $ do
             let sourceQuery = [r|{
-              garment {
-                circumference
-                ... {
-                  size
-                }
+              circumference
+              ... {
+                size
               }
             }|]
-            actual <- graphql (toSchema "garment" $ garment "Hat") sourceQuery
+            actual <- graphql (toSchema "circumference" circumference) sourceQuery
             let expected = HashMap.singleton "data"
                     $ Aeson.object
-                        [ "garment" .= Aeson.object
-                            [ "circumference" .= (60 :: Int)
-                            , "size" .= ("L" :: Text)
-                            ]
+                        [ "circumference" .= (60 :: Int)
+                        , "size" .= ("L" :: Text)
                         ]
              in actual `shouldResolveTo` expected
 

@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Language.GraphQL.Type.Internal
     ( AbstractType(..)
@@ -12,10 +13,12 @@ module Language.GraphQL.Type.Internal
     , instanceOf
     , lookupInputType
     , lookupTypeCondition
+    , lookupTypeField
     ) where
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Text (Text)
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
@@ -55,41 +58,41 @@ collectReferencedTypes schema =
     getField (Out.ValueResolver field _) = field
     getField (Out.EventStreamResolver field _ _) = field
     traverseInputType (In.InputObjectBaseType objectType) =
-        let (In.InputObjectType typeName _ inputFields) = objectType
+        let In.InputObjectType typeName _ inputFields = objectType
             element = InputObjectType objectType
             traverser = flip (foldr visitInputFields) inputFields
          in collect traverser typeName element
     traverseInputType (In.ListBaseType listType) =
         traverseInputType listType
     traverseInputType (In.ScalarBaseType scalarType) =
-        let (Definition.ScalarType typeName _) = scalarType
+        let Definition.ScalarType typeName _ = scalarType
          in collect Prelude.id typeName (ScalarType scalarType)
     traverseInputType (In.EnumBaseType enumType) =
-        let (Definition.EnumType typeName _ _) = enumType
+        let Definition.EnumType typeName _ _ = enumType
          in collect Prelude.id typeName (EnumType enumType)
     traverseOutputType (Out.ObjectBaseType objectType) =
         traverseObjectType objectType
     traverseOutputType (Out.InterfaceBaseType interfaceType) =
         traverseInterfaceType interfaceType
     traverseOutputType (Out.UnionBaseType unionType) =
-        let (Out.UnionType typeName _ types) = unionType
+        let Out.UnionType typeName _ types = unionType
             traverser = flip (foldr traverseObjectType) types
          in collect traverser typeName (UnionType unionType)
     traverseOutputType (Out.ListBaseType listType) =
         traverseOutputType listType
     traverseOutputType (Out.ScalarBaseType scalarType) =
-        let (Definition.ScalarType typeName _) = scalarType
+        let Definition.ScalarType typeName _ = scalarType
          in collect Prelude.id typeName (ScalarType scalarType)
     traverseOutputType (Out.EnumBaseType enumType) =
-        let (Definition.EnumType typeName _ _) = enumType
+        let Definition.EnumType typeName _ _ = enumType
          in collect Prelude.id typeName (EnumType enumType)
     traverseObjectType objectType foundTypes =
-        let (Out.ObjectType typeName _ interfaces fields) = objectType
+        let Out.ObjectType typeName _ interfaces fields = objectType
             element = ObjectType objectType
             traverser = polymorphicTraverser interfaces (getField <$> fields)
          in collect traverser typeName element foundTypes
     traverseInterfaceType interfaceType foundTypes =
-        let (Out.InterfaceType typeName _ interfaces fields) = interfaceType
+        let Out.InterfaceType typeName _ interfaces fields = interfaceType
             element = InterfaceType interfaceType
             traverser = polymorphicTraverser interfaces fields
          in collect traverser typeName element foundTypes
@@ -161,3 +164,21 @@ lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
     = In.NonNullListType
     <$> lookupInputType nonNull types
+
+lookupTypeField :: forall a. Text -> Out.Type a -> Maybe (Out.Type a)
+lookupTypeField fieldName = \case
+    Out.ObjectBaseType objectType ->
+        objectChild objectType
+    Out.InterfaceBaseType interfaceType ->
+        interfaceChild interfaceType
+    Out.ListBaseType listType -> lookupTypeField fieldName listType
+    _ -> Nothing
+  where
+    objectChild (Out.ObjectType _ _ _ resolvers) =
+        resolverType <$> HashMap.lookup fieldName resolvers
+    interfaceChild (Out.InterfaceType _ _ _ fields) =
+        fieldType <$> HashMap.lookup fieldName fields
+    resolverType (Out.ValueResolver objectField _) = fieldType objectField
+    resolverType (Out.EventStreamResolver objectField _ _) =
+        fieldType objectField
+    fieldType (Out.Field _ type' _) = type'
