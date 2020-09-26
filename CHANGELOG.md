@@ -47,6 +47,7 @@ and this project adheres to
   - `noUnusedVariablesRule`
   - `uniqueInputFieldNamesRule`
   - `fieldsOnCorrectTypeRule`
+  - `scalarLeafsRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

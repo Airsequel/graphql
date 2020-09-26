@@ -19,6 +19,7 @@ module Language.GraphQL.Validate.Rules
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
     , noUnusedVariablesRule
+    , scalarLeafsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
     , uniqueArgumentNamesRule
@@ -41,7 +42,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
-import Data.Maybe (isJust, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..))
 import qualified Data.Sequence as Seq
@@ -68,6 +69,7 @@ specifiedRules =
     , uniqueOperationNamesRule
     -- Fields
     , fieldsOnCorrectTypeRule
+    , scalarLeafsRule
     -- Arguments.
     , uniqueArgumentNamesRule
     -- Fragments.
@@ -687,26 +689,79 @@ fieldsOnCorrectTypeRule = SelectionRule go
        fieldRule objectType fieldSelection
     go _ _ = lift mempty
     fieldRule objectType (Field _ fieldName _ _ _ location)
-        | isJust (lookupTypeField fieldName objectType) = lift mempty
-        | otherwise = pure $ Error
-            { message = errorMessage fieldName objectType
+        | Nothing <- lookupTypeField fieldName objectType
+        , Just typeName <- compositeTypeName objectType = pure $ Error
+            { message = errorMessage fieldName typeName
             , locations = [location]
             }
-    errorMessage fieldName objectType = concat
+        | otherwise = lift mempty
+    errorMessage fieldName typeName = concat
         [ "Cannot query field \""
         , Text.unpack fieldName
         , "\" on type \""
-        , Text.unpack $ outputTypeName objectType
+        , Text.unpack typeName
         , "\"."
         ]
-    outputTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
-        typeName
-    outputTypeName (Out.InterfaceBaseType (Out.InterfaceType typeName _ _ _)) =
-        typeName
-    outputTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
-        typeName
-    outputTypeName (Out.ScalarBaseType (Definition.ScalarType typeName _)) =
-        typeName
-    outputTypeName (Out.EnumBaseType (Definition.EnumType typeName _ _)) =
-        typeName
-    outputTypeName (Out.ListBaseType wrappedType) = outputTypeName wrappedType
+    compositeTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
+        Just typeName
+    compositeTypeName (Out.InterfaceBaseType interfaceType) =
+        let Out.InterfaceType typeName _ _ _ = interfaceType
+         in Just typeName
+    compositeTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
+        Just typeName
+    compositeTypeName (Out.ScalarBaseType _) =
+        Nothing
+    compositeTypeName (Out.EnumBaseType _) =
+        Nothing
+    compositeTypeName (Out.ListBaseType wrappedType) =
+        compositeTypeName wrappedType
+
+-- | Field selections on scalars or enums are never allowed, because they are
+-- the leaf nodes of any GraphQL query.
+scalarLeafsRule :: forall m. Rule m
+scalarLeafsRule = SelectionRule go
+  where
+    go (Just objectType) (FieldSelection fieldSelection) =
+       fieldRule objectType fieldSelection
+    go _ _ = lift mempty
+    fieldRule objectType selectionField@(Field _ fieldName _ _ _ _)
+        | Just fieldType <- lookupTypeField fieldName objectType =
+            lift $ check fieldType selectionField
+        | otherwise = lift mempty
+    check (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
+        checkNotEmpty typeName
+    check (Out.InterfaceBaseType (Out.InterfaceType typeName _ _ _)) =
+        checkNotEmpty typeName
+    check (Out.UnionBaseType (Out.UnionType typeName _ _)) =
+        checkNotEmpty typeName
+    check (Out.ScalarBaseType (Definition.ScalarType typeName _)) =
+        checkEmpty typeName
+    check (Out.EnumBaseType (Definition.EnumType typeName _ _)) =
+        checkEmpty typeName
+    check (Out.ListBaseType wrappedType) = check wrappedType
+    checkNotEmpty typeName (Field _ fieldName _ _ [] location) =
+        let fieldName' = Text.unpack fieldName
+         in makeError location $ concat
+            [ "Field \""
+            , fieldName'
+            , "\" of type \""
+            , Text.unpack typeName
+            , "\" must have a selection of subfields. Did you mean \""
+            , fieldName'
+            , " { ... }\"?"
+            ]
+    checkNotEmpty _ _ = mempty
+    checkEmpty _ (Field _ _ _ _ [] _) = mempty
+    checkEmpty typeName field' =
+        let Field _ fieldName _ _ _ location = field'
+         in makeError location $ concat
+            [ "Field \""
+            , Text.unpack fieldName
+            , "\" must not have a selection since type \""
+            , Text.unpack typeName
+            , "\" has no subfields."
+            ]
+    makeError location errorMessage = pure $ Error
+        { message = errorMessage
+        , locations = [location]
+        }

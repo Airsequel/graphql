@@ -500,12 +500,47 @@ spec =
         it "rejects duplicate fields in input objects" $
             let queryString = [r|
               {
-                findDog(complex: { name: "Fido", name: "Jack" })
+                findDog(complex: { name: "Fido", name: "Jack" }) {
+                  name
+                }
               }
             |]
                 expected = Error
                     { message =
                         "There can be only one input field named \"name\"."
                     , locations = [AST.Location 3 36, AST.Location 3 50]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects undefined fields" $
+            let queryString = [r|
+              {
+                dog {
+                  meowVolume
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Cannot query field \"meowVolume\" on type \"Dog\"."
+                    , locations = [AST.Location 4 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects scalar fields with not empty selection set" $
+            let queryString = [r|
+              {
+                dog {
+                  barkVolume {
+                    sinceWhen
+                  }
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Field \"barkVolume\" must not have a selection since \
+                        \type \"Int\" has no subfields."
+                    , locations = [AST.Location 4 19]
                     }
              in validate queryString `shouldBe` [expected]
