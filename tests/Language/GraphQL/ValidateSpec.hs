@@ -21,11 +21,12 @@ import Test.Hspec (Spec, describe, it, shouldBe, shouldContain)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
-schema :: Schema IO
-schema = Schema
+petSchema :: Schema IO
+petSchema = Schema
     { query = queryType
     , mutation = Nothing
     , subscription = Just subscriptionType
+    , directives = HashMap.empty
     } 
 
 queryType :: ObjectType IO
@@ -132,7 +133,7 @@ validate :: Text -> [Error]
 validate queryString =
     case parse AST.document "" queryString of
         Left _ -> []
-        Right ast -> toList $ document schema specifiedRules ast
+        Right ast -> toList $ document petSchema specifiedRules ast
 
 spec :: Spec
 spec =
@@ -542,5 +543,36 @@ spec =
                         "Field \"barkVolume\" must not have a selection since \
                         \type \"Int\" has no subfields."
                     , locations = [AST.Location 4 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects field arguments missing in the type" $
+            let queryString = [r|
+              {
+                dog {
+                  doesKnowCommand(command: CLEAN_UP_HOUSE)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Unknown argument \"command\" on field \
+                        \\"Dog.doesKnowCommand\"."
+                    , locations = [AST.Location 4 35]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects directive arguments missing in the definition" $
+            let queryString = [r|
+              {
+                dog {
+                  isHousetrained(atOtherHomes: true) @include(unless: false)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Unknown argument \"unless\" on directive \"@include\"."
+                    , locations = [AST.Location 4 63]
                     }
              in validate queryString `shouldBe` [expected]

@@ -25,11 +25,12 @@ import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
-schema :: Schema (Either SomeException)
-schema = Schema
+philosopherSchema :: Schema (Either SomeException)
+philosopherSchema = Schema
     { query = queryType
     , mutation = Nothing
     , subscription = Just subscriptionType
+    , directives = HashMap.empty
     }
 
 queryType :: Out.ObjectType (Either SomeException)
@@ -79,7 +80,8 @@ type EitherStreamOrValue = Either
     (Response Aeson.Value)
 
 execute' :: Document -> Either SomeException EitherStreamOrValue
-execute' = execute schema Nothing (mempty :: HashMap Name Aeson.Value)
+execute' =
+    execute philosopherSchema Nothing (mempty :: HashMap Name Aeson.Value)
 
 spec :: Spec
 spec =

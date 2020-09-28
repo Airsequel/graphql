@@ -15,6 +15,7 @@ module Language.GraphQL.Validate.Rules
     , fragmentSpreadTargetDefinedRule
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
+    , knownArgumentNamesRule
     , noFragmentCyclesRule
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
@@ -44,7 +45,7 @@ import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
 import Data.Maybe (mapMaybe)
 import Data.Ord (comparing)
-import Data.Sequence (Seq(..))
+import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -71,6 +72,7 @@ specifiedRules =
     , fieldsOnCorrectTypeRule
     , scalarLeafsRule
     -- Arguments.
+    , knownArgumentNamesRule
     , uniqueArgumentNamesRule
     -- Fragments.
     , uniqueFragmentNamesRule
@@ -134,20 +136,20 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
             forSpread accumulator fragmentSelection
         InlineFragmentSelection fragmentSelection ->
             forInline accumulator fragmentSelection
-    forField accumulator (Field alias name _ directives _ _)
-        | any skip directives = pure accumulator
+    forField accumulator (Field alias name _ directives' _ _)
+        | any skip directives' = pure accumulator
         | Just aliasedName <- alias = pure
             $ HashSet.insert aliasedName accumulator
         | otherwise = pure $ HashSet.insert name accumulator
-    forSpread accumulator (FragmentSpread fragmentName directives _)
-        | any skip directives = pure accumulator
+    forSpread accumulator (FragmentSpread fragmentName directives' _)
+        | any skip directives' = pure accumulator
         | otherwise = do
             inVisitetFragments <- gets $ HashSet.member fragmentName
             if inVisitetFragments
                then pure accumulator
                else collectFromSpread fragmentName accumulator
-    forInline accumulator (InlineFragment maybeType directives selections _)
-        | any skip directives = pure accumulator
+    forInline accumulator (InlineFragment maybeType directives' selections _)
+        | any skip directives' = pure accumulator
         | Just typeCondition <- maybeType =
             collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
@@ -494,7 +496,7 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
 uniqueArgumentNamesRule :: forall m. Rule m
 uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
-    fieldRule (Field _ _ arguments _ _ _) =
+    fieldRule _ (Field _ _ arguments _ _ _) =
         lift $ filterDuplicates extract "argument" arguments
     directiveRule (Directive _ arguments _) =
         lift $ filterDuplicates extract "argument" arguments
@@ -519,9 +521,9 @@ filterDuplicates extract nodeType = Seq.fromList
   where
     getName = fst . extract
     equalByName lhs rhs = getName lhs == getName rhs
-    makeError directives = Error
-        { message = makeMessage $ head directives
-        , locations = snd . extract <$> directives
+    makeError directives' = Error
+        { message = makeMessage $ head directives'
+        , locations = snd . extract <$> directives'
         }
     makeMessage directive = concat
         [ "There can be only one "
@@ -614,11 +616,11 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
     filterSelections' = filterSelections variableFilter
     variableFilter :: Selection -> ValidationState m (Name, [Location])
     variableFilter (InlineFragmentSelection inline)
-        | InlineFragment _ directives _ _ <- inline =
-            lift $ lift $ mapDirectives directives
+        | InlineFragment _ directives' _ _ <- inline =
+            lift $ lift $ mapDirectives directives'
     variableFilter (FieldSelection fieldSelection)
-        | Field _ _ arguments directives _ _ <- fieldSelection =
-            lift $ lift $ mapArguments arguments <> mapDirectives directives
+        | Field _ _ arguments directives' _ _ <- fieldSelection =
+            lift $ lift $ mapArguments arguments <> mapDirectives directives'
     variableFilter (FragmentSpreadSelection spread)
         | FragmentSpread fragmentName _ _ <- spread = do
             definitions <- lift $ asks ast
@@ -628,9 +630,9 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
                 Just (viewFragment -> Just fragmentDefinition)
                     | not visited -> diveIntoSpread fragmentDefinition
                 _ -> lift $ lift mempty
-    diveIntoSpread (FragmentDefinition _ _ directives selections _)
+    diveIntoSpread (FragmentDefinition _ _ directives' selections _)
         = filterSelections' selections
-        >>= lift . mapReaderT (<> mapDirectives directives) . pure
+        >>= lift . mapReaderT (<> mapDirectives directives') . pure
     findDirectiveVariables (Directive _ arguments _) = mapArguments arguments
     mapArguments = Seq.fromList . mapMaybe findArgumentVariables
     mapDirectives = foldMap findDirectiveVariables
@@ -683,13 +685,11 @@ uniqueInputFieldNamesRule = ValueRule (lift . go) (lift . constGo)
 -- | The target field of a field selection must be defined on the scoped type of
 -- the selection set. There are no limitations on alias names.
 fieldsOnCorrectTypeRule :: forall m. Rule m
-fieldsOnCorrectTypeRule = SelectionRule go
+fieldsOnCorrectTypeRule = FieldRule fieldRule
   where
-    go (Just objectType) (FieldSelection fieldSelection) =
-       fieldRule objectType fieldSelection
-    go _ _ = lift mempty
-    fieldRule objectType (Field _ fieldName _ _ _ location)
-        | Nothing <- lookupTypeField fieldName objectType
+    fieldRule parentType (Field _ fieldName _ _ _ location)
+        | Just objectType <- parentType
+        , Nothing <- lookupTypeField fieldName objectType
         , Just typeName <- compositeTypeName objectType = pure $ Error
             { message = errorMessage fieldName typeName
             , locations = [location]
@@ -702,31 +702,32 @@ fieldsOnCorrectTypeRule = SelectionRule go
         , Text.unpack typeName
         , "\"."
         ]
-    compositeTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
-        Just typeName
-    compositeTypeName (Out.InterfaceBaseType interfaceType) =
-        let Out.InterfaceType typeName _ _ _ = interfaceType
-         in Just typeName
-    compositeTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
-        Just typeName
-    compositeTypeName (Out.ScalarBaseType _) =
-        Nothing
-    compositeTypeName (Out.EnumBaseType _) =
-        Nothing
-    compositeTypeName (Out.ListBaseType wrappedType) =
-        compositeTypeName wrappedType
+
+compositeTypeName :: forall m. Out.Type m -> Maybe Name
+compositeTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
+    Just typeName
+compositeTypeName (Out.InterfaceBaseType interfaceType) =
+    let Out.InterfaceType typeName _ _ _ = interfaceType
+        in Just typeName
+compositeTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
+    Just typeName
+compositeTypeName (Out.ScalarBaseType _) =
+    Nothing
+compositeTypeName (Out.EnumBaseType _) =
+    Nothing
+compositeTypeName (Out.ListBaseType wrappedType) =
+    compositeTypeName wrappedType
 
 -- | Field selections on scalars or enums are never allowed, because they are
 -- the leaf nodes of any GraphQL query.
 scalarLeafsRule :: forall m. Rule m
-scalarLeafsRule = SelectionRule go
+scalarLeafsRule = FieldRule fieldRule
   where
-    go (Just objectType) (FieldSelection fieldSelection) =
-       fieldRule objectType fieldSelection
-    go _ _ = lift mempty
-    fieldRule objectType selectionField@(Field _ fieldName _ _ _ _)
-        | Just fieldType <- lookupTypeField fieldName objectType =
-            lift $ check fieldType selectionField
+    fieldRule parentType selectionField@(Field _ fieldName _ _ _ _)
+        | Just objectType <- parentType
+        , Just field <- lookupTypeField fieldName objectType =
+            let Out.Field _ fieldType _ = field
+             in lift $ check fieldType selectionField
         | otherwise = lift mempty
     check (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
         checkNotEmpty typeName
@@ -765,3 +766,49 @@ scalarLeafsRule = SelectionRule go
         { message = errorMessage
         , locations = [location]
         }
+
+-- | Every argument provided to a field or directive must be defined in the set
+-- of possible arguments of that field or directive.
+knownArgumentNamesRule :: forall m. Rule m
+knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
+  where
+    fieldRule (Just objectType) (Field _ fieldName arguments  _ _ _)
+        | Just typeField <- lookupTypeField fieldName objectType
+        , Just typeName <- compositeTypeName objectType =
+            lift $ foldr (go typeName fieldName typeField) Seq.empty arguments
+    fieldRule _ _ = lift mempty
+    go typeName fieldName fieldDefinition (Argument argumentName _ location) errors
+        | Out.Field _ _ definitions <- fieldDefinition
+        , Just _ <- HashMap.lookup argumentName definitions = errors
+        | otherwise = errors |> Error
+            { message = fieldMessage argumentName fieldName typeName
+            , locations = [location]
+            }
+    fieldMessage argumentName fieldName typeName = concat
+        [ "Unknown argument \""
+        , Text.unpack argumentName
+        , "\" on field \""
+        , Text.unpack typeName
+        , "."
+        , Text.unpack fieldName
+        , "\"."
+        ]
+    directiveRule (Directive directiveName arguments _) = do
+        available <- asks $ HashMap.lookup directiveName . directives
+        Argument argumentName _ location <- lift $ Seq.fromList arguments
+        case available of
+            Just (Schema.Directive _ _ definitions)
+                | not $ HashMap.member argumentName definitions ->
+                    pure $ makeError argumentName directiveName location
+            _ -> lift mempty
+    makeError argumentName directiveName location = Error
+        { message = directiveMessage argumentName directiveName
+        , locations = [location]
+        }
+    directiveMessage argumentName directiveName = concat
+        [ "Unknown argument \""
+        , Text.unpack argumentName
+        , "\" on directive \"@"
+        , Text.unpack directiveName
+        , "\"."
+        ]

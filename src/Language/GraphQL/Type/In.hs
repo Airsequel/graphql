@@ -11,6 +11,7 @@
 -- with 'Language.GraphQL.Type.Out'.
 module Language.GraphQL.Type.In
     ( Argument(..)
+    , Arguments
     , InputField(..)
     , InputObjectType(..)
     , Type(..)
@@ -24,10 +25,10 @@ module Language.GraphQL.Type.In
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 import Language.GraphQL.AST.Document (Name)
-import Language.GraphQL.Type.Definition
+import qualified Language.GraphQL.Type.Definition as Definition
 
 -- | Single field of an 'InputObjectType'.
-data InputField = InputField (Maybe Text) Type (Maybe Value)
+data InputField = InputField (Maybe Text) Type (Maybe Definition.Value)
 
 -- | Input object type definition.
 --
@@ -45,25 +46,28 @@ instance Eq InputObjectType where
 -- type can wrap other wrapping or named types. Wrapping types are lists and
 -- Non-Null types (named types are nullable by default).
 data Type
-    = NamedScalarType ScalarType
-    | NamedEnumType EnumType
+    = NamedScalarType Definition.ScalarType
+    | NamedEnumType Definition.EnumType
     | NamedInputObjectType InputObjectType
     | ListType Type
-    | NonNullScalarType ScalarType
-    | NonNullEnumType EnumType
+    | NonNullScalarType Definition.ScalarType
+    | NonNullEnumType Definition.EnumType
     | NonNullInputObjectType InputObjectType
     | NonNullListType Type
     deriving Eq
 
 -- | Field argument definition.
-data Argument = Argument (Maybe Text) Type (Maybe Value)
+data Argument = Argument (Maybe Text) Type (Maybe Definition.Value)
+
+-- | Field argument definitions.
+type Arguments = HashMap Name Argument
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
-pattern ScalarBaseType :: ScalarType -> Type
+pattern ScalarBaseType :: Definition.ScalarType -> Type
 pattern ScalarBaseType scalarType <- (isScalarType -> Just scalarType)
 
 -- | Matches either 'NamedEnumType' or 'NonNullEnumType'.
-pattern EnumBaseType :: EnumType -> Type
+pattern EnumBaseType :: Definition.EnumType -> Type
 pattern EnumBaseType enumType <- (isEnumType -> Just enumType)
 
 -- | Matches either 'NamedInputObjectType' or 'NonNullInputObjectType'.
@@ -76,7 +80,7 @@ pattern ListBaseType listType <- (isListType -> Just listType)
 
 {-# COMPLETE EnumBaseType, ListBaseType, InputObjectBaseType, ScalarBaseType #-}
 
-isScalarType :: Type -> Maybe ScalarType
+isScalarType :: Type -> Maybe Definition.ScalarType
 isScalarType (NamedScalarType inputType) = Just inputType
 isScalarType (NonNullScalarType inputType) = Just inputType
 isScalarType _ = Nothing
@@ -86,7 +90,7 @@ isInputObjectType (NamedInputObjectType inputType) = Just inputType
 isInputObjectType (NonNullInputObjectType inputType) = Just inputType
 isInputObjectType _ = Nothing
 
-isEnumType :: Type -> Maybe EnumType
+isEnumType :: Type -> Maybe Definition.EnumType
 isEnumType (NamedEnumType inputType) = Just inputType
 isEnumType (NonNullEnumType inputType) = Just inputType
 isEnumType _ = Nothing

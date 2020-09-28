@@ -357,10 +357,10 @@ spec = describe "Star Wars Query Tests" $ do
 
 testQuery :: Text -> Aeson.Value -> Expectation
 testQuery q expected =
-    let Right (Right actual) = graphql schema q
+    let Right (Right actual) = graphql starWarsSchema q
      in Aeson.Object actual `shouldBe` expected
 
 testQueryParams :: Aeson.Object -> Text -> Aeson.Value -> Expectation
 testQueryParams f q expected =
-    let Right (Right actual) = graphqlSubs schema Nothing f q
+    let Right (Right actual) = graphqlSubs starWarsSchema Nothing f q
      in Aeson.Object actual `shouldBe` expected

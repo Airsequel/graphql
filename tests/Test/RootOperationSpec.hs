@@ -23,11 +23,12 @@ hatType = Out.ObjectType "Hat" Nothing []
     $ ValueResolver (Out.Field Nothing (Out.NamedScalarType int) mempty)
     $ pure $ Int 60
 
-schema :: Schema IO
-schema = Schema
+garmentSchema :: Schema IO
+garmentSchema = Schema
     { query = Out.ObjectType "Query" Nothing [] hatFieldResolver
     , mutation = Just $ Out.ObjectType "Mutation" Nothing [] incrementFieldResolver
     , subscription = Nothing
+    , directives = HashMap.empty
     }
   where
     garment = pure $ Object $ HashMap.fromList
@@ -57,7 +58,7 @@ spec =
                             [ "circumference" .= (60 :: Int)
                             ]
                         ]
-            actual <- graphql schema querySource
+            actual <- graphql garmentSchema querySource
             actual `shouldResolveTo` expected
 
         it "chooses Mutation" $ do
@@ -70,5 +71,5 @@ spec =
                     $ object
                         [ "incrementCircumference" .= (61 :: Int)
                         ]
-            actual <- graphql schema querySource
+            actual <- graphql garmentSchema querySource
             actual `shouldResolveTo` expected

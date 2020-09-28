@@ -19,8 +19,7 @@ import Test.Hspec.GraphQL
 import Text.RawString.QQ (r)
 
 experimentalResolver :: Schema IO
-experimentalResolver = Schema
-    { query = queryType, mutation = Nothing, subscription = Nothing }
+experimentalResolver = schema queryType
   where
     queryType = Out.ObjectType "Query" Nothing []
         $ HashMap.singleton "experimentalField"

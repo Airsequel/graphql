@@ -49,14 +49,15 @@ import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type as Type
 import Language.GraphQL.Type.Internal
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema
+import Language.GraphQL.Type.Schema (Schema)
+import qualified Language.GraphQL.Type.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Field's.
 data Replacement m = Replacement
     { fragments :: HashMap Full.Name (Fragment m)
     , fragmentDefinitions :: FragmentDefinitions
     , variableValues :: Type.Subs
-    , types :: HashMap Full.Name (Type m)
+    , types :: HashMap Full.Name (Schema.Type m)
     }
 
 type FragmentDefinitions = HashMap Full.Name Full.FragmentDefinition
@@ -84,7 +85,7 @@ data Field m = Field
 
 -- | Contains the operation to be executed along with its root type.
 data Document m = Document
-    (HashMap Full.Name (Type m)) (Out.ObjectType m) (Operation m)
+    (HashMap Full.Name (Schema.Type m)) (Out.ObjectType m) (Operation m)
 
 data OperationDefinition = OperationDefinition
     Full.OperationType
@@ -140,7 +141,7 @@ getOperation (Just operationName) operations
 
 coerceVariableValues :: Coerce.VariableValue a
     => forall m
-    . HashMap Full.Name (Type m)
+    . HashMap Full.Name (Schema.Type m)
     -> OperationDefinition
     -> HashMap.HashMap Full.Name a
     -> Either QueryError Type.Subs
@@ -203,14 +204,14 @@ document schema operationName subs ast = do
             }
     case chosenOperation of
         OperationDefinition Full.Query _ _ _ _ ->
-            pure $ Document referencedTypes (query schema)
+            pure $ Document referencedTypes (Schema.query schema)
                 $ operation chosenOperation replacement
         OperationDefinition Full.Mutation _ _ _ _
-            | Just mutationType <- mutation schema ->
+            | Just mutationType <- Schema.mutation schema ->
                 pure $ Document referencedTypes mutationType
                     $ operation chosenOperation replacement
         OperationDefinition Full.Subscription _ _ _ _
-            | Just subscriptionType <- subscription schema ->
+            | Just subscriptionType <- Schema.subscription schema ->
                 pure $ Document referencedTypes subscriptionType
                     $ operation chosenOperation replacement
         _ -> Left UnsupportedRootOperation

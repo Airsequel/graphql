@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Test.StarWars.Schema
-    ( schema
+    ( starWarsSchema
     ) where
 
 import Control.Monad.Catch (MonadThrow(..), SomeException)
@@ -17,12 +17,8 @@ import Prelude hiding (id)
 
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
-schema :: Schema (Either SomeException)
-schema = Schema
-    { query = queryType
-    , mutation = Nothing
-    , subscription = Nothing
-    }
+starWarsSchema :: Schema (Either SomeException)
+starWarsSchema = schema queryType
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
         [ ("hero", heroFieldResolver)

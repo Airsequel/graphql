@@ -32,8 +32,8 @@ execute :: (MonadCatch m, VariableValue a, Serialize b)
     -> HashMap Name a -- ^ Variable substitution function.
     -> Document -- @GraphQL@ document.
     -> m (Either (ResponseEventStream m b) (Response b))
-execute schema operationName subs document =
-    case Transform.document schema operationName subs document of
+execute schema' operationName subs document =
+    case Transform.document schema' operationName subs document of
         Left queryError -> pure
             $ Right
             $ singleError

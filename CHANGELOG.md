@@ -23,6 +23,7 @@ and this project adheres to
   the path without executing the query.
 - `Error.Error`: `path` added. It is currently always empty.
 - `Validate.Validation.Path` was moved to `Error`.
+- `Type.Schema.Schema` gets an additional field, `Schema.directives`.
 
 ### Added
 - `Validate.Validation.Rule` constructors:
@@ -32,6 +33,7 @@ and this project adheres to
   - `ArgumentsRule`
   - `DirectivesRule`
   - `VariablesRule`
+  - `FieldRule`
 - `Validate.Rules`:
   - `fragmentsOnCompositeTypesRule`
   - `fragmentSpreadTargetDefinedRule`
@@ -48,10 +50,15 @@ and this project adheres to
   - `uniqueInputFieldNamesRule`
   - `fieldsOnCorrectTypeRule`
   - `scalarLeafsRule`
+  - `knownArgumentNamesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.
 - `AST.Document.Node`.
+- `Type.In.Arguments`: Type alias for an argument map.
+- `Type.Schema.Directive` and `Type.Schema.Directives` are directive definition
+  representation.
+- `Type.Schema.schema`: Shortcut for creating a schema.
 
 ### Fixed
 - Collecting existing types from the schema considers subscriptions.

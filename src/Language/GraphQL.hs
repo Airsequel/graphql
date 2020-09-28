@@ -18,7 +18,7 @@ import Language.GraphQL.AST
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
 import qualified Language.GraphQL.Validate as Validate
-import Language.GraphQL.Type.Schema
+import Language.GraphQL.Type.Schema (Schema)
 import Text.Megaparsec (parse)
 
 -- | If the text parses correctly as a @GraphQL@ query the query is

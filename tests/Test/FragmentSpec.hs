@@ -67,8 +67,7 @@ sizeFieldType
     $ pure $ snd size
 
 toSchema :: Text -> (Text, Value) -> Schema IO
-toSchema t (_, resolve) = Schema
-    { query = queryType, mutation = Nothing, subscription = Nothing }
+toSchema t (_, resolve) = schema queryType
   where
     garmentType = Out.UnionType "Garment" Nothing [hatType, shirtType]
     typeNameField = Out.Field Nothing (Out.NamedScalarType string) mempty

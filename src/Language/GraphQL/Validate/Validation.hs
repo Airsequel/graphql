@@ -29,6 +29,7 @@ data Validation m = Validation
     { ast :: Document
     , schema :: Schema m
     , types :: HashMap Name (Schema.Type m)
+    , directives :: Schema.Directives
     }
 
 -- | 'Rule' assigns a function to each AST node that can be validated. If the
@@ -41,7 +42,8 @@ data Rule m
     | SelectionRule (Maybe (Out.Type m) -> Selection -> RuleT m)
     | FragmentRule (FragmentDefinition -> RuleT m) (InlineFragment -> RuleT m)
     | FragmentSpreadRule (FragmentSpread -> RuleT m)
-    | ArgumentsRule (Field -> RuleT m) (Directive -> RuleT m)
+    | FieldRule (Maybe (Out.Type m) -> Field -> RuleT m)
+    | ArgumentsRule (Maybe (Out.Type m) -> Field -> RuleT m) (Directive -> RuleT m)
     | DirectivesRule ([Directive] -> RuleT m)
     | VariablesRule ([VariableDefinition] -> RuleT m)
     | ValueRule (Value -> RuleT m) (ConstValue -> RuleT m)

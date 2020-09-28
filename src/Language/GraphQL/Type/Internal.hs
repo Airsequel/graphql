@@ -18,12 +18,12 @@ module Language.GraphQL.Type.Internal
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Text (Text)
 import qualified Language.GraphQL.AST as Full
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema
+import Language.GraphQL.Type.Schema (Schema)
+import qualified Language.GraphQL.Type.Schema as Schema
 
 -- | These types may describe the parent context of a selection set.
 data CompositeType m
@@ -39,13 +39,15 @@ data AbstractType m
     deriving Eq
 
 -- | Traverses the schema and finds all referenced types.
-collectReferencedTypes :: forall m. Schema m -> HashMap Full.Name (Type m)
+collectReferencedTypes :: forall m
+    . Schema m
+    -> HashMap Full.Name (Schema.Type m)
 collectReferencedTypes schema =
-    let queryTypes = traverseObjectType (query schema) HashMap.empty
+    let queryTypes = traverseObjectType (Schema.query schema) HashMap.empty
         mutationTypes = maybe queryTypes (`traverseObjectType` queryTypes)
-            $ mutation schema
+            $ Schema.mutation schema
      in maybe mutationTypes (`traverseObjectType` queryTypes)
-        $ subscription schema
+        $ Schema.subscription schema
   where
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes
@@ -59,17 +61,17 @@ collectReferencedTypes schema =
     getField (Out.EventStreamResolver field _ _) = field
     traverseInputType (In.InputObjectBaseType objectType) =
         let In.InputObjectType typeName _ inputFields = objectType
-            element = InputObjectType objectType
+            element = Schema.InputObjectType objectType
             traverser = flip (foldr visitInputFields) inputFields
          in collect traverser typeName element
     traverseInputType (In.ListBaseType listType) =
         traverseInputType listType
     traverseInputType (In.ScalarBaseType scalarType) =
         let Definition.ScalarType typeName _ = scalarType
-         in collect Prelude.id typeName (ScalarType scalarType)
+         in collect Prelude.id typeName (Schema.ScalarType scalarType)
     traverseInputType (In.EnumBaseType enumType) =
         let Definition.EnumType typeName _ _ = enumType
-         in collect Prelude.id typeName (EnumType enumType)
+         in collect Prelude.id typeName (Schema.EnumType enumType)
     traverseOutputType (Out.ObjectBaseType objectType) =
         traverseObjectType objectType
     traverseOutputType (Out.InterfaceBaseType interfaceType) =
@@ -77,23 +79,23 @@ collectReferencedTypes schema =
     traverseOutputType (Out.UnionBaseType unionType) =
         let Out.UnionType typeName _ types = unionType
             traverser = flip (foldr traverseObjectType) types
-         in collect traverser typeName (UnionType unionType)
+         in collect traverser typeName (Schema.UnionType unionType)
     traverseOutputType (Out.ListBaseType listType) =
         traverseOutputType listType
     traverseOutputType (Out.ScalarBaseType scalarType) =
         let Definition.ScalarType typeName _ = scalarType
-         in collect Prelude.id typeName (ScalarType scalarType)
+         in collect Prelude.id typeName (Schema.ScalarType scalarType)
     traverseOutputType (Out.EnumBaseType enumType) =
         let Definition.EnumType typeName _ _ = enumType
-         in collect Prelude.id typeName (EnumType enumType)
+         in collect Prelude.id typeName (Schema.EnumType enumType)
     traverseObjectType objectType foundTypes =
         let Out.ObjectType typeName _ interfaces fields = objectType
-            element = ObjectType objectType
+            element = Schema.ObjectType objectType
             traverser = polymorphicTraverser interfaces (getField <$> fields)
          in collect traverser typeName element foundTypes
     traverseInterfaceType interfaceType foundTypes =
         let Out.InterfaceType typeName _ interfaces fields = interfaceType
-            element = InterfaceType interfaceType
+            element = Schema.InterfaceType interfaceType
             traverser = polymorphicTraverser interfaces fields
          in collect traverser typeName element foundTypes
     polymorphicTraverser interfaces fields
@@ -126,27 +128,28 @@ instanceOf objectType (AbstractUnionType unionType) =
 
 lookupTypeCondition :: forall m
     . Full.Name
-    -> HashMap Full.Name (Type m)
+    -> HashMap Full.Name (Schema.Type m)
     -> Maybe (CompositeType m)
 lookupTypeCondition type' types' =
     case HashMap.lookup type' types' of
-        Just (ObjectType objectType) -> Just $ CompositeObjectType objectType
-        Just (UnionType unionType) -> Just $ CompositeUnionType unionType
-        Just (InterfaceType interfaceType) ->
+        Just (Schema.ObjectType objectType) ->
+            Just $ CompositeObjectType objectType
+        Just (Schema.UnionType unionType) -> Just $ CompositeUnionType unionType
+        Just (Schema.InterfaceType interfaceType) ->
             Just $ CompositeInterfaceType interfaceType
         _ -> Nothing
 
 lookupInputType
     :: Full.Type
-    -> HashMap.HashMap Full.Name (Type m)
+    -> HashMap.HashMap Full.Name (Schema.Type m)
     -> Maybe In.Type
 lookupInputType (Full.TypeNamed name) types =
     case HashMap.lookup name types of
-        Just (ScalarType scalarType) ->
+        Just (Schema.ScalarType scalarType) ->
             Just $ In.NamedScalarType scalarType
-        Just (EnumType enumType) ->
+        Just (Schema.EnumType enumType) ->
             Just $ In.NamedEnumType enumType
-        Just (InputObjectType objectType) ->
+        Just (Schema.InputObjectType objectType) ->
             Just $ In.NamedInputObjectType objectType
         _ -> Nothing
 lookupInputType (Full.TypeList list) types
@@ -154,18 +157,18 @@ lookupInputType (Full.TypeList list) types
     <$> lookupInputType list types
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types  =
     case HashMap.lookup nonNull types of
-        Just (ScalarType scalarType) ->
+        Just (Schema.ScalarType scalarType) ->
             Just $ In.NonNullScalarType scalarType
-        Just (EnumType enumType) ->
+        Just (Schema.EnumType enumType) ->
             Just $ In.NonNullEnumType enumType
-        Just (InputObjectType objectType) ->
+        Just (Schema.InputObjectType objectType) ->
             Just $ In.NonNullInputObjectType objectType
         _ -> Nothing
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types
     = In.NonNullListType
     <$> lookupInputType nonNull types
 
-lookupTypeField :: forall a. Text -> Out.Type a -> Maybe (Out.Type a)
+lookupTypeField :: forall a. Full.Name -> Out.Type a -> Maybe (Out.Field a)
 lookupTypeField fieldName = \case
     Out.ObjectBaseType objectType ->
         objectChild objectType
@@ -177,8 +180,6 @@ lookupTypeField fieldName = \case
     objectChild (Out.ObjectType _ _ _ resolvers) =
         resolverType <$> HashMap.lookup fieldName resolvers
     interfaceChild (Out.InterfaceType _ _ _ fields) =
-        fieldType <$> HashMap.lookup fieldName fields
-    resolverType (Out.ValueResolver objectField _) = fieldType objectField
-    resolverType (Out.EventStreamResolver objectField _ _) =
-        fieldType objectField
-    fieldType (Out.Field _ type' _) = type'
+        HashMap.lookup fieldName fields
+    resolverType (Out.ValueResolver objectField _) = objectField
+    resolverType (Out.EventStreamResolver objectField _ _) = objectField
