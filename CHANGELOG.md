@@ -51,6 +51,7 @@ and this project adheres to
   - `fieldsOnCorrectTypeRule`
   - `scalarLeafsRule`
   - `knownArgumentNamesRule`
+  - `knownDirectiveNamesRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

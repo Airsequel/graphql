@@ -39,8 +39,7 @@ Now, as our first example, we are going to look at the example from
 First we build a GraphQL schema.
 
 > schema1 :: Schema IO
-> schema1 = Schema
->   { query = queryType , mutation = Nothing , subscription = Nothing }
+> schema1 = schema queryType
 >
 > queryType :: ObjectType IO
 > queryType = ObjectType "Query" Nothing []
@@ -77,8 +76,7 @@ This runs the query by fetching the one field defined, returning
 For this example, we're going to be using time.
 
 > schema2 :: Schema IO
-> schema2 = Schema
->   { query = queryType2, mutation = Nothing, subscription = Nothing }
+> schema2 = schema queryType2
 >
 > queryType2 :: ObjectType IO
 > queryType2 = ObjectType "Query" Nothing []
@@ -115,8 +113,7 @@ This runs the query, returning the current time
 Now that we have two resolvers, we can define a schema which uses them both.
 
 > schema3 :: Schema IO
-> schema3 = Schema
->   { query = queryType3, mutation = Nothing, subscription = Nothing }
+> schema3 = schema queryType3
 >
 > queryType3 :: ObjectType IO
 > queryType3 = ObjectType "Query" Nothing [] $ HashMap.fromList

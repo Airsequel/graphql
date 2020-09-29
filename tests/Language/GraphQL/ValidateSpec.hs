@@ -576,3 +576,17 @@ spec =
                     , locations = [AST.Location 4 63]
                     }
              in validate queryString `shouldBe` [expected]
+
+        it "rejects undefined directives" $
+            let queryString = [r|
+              {
+                dog {
+                  isHousetrained(atOtherHomes: true) @ignore(if: true)
+                }
+              }
+            |]
+                expected = Error
+                    { message = "Unknown directive \"@ignore\"."
+                    , locations = [AST.Location 4 54]
+                    }
+             in validate queryString `shouldBe` [expected]

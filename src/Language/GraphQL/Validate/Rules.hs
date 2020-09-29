@@ -16,6 +16,7 @@ module Language.GraphQL.Validate.Rules
     , fragmentSpreadTypeExistenceRule
     , loneAnonymousOperationRule
     , knownArgumentNamesRule
+    , knownDirectiveNamesRule
     , noFragmentCyclesRule
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
@@ -84,6 +85,7 @@ specifiedRules =
     -- Values
     , uniqueInputFieldNamesRule
     -- Directives.
+    , knownDirectiveNamesRule
     , uniqueDirectiveNamesRule
     -- Variables.
     , uniqueVariableNamesRule
@@ -810,5 +812,29 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         , Text.unpack argumentName
         , "\" on directive \"@"
         , Text.unpack directiveName
+        , "\"."
+        ]
+
+-- | GraphQL servers define what directives they support. For each usage of a
+-- directive, the directive must be available on that server.
+knownDirectiveNamesRule :: Rule m
+knownDirectiveNamesRule = DirectivesRule $ \directives' -> do
+    definitions' <- asks directives
+    let directiveSet = HashSet.fromList $ fmap directiveName directives'
+    let definitionSet = HashSet.fromList $ HashMap.keys definitions'
+    let difference = HashSet.difference directiveSet definitionSet
+    let undefined' = filter (definitionFilter difference) directives'
+    lift $ Seq.fromList $ makeError <$> undefined'
+  where
+    definitionFilter difference = flip HashSet.member difference
+        . directiveName
+    directiveName (Directive directiveName' _ _) = directiveName'
+    makeError (Directive directiveName' _ location) = Error
+        { message = errorMessage directiveName'
+        , locations = [location]
+        }
+    errorMessage directiveName' = concat
+        [ "Unknown directive \"@"
+        , Text.unpack directiveName'
         , "\"."
         ]

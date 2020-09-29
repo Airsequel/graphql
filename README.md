@@ -65,7 +65,6 @@ To be able to work with this schema, we are going to implement it in Haskell.
 ```haskell
 {-# LANGUAGE OverloadedStrings #-}
 
-import Control.Exception (SomeException)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy.Char8 as ByteString.Lazy.Char8
 import qualified Data.HashMap.Strict as HashMap
@@ -75,9 +74,8 @@ import qualified Language.GraphQL.Type.Out as Out
 
 -- GraphQL supports 3 kinds of operations: queries, mutations and subscriptions.
 -- Our first schema supports only queries.
-schema :: Schema IO
-schema = Schema
-    { query = queryType, mutation = Nothing, subscription = Nothing }
+citeSchema :: Schema IO
+citeSchema = schema queryType
 
 -- GraphQL distinguishes between input and output types. Input types are field
 -- argument types and they are defined in Language.GraphQL.Type.In. Output types
@@ -99,6 +97,7 @@ queryType = Out.ObjectType "Query" (Just "Root Query type.") []
     -- Our resolver just returns a constant value.
     citeResolver = ValueResolver citeField
         $ pure "Piscis primum a capite foetat"
+
     -- The first argument is an optional field description. The second one is
     -- the field type and the third one is for arguments (we have none in this
     -- example).
@@ -116,7 +115,7 @@ queryType = Out.ObjectType "Query" (Just "Root Query type.") []
 -- mutations.
 main :: IO ()
 main = do
-    Right result <- graphql schema "{ cite }"
+    Right result <- graphql citeSchema "{ cite }"
     ByteString.Lazy.Char8.putStrLn $ Aeson.encode result
 ```
 
