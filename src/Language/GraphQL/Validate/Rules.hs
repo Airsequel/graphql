@@ -4,6 +4,7 @@
 
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -17,6 +18,7 @@ module Language.GraphQL.Validate.Rules
     , loneAnonymousOperationRule
     , knownArgumentNamesRule
     , knownDirectiveNamesRule
+    , knownInputFieldNamesRule
     , noFragmentCyclesRule
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
@@ -53,6 +55,7 @@ import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.Type.Definition as Definition
 import Language.GraphQL.Type.Internal
+import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Validate.Validation
@@ -83,6 +86,7 @@ specifiedRules =
     , fragmentSpreadTargetDefinedRule
     , noFragmentCyclesRule
     -- Values
+    , knownInputFieldNamesRule
     , uniqueInputFieldNamesRule
     -- Directives.
     , knownDirectiveNamesRule
@@ -98,19 +102,19 @@ specifiedRules =
 executableDefinitionsRule :: forall m. Rule m
 executableDefinitionsRule = DefinitionRule $ \case
     ExecutableDefinition _ -> lift mempty
-    TypeSystemDefinition _ location -> pure $ error' location
-    TypeSystemExtension _ location -> pure $ error' location
+    TypeSystemDefinition _ location' -> pure $ error' location'
+    TypeSystemExtension _ location' -> pure $ error' location'
   where
-    error' location = Error
+    error' location' = Error
         { message =
             "Definition must be OperationDefinition or FragmentDefinition."
-        , locations = [location]
+        , locations = [location']
         }
 
 -- | Subscription operations must have exactly one root field.
 singleFieldSubscriptionsRule :: forall m. Rule m
 singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
-    OperationDefinition Subscription name' _ _ rootFields location -> do
+    OperationDefinition Subscription name' _ _ rootFields location' -> do
         groupedFieldSet <- evalStateT (collectFields rootFields) HashSet.empty
         case HashSet.size groupedFieldSet of
             1 -> lift mempty
@@ -121,11 +125,11 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
                         , Text.unpack name
                         , "must select only one top level field."
                         ]
-                    , locations = [location]
+                    , locations = [location']
                     }
                 | otherwise -> pure $ Error
                     { message = errorMessage
-                    , locations = [location]
+                    , locations = [location']
                     }
     _ -> lift mempty
   where
@@ -203,10 +207,10 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
           SelectionSet _ thatLocation
               | thisLocation /= thatLocation -> pure $ error' thisLocation
           _ -> mempty
-      error' location = Error
+      error' location' = Error
           { message =
               "This anonymous operation must be the only defined operation."
-          , locations = [location]
+          , locations = [location']
           }
 
 -- | Each named operation definition must be unique within a document when
@@ -283,12 +287,12 @@ uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
 -- It is a validation error if the target of a spread is not defined.
 fragmentSpreadTargetDefinedRule :: forall m. Rule m
 fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
-    FragmentSpread fragmentName _ location -> do
+    FragmentSpread fragmentName _ location' -> do
         ast' <- asks ast
         case find (isSpreadTarget fragmentName) ast' of
             Nothing -> pure $ Error
                 { message = error' fragmentName
-                , locations = [location]
+                , locations = [location']
                 }
             Just _ -> lift mempty
   where
@@ -310,7 +314,7 @@ isSpreadTarget _ _ = False
 fragmentSpreadTypeExistenceRule :: forall m. Rule m
 fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
     FragmentSpreadSelection fragmentSelection
-        | FragmentSpread fragmentName _ location <- fragmentSelection -> do
+        | FragmentSpread fragmentName _ location' <- fragmentSelection -> do
             ast' <- asks ast
             let target = find (isSpreadTarget fragmentName) ast'
             typeCondition <- lift $ maybeToSeq $ target >>= extractTypeCondition
@@ -318,17 +322,17 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = spreadError fragmentName typeCondition
-                    , locations = [location]
+                    , locations = [location']
                     }
                 Just _ -> lift mempty
     InlineFragmentSelection fragmentSelection
-        | InlineFragment maybeType _ _ location <- fragmentSelection
+        | InlineFragment maybeType _ _ location' <- fragmentSelection
         , Just typeCondition <- maybeType -> do
             types' <- asks types
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = inlineError typeCondition
-                    , locations = [location]
+                    , locations = [location']
                     }
                 Just _ -> lift mempty
     _ -> lift mempty
@@ -360,19 +364,19 @@ maybeToSeq Nothing = mempty
 fragmentsOnCompositeTypesRule :: forall m. Rule m
 fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
   where
-    inlineRule (InlineFragment (Just typeCondition) _ _ location) =
-        check typeCondition location
+    inlineRule (InlineFragment (Just typeCondition) _ _ location') =
+        check typeCondition location'
     inlineRule _ = lift mempty
-    definitionRule (FragmentDefinition _ typeCondition _ _ location) =
-        check typeCondition location
-    check typeCondition location = do
+    definitionRule (FragmentDefinition _ typeCondition _ _ location') =
+        check typeCondition location'
+    check typeCondition location' = do
         types' <- asks types
         -- Skip unknown types, they are checked by another rule.
         _ <- lift $ maybeToSeq $ HashMap.lookup typeCondition types'
         case lookupTypeCondition typeCondition types' of
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
-                , locations = [location]
+                , locations = [location']
                 }
             Just _ -> lift mempty
     errorMessage typeCondition = concat
@@ -384,19 +388,19 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
 -- | Defined fragments must be used within a document.
 noUnusedFragmentsRule :: forall m. Rule m
 noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment -> do
-    let FragmentDefinition fragmentName _ _ _ location = fragment
-     in mapReaderT (checkFragmentName fragmentName location)
+    let FragmentDefinition fragmentName _ _ _ location' = fragment
+     in mapReaderT (checkFragmentName fragmentName location')
         $ asks ast
         >>= flip evalStateT HashSet.empty
         . filterSelections evaluateSelection
         . foldMap definitionSelections
   where
-    checkFragmentName fragmentName location elements
+    checkFragmentName fragmentName location' elements
         | fragmentName `elem` elements = mempty
-        | otherwise = pure $ makeError fragmentName location
-    makeError fragName location = Error
+        | otherwise = pure $ makeError fragmentName location'
+    makeError fragName location' = Error
         { message = errorMessage fragName
-        , locations = [location]
+        , locations = [location']
         }
     errorMessage fragName = concat
         [ "Fragment \""
@@ -440,7 +444,7 @@ filterSelections applyFilter selections
 -- on cycles in the underlying data.
 noFragmentCyclesRule :: forall m. Rule m
 noFragmentCyclesRule = FragmentDefinitionRule $ \case
-    FragmentDefinition fragmentName _ _ selections location -> do
+    FragmentDefinition fragmentName _ _ selections location' -> do
         state <- evalStateT (collectFields selections)
             (0, fragmentName)
         let spreadPath = fst <$> sortBy (comparing snd) (HashMap.toList state)
@@ -453,7 +457,7 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
                     , Text.unpack $ Text.intercalate " -> " $ fragmentName : spreadPath
                     , ")."
                     ]
-                , locations = [location]
+                , locations = [location']
                 }
             _ -> lift mempty
   where
@@ -502,7 +506,7 @@ uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         lift $ filterDuplicates extract "argument" arguments
     directiveRule (Directive _ arguments _) =
         lift $ filterDuplicates extract "argument" arguments
-    extract (Argument argumentName _ location) = (argumentName, location)
+    extract (Argument argumentName _ location') = (argumentName, location')
 
 -- | Directives are used to describe some metadata or behavioral change on the
 -- definition they apply to. When more than one directive of the same name is
@@ -512,7 +516,7 @@ uniqueDirectiveNamesRule :: forall m. Rule m
 uniqueDirectiveNamesRule = DirectivesRule
     $ lift . filterDuplicates extract "directive"
   where
-    extract (Directive directiveName _ location) = (directiveName, location)
+    extract (Directive directiveName _ location') = (directiveName, location')
 
 filterDuplicates :: (a -> (Text, Location)) -> String -> [a] -> Seq Error
 filterDuplicates extract nodeType = Seq.fromList
@@ -542,8 +546,8 @@ uniqueVariableNamesRule :: forall m. Rule m
 uniqueVariableNamesRule = VariablesRule
     $ lift . filterDuplicates extract "variable"
   where
-    extract (VariableDefinition variableName _ _ location) =
-        (variableName, location)
+    extract (VariableDefinition variableName _ _ location') =
+        (variableName, location')
 
 -- | Variables can only be input types. Objects, unions and interfaces cannot be
 -- used as inputs.
@@ -551,12 +555,12 @@ variablesAreInputTypesRule :: forall m. Rule m
 variablesAreInputTypesRule = VariablesRule
     $ (traverse check . Seq.fromList) >=> lift
   where
-    check (VariableDefinition name typeName _ location)
+    check (VariableDefinition name typeName _ location')
         = asks types
         >>= lift
-        . maybe (makeError name typeName location) (const mempty)
+        . maybe (makeError name typeName location') (const mempty)
         . lookupInputType typeName
-    makeError name typeName location = pure $ Error
+    makeError name typeName location' = pure $ Error
         { message = concat
             [ "Variable \"$"
             , Text.unpack name
@@ -564,7 +568,7 @@ variablesAreInputTypesRule = VariablesRule
             , Text.unpack $ getTypeName typeName
             , "\"."
             ]
-        , locations = [location]
+        , locations = [location']
         }
     getTypeName (TypeNamed name) = name
     getTypeName (TypeList name) = getTypeName name
@@ -610,8 +614,8 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
         . difference variableNames'
         . HashMap.fromListWith (++)
         . toList
-    getVariableName (VariableDefinition variableName _ _ location) =
-        (variableName, [location])
+    getVariableName (VariableDefinition variableName _ _ location') =
+        (variableName, [location'])
     filterSelections' :: Foldable t
         => t Selection
         -> ValidationState m (Name, [Location])
@@ -638,8 +642,8 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
     findDirectiveVariables (Directive _ arguments _) = mapArguments arguments
     mapArguments = Seq.fromList . mapMaybe findArgumentVariables
     mapDirectives = foldMap findDirectiveVariables
-    findArgumentVariables (Argument _ (Node (Variable value) location) _) =
-        Just (value, [location])
+    findArgumentVariables (Argument _ Node{ value = Variable value', ..} _) =
+        Just (value', [location])
     findArgumentVariables _ = Nothing
     makeError operationName (variableName, locations') = Error
         { message = errorMessage operationName variableName
@@ -669,19 +673,15 @@ noUnusedVariablesRule = variableUsageDifference HashMap.difference errorMessage
 -- otherwise an ambiguity would exist which includes an ignored portion of
 -- syntax.
 uniqueInputFieldNamesRule :: forall m. Rule m
-uniqueInputFieldNamesRule = ValueRule (lift . go) (lift . constGo)
+uniqueInputFieldNamesRule =
+    ValueRule (const $ lift . go) (const $ lift . constGo)
   where
-    go (Object fields) = foldMap (objectField go) fields
-        <> filterFieldDuplicates fields
-    go (List values) = foldMap go values
+    go (Object fields) = filterFieldDuplicates fields
     go _ = mempty
-    objectField go' (ObjectField _ fieldValue _) = go' fieldValue
     filterFieldDuplicates fields =
         filterDuplicates getFieldName "input field" fields
-    getFieldName (ObjectField fieldName _ location) = (fieldName, location)
-    constGo (ConstObject fields) = foldMap (objectField constGo) fields
-        <> filterFieldDuplicates fields
-    constGo (ConstList values) = foldMap constGo values
+    getFieldName (ObjectField fieldName _ location') = (fieldName, location')
+    constGo (ConstObject fields) = filterFieldDuplicates fields
     constGo _ = mempty
 
 -- | The target field of a field selection must be defined on the scoped type of
@@ -689,12 +689,12 @@ uniqueInputFieldNamesRule = ValueRule (lift . go) (lift . constGo)
 fieldsOnCorrectTypeRule :: forall m. Rule m
 fieldsOnCorrectTypeRule = FieldRule fieldRule
   where
-    fieldRule parentType (Field _ fieldName _ _ _ location)
+    fieldRule parentType (Field _ fieldName _ _ _ location')
         | Just objectType <- parentType
         , Nothing <- lookupTypeField fieldName objectType
         , Just typeName <- compositeTypeName objectType = pure $ Error
             { message = errorMessage fieldName typeName
-            , locations = [location]
+            , locations = [location']
             }
         | otherwise = lift mempty
     errorMessage fieldName typeName = concat
@@ -742,9 +742,9 @@ scalarLeafsRule = FieldRule fieldRule
     check (Out.EnumBaseType (Definition.EnumType typeName _ _)) =
         checkEmpty typeName
     check (Out.ListBaseType wrappedType) = check wrappedType
-    checkNotEmpty typeName (Field _ fieldName _ _ [] location) =
+    checkNotEmpty typeName (Field _ fieldName _ _ [] location') =
         let fieldName' = Text.unpack fieldName
-         in makeError location $ concat
+         in makeError location' $ concat
             [ "Field \""
             , fieldName'
             , "\" of type \""
@@ -756,17 +756,17 @@ scalarLeafsRule = FieldRule fieldRule
     checkNotEmpty _ _ = mempty
     checkEmpty _ (Field _ _ _ _ [] _) = mempty
     checkEmpty typeName field' =
-        let Field _ fieldName _ _ _ location = field'
-         in makeError location $ concat
+        let Field _ fieldName _ _ _ location' = field'
+         in makeError location' $ concat
             [ "Field \""
             , Text.unpack fieldName
             , "\" must not have a selection since type \""
             , Text.unpack typeName
             , "\" has no subfields."
             ]
-    makeError location errorMessage = pure $ Error
+    makeError location' errorMessage = pure $ Error
         { message = errorMessage
-        , locations = [location]
+        , locations = [location']
         }
 
 -- | Every argument provided to a field or directive must be defined in the set
@@ -779,12 +779,12 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         , Just typeName <- compositeTypeName objectType =
             lift $ foldr (go typeName fieldName typeField) Seq.empty arguments
     fieldRule _ _ = lift mempty
-    go typeName fieldName fieldDefinition (Argument argumentName _ location) errors
+    go typeName fieldName fieldDefinition (Argument argumentName _ location') errors
         | Out.Field _ _ definitions <- fieldDefinition
         , Just _ <- HashMap.lookup argumentName definitions = errors
         | otherwise = errors |> Error
             { message = fieldMessage argumentName fieldName typeName
-            , locations = [location]
+            , locations = [location']
             }
     fieldMessage argumentName fieldName typeName = concat
         [ "Unknown argument \""
@@ -797,15 +797,15 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         ]
     directiveRule (Directive directiveName arguments _) = do
         available <- asks $ HashMap.lookup directiveName . directives
-        Argument argumentName _ location <- lift $ Seq.fromList arguments
+        Argument argumentName _ location' <- lift $ Seq.fromList arguments
         case available of
             Just (Schema.Directive _ _ definitions)
                 | not $ HashMap.member argumentName definitions ->
-                    pure $ makeError argumentName directiveName location
+                    pure $ makeError argumentName directiveName location'
             _ -> lift mempty
-    makeError argumentName directiveName location = Error
+    makeError argumentName directiveName location' = Error
         { message = directiveMessage argumentName directiveName
-        , locations = [location]
+        , locations = [location']
         }
     directiveMessage argumentName directiveName = concat
         [ "Unknown argument \""
@@ -829,12 +829,41 @@ knownDirectiveNamesRule = DirectivesRule $ \directives' -> do
     definitionFilter difference = flip HashSet.member difference
         . directiveName
     directiveName (Directive directiveName' _ _) = directiveName'
-    makeError (Directive directiveName' _ location) = Error
+    makeError (Directive directiveName' _ location') = Error
         { message = errorMessage directiveName'
-        , locations = [location]
+        , locations = [location']
         }
     errorMessage directiveName' = concat
         [ "Unknown directive \"@"
         , Text.unpack directiveName'
+        , "\"."
+        ]
+
+-- | Every input field provided in an input object value must be defined in the
+-- set of possible fields of that input object’s expected type.
+knownInputFieldNamesRule :: Rule m
+knownInputFieldNamesRule = ValueRule go constGo
+  where
+    go (Just valueType) (Object inputFields)
+        | In.InputObjectBaseType objectType <- valueType =
+             lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
+    go _ _ = lift mempty
+    constGo (Just valueType) (ConstObject inputFields)
+        | In.InputObjectBaseType objectType <- valueType =
+             lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
+    constGo  _ _ = lift mempty
+    forEach objectType (ObjectField inputFieldName _ location')
+        | In.InputObjectType _ _ fieldTypes <- objectType
+        , Just _ <- HashMap.lookup inputFieldName fieldTypes = Nothing
+        | otherwise
+        , In.InputObjectType typeName _ _ <- objectType = pure $ Error
+            { message = errorMessage inputFieldName typeName
+            , locations = [location']
+            }
+    errorMessage fieldName typeName = concat
+        [ "Field \""
+        , Text.unpack fieldName
+        , "\" is not defined by type \""
+        , Text.unpack typeName
         , "\"."
         ]

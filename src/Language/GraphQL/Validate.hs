@@ -23,7 +23,7 @@ import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import qualified Language.GraphQL.AST.DirectiveLocation as DirectiveLocation
-import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.Type.Internal
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.In as In
@@ -35,7 +35,7 @@ import Language.GraphQL.Validate.Validation (Validation(Validation))
 import qualified Language.GraphQL.Validate.Validation as Validation
 
 type ApplySelectionRule m a
-    = HashMap Name (Schema.Type m)
+    = HashMap Full.Name (Schema.Type m)
     -> Validation.Rule m
     -> Maybe (Out.Type m)
     -> a
@@ -48,7 +48,7 @@ type ApplyRule m a = Validation.Rule m -> a -> Seq (Validation.RuleT m)
 document :: forall m
     . Schema m
     -> [Validation.Rule m]
-    -> Document
+    -> Full.Document
     -> Seq Validation.Error
 document schema' rules' document' =
     runReaderT reader context
@@ -111,121 +111,145 @@ document schema' rules' document' =
 
 definition :: Validation.Rule m
     -> Validation m
-    -> Definition
+    -> Full.Definition
     -> Seq (Validation.RuleT m)
     -> Seq (Validation.RuleT m)
 definition (Validation.DefinitionRule rule) _ definition' accumulator =
     accumulator |> rule definition'
-definition rule context (ExecutableDefinition definition') accumulator =
+definition rule context (Full.ExecutableDefinition definition') accumulator =
     accumulator >< executableDefinition rule context definition'
-definition rule _ (TypeSystemDefinition typeSystemDefinition' _) accumulator =
-    accumulator >< typeSystemDefinition rule typeSystemDefinition'
-definition rule _ (TypeSystemExtension extension _) accumulator =
-    accumulator >< typeSystemExtension rule extension
+definition rule context (Full.TypeSystemDefinition typeSystemDefinition' _) accumulator =
+    accumulator >< typeSystemDefinition context rule typeSystemDefinition'
+definition rule context (Full.TypeSystemExtension extension _) accumulator =
+    accumulator >< typeSystemExtension context rule extension
 
-typeSystemExtension :: forall m. ApplyRule m TypeSystemExtension
-typeSystemExtension rule = \case
-    SchemaExtension extension -> schemaExtension rule extension
-    TypeExtension extension -> typeExtension rule extension
+typeSystemExtension :: forall m
+    . Validation m
+    -> ApplyRule m Full.TypeSystemExtension
+typeSystemExtension context rule = \case
+    Full.SchemaExtension extension -> schemaExtension context rule extension
+    Full.TypeExtension extension -> typeExtension context rule extension
 
-typeExtension :: forall m. ApplyRule m TypeExtension
-typeExtension rule = \case
-    ScalarTypeExtension _ directives' -> directives rule directives'
-    ObjectTypeFieldsDefinitionExtension _ _ directives' fields ->
-        directives rule directives' >< foldMap (fieldDefinition rule) fields
-    ObjectTypeDirectivesExtension _ _ directives' -> directives rule directives'
-    ObjectTypeImplementsInterfacesExtension _ _ -> mempty
-    InterfaceTypeFieldsDefinitionExtension _ directives' fields ->
-        directives rule directives' >< foldMap (fieldDefinition rule) fields
-    InterfaceTypeDirectivesExtension _ directives' ->
-        directives rule directives'
-    UnionTypeUnionMemberTypesExtension _ directives' _ ->
-        directives rule directives'
-    UnionTypeDirectivesExtension _ directives' -> directives rule directives'
-    EnumTypeEnumValuesDefinitionExtension _ directives' values ->
-        directives rule directives' >< foldMap (enumValueDefinition rule) values
-    EnumTypeDirectivesExtension _ directives' -> directives rule directives'
-    InputObjectTypeInputFieldsDefinitionExtension _ directives' fields
-        -> directives rule directives'
-        >< foldMap (inputValueDefinition rule) fields
-    InputObjectTypeDirectivesExtension _ directives' ->
-        directives rule directives'
+typeExtension :: forall m. Validation m -> ApplyRule m Full.TypeExtension
+typeExtension context rule = \case
+    Full.ScalarTypeExtension _ directives' -> directives context rule directives'
+    Full.ObjectTypeFieldsDefinitionExtension _ _ directives' fields
+        -> directives context rule directives'
+        >< foldMap (fieldDefinition context rule) fields
+    Full.ObjectTypeDirectivesExtension _ _ directives' ->
+        directives context rule directives'
+    Full.ObjectTypeImplementsInterfacesExtension _ _ -> mempty
+    Full.InterfaceTypeFieldsDefinitionExtension _ directives' fields
+        -> directives context rule directives'
+        >< foldMap (fieldDefinition context rule) fields
+    Full.InterfaceTypeDirectivesExtension _ directives' ->
+        directives context rule directives'
+    Full.UnionTypeUnionMemberTypesExtension _ directives' _ ->
+        directives context rule directives'
+    Full.UnionTypeDirectivesExtension _ directives' ->
+        directives context rule directives'
+    Full.EnumTypeEnumValuesDefinitionExtension _ directives' values
+        -> directives context rule directives'
+        >< foldMap (enumValueDefinition context rule) values
+    Full.EnumTypeDirectivesExtension _ directives' ->
+        directives context rule directives'
+    Full.InputObjectTypeInputFieldsDefinitionExtension _ directives' fields
+        -> directives context rule directives'
+        >< foldMap (inputValueDefinition context rule) fields
+    Full.InputObjectTypeDirectivesExtension _ directives' ->
+        directives context rule directives'
 
-schemaExtension :: forall m. ApplyRule m SchemaExtension
-schemaExtension rule = \case
-    SchemaOperationExtension directives' _ -> directives rule directives'
-    SchemaDirectivesExtension directives' -> directives rule directives'
+schemaExtension :: forall m. Validation m -> ApplyRule m Full.SchemaExtension
+schemaExtension context rule = \case
+    Full.SchemaOperationExtension directives' _ ->
+        directives context rule directives'
+    Full.SchemaDirectivesExtension directives' -> directives context rule directives'
 
 executableDefinition :: forall m
     . Validation.Rule m
     -> Validation m
-    -> ExecutableDefinition
+    -> Full.ExecutableDefinition
     -> Seq (Validation.RuleT m)
-executableDefinition rule context (DefinitionOperation operation) =
+executableDefinition rule context (Full.DefinitionOperation operation) =
     operationDefinition rule context operation
-executableDefinition rule context (DefinitionFragment fragment) =
+executableDefinition rule context (Full.DefinitionFragment fragment) =
     fragmentDefinition rule context fragment
 
-typeSystemDefinition :: forall m. ApplyRule m TypeSystemDefinition
-typeSystemDefinition rule = \case
-    SchemaDefinition directives' _ -> directives rule directives'
-    TypeDefinition typeDefinition' -> typeDefinition rule typeDefinition'
-    DirectiveDefinition _ _ arguments' _ -> argumentsDefinition rule arguments'
+typeSystemDefinition :: forall m
+    . Validation m
+    -> ApplyRule m Full.TypeSystemDefinition
+typeSystemDefinition context rule = \case
+    Full.SchemaDefinition directives' _ -> directives context rule directives'
+    Full.TypeDefinition typeDefinition' ->
+        typeDefinition context rule typeDefinition'
+    Full.DirectiveDefinition _ _ arguments' _ ->
+        argumentsDefinition context rule arguments'
 
-typeDefinition :: forall m. ApplyRule m TypeDefinition
-typeDefinition rule = \case
-    ScalarTypeDefinition _ _ directives' -> directives rule directives'
-    ObjectTypeDefinition _ _ _ directives' fields ->
-        directives rule directives' >< foldMap (fieldDefinition rule) fields
-    InterfaceTypeDefinition _ _ directives' fields ->
-        directives rule directives' >< foldMap (fieldDefinition rule) fields
-    UnionTypeDefinition _ _ directives' _ -> directives rule directives'
-    EnumTypeDefinition _ _ directives' values ->
-        directives rule directives' >< foldMap (enumValueDefinition rule) values
-    InputObjectTypeDefinition _ _ directives' fields
-        -> directives rule directives'
-        <> foldMap (inputValueDefinition rule) fields
+typeDefinition :: forall m. Validation m -> ApplyRule m Full.TypeDefinition
+typeDefinition context rule = \case
+    Full.ScalarTypeDefinition _ _ directives' ->
+        directives context rule directives'
+    Full.ObjectTypeDefinition _ _ _ directives' fields
+        -> directives context rule directives'
+         >< foldMap (fieldDefinition context rule) fields
+    Full.InterfaceTypeDefinition _ _ directives' fields
+        -> directives context rule directives'
+        >< foldMap (fieldDefinition context rule) fields
+    Full.UnionTypeDefinition _ _ directives' _ ->
+        directives context rule directives'
+    Full.EnumTypeDefinition _ _ directives' values
+        -> directives context rule directives'
+        >< foldMap (enumValueDefinition context rule) values
+    Full.InputObjectTypeDefinition _ _ directives' fields
+        -> directives context rule directives'
+        <> foldMap (inputValueDefinition context rule) fields
 
-enumValueDefinition :: forall m. ApplyRule m EnumValueDefinition
-enumValueDefinition rule (EnumValueDefinition _ _ directives') =
-    directives rule directives'
+enumValueDefinition :: forall m
+    . Validation m
+    -> ApplyRule m Full.EnumValueDefinition
+enumValueDefinition context rule (Full.EnumValueDefinition _ _ directives') =
+    directives context rule directives'
 
-fieldDefinition :: forall m. ApplyRule m FieldDefinition
-fieldDefinition rule (FieldDefinition _ _ arguments' _ directives') =
-    directives rule directives' >< argumentsDefinition rule arguments'
+fieldDefinition :: forall m. Validation m -> ApplyRule m Full.FieldDefinition
+fieldDefinition context rule (Full.FieldDefinition _ _ arguments' _ directives')
+    = directives context rule directives'
+    >< argumentsDefinition context rule arguments'
 
-argumentsDefinition :: forall m. ApplyRule m ArgumentsDefinition
-argumentsDefinition rule (ArgumentsDefinition definitions) =
-    foldMap (inputValueDefinition rule) definitions
+argumentsDefinition :: forall m
+    . Validation m
+    -> ApplyRule m Full.ArgumentsDefinition
+argumentsDefinition context rule (Full.ArgumentsDefinition definitions) =
+    foldMap (inputValueDefinition context rule) definitions
 
-inputValueDefinition :: forall m. ApplyRule m InputValueDefinition
-inputValueDefinition rule (InputValueDefinition _ _ _ _ directives') =
-    directives rule directives'
+inputValueDefinition :: forall m
+    . Validation m
+    -> ApplyRule m Full.InputValueDefinition
+inputValueDefinition context rule (Full.InputValueDefinition _ _ _ _ directives') =
+    directives context rule directives'
 
 operationDefinition :: forall m
     . Validation.Rule m
     -> Validation m
-    -> OperationDefinition
+    -> Full.OperationDefinition
     -> Seq (Validation.RuleT m)
 operationDefinition rule context operation
     | Validation.OperationDefinitionRule operationRule <- rule =
         pure $ operationRule operation
     | Validation.VariablesRule variablesRule <- rule
-    , OperationDefinition _ _ variables _ _ _ <- operation
-        = Seq.fromList (variableDefinition rule <$> variables)
-        |> variablesRule variables
-    | SelectionSet selections _ <- operation =
-        selectionSet types' rule (getRootType Query) selections
-    | OperationDefinition operationType _ _ directives' selections _  <- operation
-        = selectionSet types' rule (getRootType operationType) selections
-        >< directives rule directives'
+    , Full.OperationDefinition _ _ variables _ _ _ <- operation =
+        foldMap (variableDefinition context rule) variables |> variablesRule variables
+    | Full.SelectionSet selections _ <- operation =
+        selectionSet context types' rule (getRootType Full.Query) selections
+    | Full.OperationDefinition operationType _ _ directives' selections _  <- operation
+        = selectionSet context types' rule (getRootType operationType) selections
+        >< directives context rule directives'
   where
     types' = Validation.types context
-    getRootType Query =
+    getRootType Full.Query =
        Just $ Out.NamedObjectType $ Schema.query $ Validation.schema context
-    getRootType Mutation =
+    getRootType Full.Mutation =
        Out.NamedObjectType <$> Schema.mutation (Validation.schema context)
-    getRootType Subscription =
+    getRootType Full.Subscription =
         Out.NamedObjectType <$> Schema.subscription (Validation.schema context)
         
 typeToOut :: forall m. Schema.Type m -> Maybe (Out.Type m)
@@ -239,88 +263,159 @@ typeToOut (Schema.ScalarType scalarType) = Just $ Out.NamedScalarType scalarType
 typeToOut _ = Nothing
 
 variableDefinition :: forall m
+    . Validation m
+    -> ApplyRule m Full.VariableDefinition
+variableDefinition context rule (Full.VariableDefinition _ typeName value' _)
+    | Just defaultValue' <- value'
+    , variableType <- lookupInputType typeName $ Validation.types context =
+        constValue rule variableType $ Full.value defaultValue'
+variableDefinition _ _ _ = mempty
+
+constValue :: forall m
     . Validation.Rule m
-    -> VariableDefinition
-    -> Validation.RuleT m
-variableDefinition (Validation.ValueRule _ rule) (VariableDefinition _ _ value _) =
-    maybe (lift mempty) rule value
-variableDefinition _ _ = lift mempty
+    -> Maybe In.Type
+    -> Full.ConstValue
+    -> Seq (Validation.RuleT m)
+constValue (Validation.ValueRule _ rule) valueType = go valueType
+  where
+    go inputObjectType value'@(Full.ConstObject fields)
+        = foldMap (forEach inputObjectType) (Seq.fromList fields)
+        |> rule inputObjectType value'
+    go listType value'@(Full.ConstList values)
+        = foldMap (go $ valueTypeFromList listType) (Seq.fromList values)
+        |> rule listType value'
+    go anotherValue value' = pure $ rule anotherValue value'
+    forEach inputObjectType (Full.ObjectField fieldName fieldValue _) =
+        go (valueTypeByName fieldName inputObjectType) fieldValue
+constValue _ _ = const mempty
+
+inputFieldType :: In.InputField -> In.Type
+inputFieldType (In.InputField _ inputFieldType' _) = inputFieldType'
+
+valueTypeByName :: Full.Name -> Maybe In.Type -> Maybe In.Type
+valueTypeByName fieldName (Just( In.InputObjectBaseType inputObjectType)) =
+    let In.InputObjectType _ _ fieldTypes = inputObjectType
+     in inputFieldType <$> HashMap.lookup fieldName fieldTypes
+valueTypeByName _ _ = Nothing
+
+valueTypeFromList :: Maybe In.Type -> Maybe In.Type
+valueTypeFromList (Just (In.ListBaseType listType)) = Just listType
+valueTypeFromList _ = Nothing
 
 fragmentDefinition :: forall m
     . Validation.Rule m
     -> Validation m
-    -> FragmentDefinition
+    -> Full.FragmentDefinition
     -> Seq (Validation.RuleT m)
 fragmentDefinition (Validation.FragmentDefinitionRule rule) _ definition' =
     pure $ rule definition'
 fragmentDefinition rule context definition'
-    | FragmentDefinition _ typeCondition directives' selections _ <- definition'
+    | Full.FragmentDefinition _ typeCondition directives' selections _ <- definition'
     , Validation.FragmentRule definitionRule _ <- rule
         = applyToChildren typeCondition directives' selections
         |> definitionRule definition'
-    | FragmentDefinition _ typeCondition directives' selections _ <- definition'
+    | Full.FragmentDefinition _ typeCondition directives' selections _ <- definition'
         = applyToChildren typeCondition directives' selections
   where
     types' = Validation.types context
     applyToChildren typeCondition directives' selections
-        = selectionSet types' rule (lookupType' typeCondition) selections
-        >< directives rule directives'
+        = selectionSet context types' rule (lookupType' typeCondition) selections
+        >< directives context rule directives'
     lookupType' = flip lookupType types'
 
 lookupType :: forall m
-    . TypeCondition
-    -> HashMap Name (Schema.Type m)
+    . Full.TypeCondition
+    -> HashMap Full.Name (Schema.Type m)
     -> Maybe (Out.Type m)
 lookupType typeCondition types' = HashMap.lookup typeCondition types'
     >>= typeToOut
 
-selectionSet :: Traversable t => forall m. ApplySelectionRule m (t Selection)
-selectionSet types' rule = foldMap . selection types' rule
+selectionSet :: Traversable t
+    => forall m
+    . Validation m
+    -> ApplySelectionRule m (t Full.Selection)
+selectionSet context types' rule = foldMap . selection context types' rule
 
-selection :: forall m. ApplySelectionRule m Selection
-selection types' rule objectType selection'
+selection :: forall m. Validation m -> ApplySelectionRule m Full.Selection
+selection context types' rule objectType selection'
     | Validation.SelectionRule selectionRule <- rule =
         applyToChildren |> selectionRule objectType selection'
     | otherwise = applyToChildren
   where
     applyToChildren =
         case selection' of
-            FieldSelection field' -> field types' rule objectType field'
-            InlineFragmentSelection inlineFragment' ->
-                inlineFragment types' rule objectType inlineFragment'
-            FragmentSpreadSelection fragmentSpread' ->
-                fragmentSpread rule fragmentSpread'
+            Full.FieldSelection field' ->
+                field context types' rule objectType field'
+            Full.InlineFragmentSelection inlineFragment' ->
+                inlineFragment context types' rule objectType inlineFragment'
+            Full.FragmentSpreadSelection fragmentSpread' ->
+                fragmentSpread context rule fragmentSpread'
 
-field :: forall m. ApplySelectionRule m Field
-field types' rule objectType field' = go field'
+field :: forall m. Validation m -> ApplySelectionRule m Full.Field
+field context types' rule objectType field' = go field'
   where
-    go (Field _ fieldName _ _ _ _)
+    go (Full.Field _ fieldName _ _ _ _)
         | Validation.FieldRule fieldRule <- rule =
             applyToChildren fieldName |> fieldRule objectType field'
         | Validation.ArgumentsRule argumentsRule _  <- rule =
             applyToChildren fieldName |> argumentsRule objectType field'
         | otherwise = applyToChildren fieldName
     typeFieldType (Out.Field _ type' _) = type'
+    typeFieldArguments (Out.Field _ _ argumentTypes) = argumentTypes
     applyToChildren fieldName =
-        let Field _ _ arguments' directives' selections _ = field'
-            fieldType = objectType
-               >>= fmap typeFieldType . lookupTypeField fieldName
-         in selectionSet types' rule fieldType selections
-            >< directives rule directives'
-            >< arguments rule arguments'
+        let Full.Field _ _ arguments' directives' selections _ = field'
+            typeField = objectType >>= lookupTypeField fieldName
+            argumentTypes = maybe mempty typeFieldArguments typeField
+         in selectionSet context types' rule (typeFieldType <$> typeField) selections
+            >< directives context rule directives'
+            >< arguments rule argumentTypes arguments'
 
-arguments :: forall m. ApplyRule m [Argument]
-arguments = (.) Seq.fromList . fmap . argument
-
-argument :: forall m. Validation.Rule m -> Argument -> Validation.RuleT m
-argument (Validation.ValueRule rule _) (Argument _ (Node value _) _) =
-    rule value
-argument _ _ = lift mempty
-
-inlineFragment :: forall m. ApplySelectionRule m InlineFragment
-inlineFragment types' rule objectType inlineFragment' = go inlineFragment'
+arguments :: forall m
+    . Validation.Rule m
+    -> In.Arguments
+    -> [Full.Argument]
+    -> Seq (Validation.RuleT m)
+arguments rule argumentTypes = foldMap forEach . Seq.fromList
   where
-    go (InlineFragment optionalType directives' selections _)
+    forEach argument'@(Full.Argument argumentName _ _) = 
+       let argumentType = HashMap.lookup argumentName argumentTypes
+        in argument rule argumentType argument'
+
+argument :: forall m
+    . Validation.Rule m
+    -> Maybe In.Argument
+    -> Full.Argument
+    -> Seq (Validation.RuleT m)
+argument rule argumentType (Full.Argument _ value' _) =
+    value rule (valueType <$> argumentType) $ Full.value value'
+  where
+    valueType (In.Argument _ valueType' _) = valueType'
+
+value :: forall m
+    . Validation.Rule m
+    -> Maybe In.Type
+    -> Full.Value
+    -> Seq (Validation.RuleT m)
+value (Validation.ValueRule rule _) valueType = go valueType
+  where
+    go inputObjectType value'@(Full.Object fields)
+        = foldMap (forEach inputObjectType) (Seq.fromList fields)
+        |> rule inputObjectType value'
+    go listType value'@(Full.List values)
+        = foldMap (go $ valueTypeFromList listType) (Seq.fromList values)
+        |> rule listType value'
+    go anotherValue value' = pure $ rule anotherValue value'
+    forEach inputObjectType (Full.ObjectField fieldName fieldValue _) =
+        go (valueTypeByName fieldName inputObjectType) fieldValue
+value _ _ = const mempty
+
+inlineFragment :: forall m
+    . Validation m
+    -> ApplySelectionRule m Full.InlineFragment
+inlineFragment context types' rule objectType inlineFragment' =
+    go inlineFragment'
+  where
+    go (Full.InlineFragment optionalType directives' selections _)
         | Validation.FragmentRule _ fragmentRule <- rule
             = applyToChildren (refineTarget optionalType) directives' selections
             |> fragmentRule inlineFragment'
@@ -328,27 +423,35 @@ inlineFragment types' rule objectType inlineFragment' = go inlineFragment'
     refineTarget (Just typeCondition) = lookupType typeCondition types'
     refineTarget Nothing = objectType
     applyToChildren objectType' directives' selections
-        = selectionSet types' rule objectType' selections
-        >< directives rule directives'
+        = selectionSet context types' rule objectType' selections
+        >< directives context rule directives'
 
-fragmentSpread :: forall m. ApplyRule m FragmentSpread
-fragmentSpread rule fragmentSpread'@(FragmentSpread _ directives' _)
+fragmentSpread :: forall m. Validation m -> ApplyRule m Full.FragmentSpread
+fragmentSpread context rule fragmentSpread'@(Full.FragmentSpread _ directives' _)
     | Validation.FragmentSpreadRule fragmentRule <- rule =
         applyToChildren |> fragmentRule fragmentSpread'
     | otherwise = applyToChildren
   where
-    applyToChildren = directives rule directives'
+    applyToChildren = directives context rule directives'
 
-directives :: Traversable t => forall m. ApplyRule m (t Directive)
-directives rule directives'
+directives :: Traversable t
+    => forall m
+    . Validation m
+    -> ApplyRule m (t Full.Directive)
+directives context rule directives'
     | Validation.DirectivesRule directivesRule <- rule =
         applyToChildren |> directivesRule directiveList
     | otherwise = applyToChildren
   where
     directiveList = toList directives'
-    applyToChildren = foldMap (directive rule) directiveList
+    applyToChildren = foldMap (directive context rule) directiveList
 
-directive :: forall m. ApplyRule m Directive
-directive (Validation.ArgumentsRule _ argumentsRule) directive' =
+directive :: forall m. Validation m -> ApplyRule m Full.Directive
+directive _ (Validation.ArgumentsRule _ argumentsRule) directive' =
     pure $ argumentsRule directive'
-directive rule (Directive _ arguments' _) = arguments rule arguments'
+directive context rule (Full.Directive directiveName arguments' _) =
+    let argumentTypes = maybe HashMap.empty directiveArguments
+            $ HashMap.lookup directiveName (Validation.directives context)
+     in arguments rule argumentTypes arguments'
+  where
+    directiveArguments (Schema.Directive _ _ argumentTypes) = argumentTypes

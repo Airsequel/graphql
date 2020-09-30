@@ -590,3 +590,19 @@ spec =
                     , locations = [AST.Location 4 54]
                     }
              in validate queryString `shouldBe` [expected]
+
+        it "rejects undefined input object fields" $
+            let queryString = [r|
+              {
+                findDog(complex: { favoriteCookieFlavor: "Bacon" }) {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Field \"favoriteCookieFlavor\" is not defined \
+                        \by type \"DogData\"."
+                    , locations = [AST.Location 3 36]
+                    }
+             in validate queryString `shouldBe` [expected]

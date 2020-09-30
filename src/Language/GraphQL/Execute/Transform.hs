@@ -153,7 +153,7 @@ coerceVariableValues types operationDefinition variableValues =
     forEach variableDefinition coercedValues = do
         let Full.VariableDefinition variableName variableTypeName defaultValue _ =
                 variableDefinition
-        let defaultValue' = constValue <$> defaultValue
+        let defaultValue' = constValue . Full.value <$> defaultValue
         variableType <- lookupInputType variableTypeName types
 
         Coerce.matchFieldValues

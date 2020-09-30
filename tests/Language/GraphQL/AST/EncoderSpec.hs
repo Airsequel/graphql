@@ -4,7 +4,7 @@ module Language.GraphQL.AST.EncoderSpec
     ( spec
     ) where
 
-import Language.GraphQL.AST
+import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.AST.Encoder
 import Test.Hspec (Spec, context, describe, it, shouldBe, shouldStartWith, shouldEndWith, shouldNotContain)
 import Test.QuickCheck (choose, oneof, forAll)
@@ -15,52 +15,52 @@ spec :: Spec
 spec = do
     describe "value" $ do
         context "null value" $ do
-            let testNull formatter = value formatter Null `shouldBe` "null"
+            let testNull formatter = value formatter Full.Null `shouldBe` "null"
             it "minified" $ testNull minified
             it "pretty" $ testNull pretty
 
         context "minified" $ do
             it "escapes \\" $
-                value minified (String "\\") `shouldBe` "\"\\\\\""
+                value minified (Full.String "\\") `shouldBe` "\"\\\\\""
             it "escapes double quotes" $
-                value minified (String "\"") `shouldBe` "\"\\\"\""
+                value minified (Full.String "\"") `shouldBe` "\"\\\"\""
             it "escapes \\f" $
-                value minified (String "\f") `shouldBe` "\"\\f\""
+                value minified (Full.String "\f") `shouldBe` "\"\\f\""
             it "escapes \\n" $
-                value minified (String "\n") `shouldBe` "\"\\n\""
+                value minified (Full.String "\n") `shouldBe` "\"\\n\""
             it "escapes \\r" $
-                value minified (String "\r") `shouldBe` "\"\\r\""
+                value minified (Full.String "\r") `shouldBe` "\"\\r\""
             it "escapes \\t" $
-                value minified (String "\t") `shouldBe` "\"\\t\""
+                value minified (Full.String "\t") `shouldBe` "\"\\t\""
             it "escapes backspace" $
-                value minified (String "a\bc") `shouldBe` "\"a\\bc\""
+                value minified (Full.String "a\bc") `shouldBe` "\"a\\bc\""
             context "escapes Unicode for chars less than 0010" $ do
-                it "Null" $ value minified (String "\x0000") `shouldBe` "\"\\u0000\""
-                it "bell" $ value minified (String "\x0007") `shouldBe` "\"\\u0007\""
+                it "Null" $ value minified (Full.String "\x0000") `shouldBe` "\"\\u0000\""
+                it "bell" $ value minified (Full.String "\x0007") `shouldBe` "\"\\u0007\""
             context "escapes Unicode for char less than 0020" $ do
-                it "DLE" $ value minified (String "\x0010") `shouldBe` "\"\\u0010\""
-                it "EM" $ value minified (String "\x0019") `shouldBe` "\"\\u0019\""
+                it "DLE" $ value minified (Full.String "\x0010") `shouldBe` "\"\\u0010\""
+                it "EM" $ value minified (Full.String "\x0019") `shouldBe` "\"\\u0019\""
             context "encodes without escape" $ do
-                it "space" $ value minified (String "\x0020") `shouldBe` "\" \""
-                it "~" $ value minified (String "\x007E") `shouldBe` "\"~\""
+                it "space" $ value minified (Full.String "\x0020") `shouldBe` "\" \""
+                it "~" $ value minified (Full.String "\x007E") `shouldBe` "\"~\""
 
         context "pretty" $ do
             it "uses strings for short string values" $
-                value pretty (String "Short text") `shouldBe` "\"Short text\""
+                value pretty (Full.String "Short text") `shouldBe` "\"Short text\""
             it "uses block strings for text with new lines, with newline symbol" $
-                value pretty (String "Line 1\nLine 2")
+                value pretty (Full.String "Line 1\nLine 2")
                     `shouldBe` [r|"""
   Line 1
   Line 2
 """|]
             it "uses block strings for text with new lines, with CR symbol" $
-                value pretty (String "Line 1\rLine 2")
+                value pretty (Full.String "Line 1\rLine 2")
                     `shouldBe` [r|"""
   Line 1
   Line 2
 """|]
             it "uses block strings for text with new lines, with CR symbol followed by newline" $
-                value pretty (String "Line 1\r\nLine 2")
+                value pretty (Full.String "Line 1\r\nLine 2")
                     `shouldBe` [r|"""
   Line 1
   Line 2
@@ -77,12 +77,12 @@ spec = do
                 forAll genNotAllowedSymbol $ \x -> do
                     let
                       rawValue = "Short \n" <> cons x "text"
-                      encoded = value pretty (String $ toStrict rawValue)
+                      encoded = value pretty (Full.String $ toStrict rawValue)
                     shouldStartWith (unpack encoded) "\""
                     shouldEndWith (unpack encoded) "\""
                     shouldNotContain (unpack encoded) "\"\"\""
 
-            it "Hello world" $ value pretty (String "Hello,\n  World!\n\nYours,\n  GraphQL.")
+            it "Hello world" $ value pretty (Full.String "Hello,\n  World!\n\nYours,\n  GraphQL.")
               `shouldBe` [r|"""
   Hello,
     World!
@@ -91,29 +91,29 @@ spec = do
     GraphQL.
 """|]
 
-            it "has only newlines" $ value pretty (String "\n") `shouldBe` [r|"""
+            it "has only newlines" $ value pretty (Full.String "\n") `shouldBe` [r|"""
 
 
 """|]
             it "has newlines and one symbol at the begining" $
-              value pretty (String "a\n\n") `shouldBe` [r|"""
+              value pretty (Full.String "a\n\n") `shouldBe` [r|"""
   a
 
 
 """|]
             it "has newlines and one symbol at the end" $
-              value pretty (String "\n\na") `shouldBe` [r|"""
+              value pretty (Full.String "\n\na") `shouldBe` [r|"""
 
 
   a
 """|]
             it "has newlines and one symbol in the middle" $
-              value pretty (String "\na\n") `shouldBe` [r|"""
+              value pretty (Full.String "\na\n") `shouldBe` [r|"""
 
   a
 
 """|]
-            it "skip trailing whitespaces" $ value pretty (String "  Short\ntext    ")
+            it "skip trailing whitespaces" $ value pretty (Full.String "  Short\ntext    ")
               `shouldBe` [r|"""
   Short
   text
@@ -121,12 +121,13 @@ spec = do
 
     describe "definition" $
         it "indents block strings in arguments" $
-            let location = Location 0 0
-                argumentValue = Node (String "line1\nline2") location
-                arguments = [Argument "message" argumentValue location]
-                field = Field Nothing "field" arguments [] [] location
-                operation = DefinitionOperation
-                    $ SelectionSet (pure $ FieldSelection field) location
+            let location = Full.Location 0 0
+                argumentValue = Full.Node (Full.String "line1\nline2") location
+                arguments = [Full.Argument "message" argumentValue location]
+                field = Full.Field Nothing "field" arguments [] [] location
+                fieldSelection = pure $ Full.FieldSelection field
+                operation = Full.DefinitionOperation
+                    $ Full.SelectionSet fieldSelection location
              in definition pretty operation `shouldBe` [r|{
   field(message: """
     line1

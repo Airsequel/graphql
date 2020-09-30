@@ -14,6 +14,7 @@ import Control.Monad.Trans.Reader (ReaderT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq)
 import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
@@ -46,7 +47,7 @@ data Rule m
     | ArgumentsRule (Maybe (Out.Type m) -> Field -> RuleT m) (Directive -> RuleT m)
     | DirectivesRule ([Directive] -> RuleT m)
     | VariablesRule ([VariableDefinition] -> RuleT m)
-    | ValueRule (Value -> RuleT m) (ConstValue -> RuleT m)
+    | ValueRule (Maybe In.Type -> Value -> RuleT m) (Maybe In.Type -> ConstValue -> RuleT m)
 
 -- | Monad transformer used by the rules.
 type RuleT m = ReaderT (Validation m) Seq Error

@@ -1,3 +1,4 @@
+{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | This module defines an abstract syntax tree for the @GraphQL@ language. It
@@ -72,7 +73,10 @@ instance Ord Location where
         | otherwise = compare thisColumn thatColumn
 
 -- | Contains some tree node with a location.
-data Node a = Node a Location deriving (Eq, Show)
+data Node a = Node
+    { value :: a
+    , location :: Location
+    } deriving (Eq, Show)
 
 -- ** Document
 
@@ -258,7 +262,7 @@ data ObjectField a = ObjectField Name a Location
 -- Variables are usually passed along with the query, but not in the query
 -- itself. They make queries reusable.
 data VariableDefinition =
-    VariableDefinition Name Type (Maybe ConstValue) Location
+    VariableDefinition Name Type (Maybe (Node ConstValue)) Location
     deriving (Eq, Show)
 
 -- ** Type References
@@ -484,8 +488,8 @@ instance Monoid ArgumentsDefinition where
 -- @
 --
 -- The input type "Point2D" contains two value definitions: "x" and "y".
-data InputValueDefinition
-    = InputValueDefinition Description Name Type (Maybe ConstValue) [Directive]
+data InputValueDefinition = InputValueDefinition
+    Description Name Type (Maybe (Node ConstValue)) [Directive]
     deriving (Eq, Show)
 
 -- ** Unions
