@@ -1,6 +1,7 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE Safe #-}
 
 -- | This module defines a minifier and a printer for the @GraphQL@ language.
 module Language.GraphQL.AST.Encoder

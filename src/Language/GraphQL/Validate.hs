@@ -132,38 +132,104 @@ typeSystemExtension context rule = \case
 
 typeExtension :: forall m. Validation m -> ApplyRule m Full.TypeExtension
 typeExtension context rule = \case
-    Full.ScalarTypeExtension _ directives' -> directives context rule directives'
+    Full.ScalarTypeExtension _ directives' ->
+        directives context rule scalarLocation directives'
     Full.ObjectTypeFieldsDefinitionExtension _ _ directives' fields
-        -> directives context rule directives'
+        -> directives context rule objectLocation directives'
         >< foldMap (fieldDefinition context rule) fields
     Full.ObjectTypeDirectivesExtension _ _ directives' ->
-        directives context rule directives'
+        directives context rule objectLocation directives'
     Full.ObjectTypeImplementsInterfacesExtension _ _ -> mempty
     Full.InterfaceTypeFieldsDefinitionExtension _ directives' fields
-        -> directives context rule directives'
+        -> directives context rule interfaceLocation directives'
         >< foldMap (fieldDefinition context rule) fields
     Full.InterfaceTypeDirectivesExtension _ directives' ->
-        directives context rule directives'
+        directives context rule interfaceLocation directives'
     Full.UnionTypeUnionMemberTypesExtension _ directives' _ ->
-        directives context rule directives'
+        directives context rule unionLocation directives'
     Full.UnionTypeDirectivesExtension _ directives' ->
-        directives context rule directives'
+        directives context rule unionLocation directives'
     Full.EnumTypeEnumValuesDefinitionExtension _ directives' values
-        -> directives context rule directives'
+        -> directives context rule enumLocation directives'
         >< foldMap (enumValueDefinition context rule) values
     Full.EnumTypeDirectivesExtension _ directives' ->
-        directives context rule directives'
+        directives context rule enumLocation directives'
     Full.InputObjectTypeInputFieldsDefinitionExtension _ directives' fields
-        -> directives context rule directives'
-        >< foldMap (inputValueDefinition context rule) fields
+        -> directives context rule inputObjectLocation directives'
+        >< foldMap forEachInputFieldDefinition fields
     Full.InputObjectTypeDirectivesExtension _ directives' ->
-        directives context rule directives'
+        directives context rule inputObjectLocation directives'
+  where
+    forEachInputFieldDefinition =
+        inputValueDefinition context rule inputFieldDefinitionLocation
 
 schemaExtension :: forall m. Validation m -> ApplyRule m Full.SchemaExtension
 schemaExtension context rule = \case
     Full.SchemaOperationExtension directives' _ ->
-        directives context rule directives'
-    Full.SchemaDirectivesExtension directives' -> directives context rule directives'
+        directives context rule schemaLocation directives'
+    Full.SchemaDirectivesExtension directives' ->
+        directives context rule schemaLocation directives'
+
+schemaLocation :: DirectiveLocation
+schemaLocation = TypeSystemDirectiveLocation DirectiveLocation.Schema
+
+interfaceLocation :: DirectiveLocation
+interfaceLocation = TypeSystemDirectiveLocation DirectiveLocation.Interface
+
+objectLocation :: DirectiveLocation
+objectLocation = TypeSystemDirectiveLocation DirectiveLocation.Object
+
+unionLocation :: DirectiveLocation
+unionLocation = TypeSystemDirectiveLocation DirectiveLocation.Union
+
+enumLocation :: DirectiveLocation
+enumLocation = TypeSystemDirectiveLocation DirectiveLocation.Enum
+
+inputObjectLocation :: DirectiveLocation
+inputObjectLocation = TypeSystemDirectiveLocation DirectiveLocation.InputObject
+
+scalarLocation :: DirectiveLocation
+scalarLocation = TypeSystemDirectiveLocation DirectiveLocation.Scalar
+
+enumValueLocation :: DirectiveLocation
+enumValueLocation = TypeSystemDirectiveLocation DirectiveLocation.EnumValue
+
+fieldDefinitionLocation :: DirectiveLocation
+fieldDefinitionLocation =
+    TypeSystemDirectiveLocation DirectiveLocation.FieldDefinition
+
+inputFieldDefinitionLocation :: DirectiveLocation
+inputFieldDefinitionLocation =
+    TypeSystemDirectiveLocation DirectiveLocation.InputFieldDefinition
+
+argumentDefinitionLocation :: DirectiveLocation
+argumentDefinitionLocation =
+    TypeSystemDirectiveLocation DirectiveLocation.ArgumentDefinition
+
+queryLocation :: DirectiveLocation
+queryLocation = ExecutableDirectiveLocation DirectiveLocation.Query
+
+mutationLocation :: DirectiveLocation
+mutationLocation = ExecutableDirectiveLocation DirectiveLocation.Mutation
+
+subscriptionLocation :: DirectiveLocation
+subscriptionLocation =
+    ExecutableDirectiveLocation DirectiveLocation.Subscription
+
+fieldLocation :: DirectiveLocation
+fieldLocation = ExecutableDirectiveLocation DirectiveLocation.Field
+
+fragmentDefinitionLocation :: DirectiveLocation
+fragmentDefinitionLocation =
+    ExecutableDirectiveLocation DirectiveLocation.FragmentDefinition
+
+fragmentSpreadLocation :: DirectiveLocation
+fragmentSpreadLocation =
+    ExecutableDirectiveLocation DirectiveLocation.FragmentSpread
+
+inlineFragmentLocation :: DirectiveLocation
+inlineFragmentLocation =
+    ExecutableDirectiveLocation DirectiveLocation.InlineFragment
 
 executableDefinition :: forall m
     . Validation.Rule m
@@ -179,7 +245,8 @@ typeSystemDefinition :: forall m
     . Validation m
     -> ApplyRule m Full.TypeSystemDefinition
 typeSystemDefinition context rule = \case
-    Full.SchemaDefinition directives' _ -> directives context rule directives'
+    Full.SchemaDefinition directives' _ ->
+        directives context rule schemaLocation directives'
     Full.TypeDefinition typeDefinition' ->
         typeDefinition context rule typeDefinition'
     Full.DirectiveDefinition _ _ arguments' _ ->
@@ -188,44 +255,54 @@ typeSystemDefinition context rule = \case
 typeDefinition :: forall m. Validation m -> ApplyRule m Full.TypeDefinition
 typeDefinition context rule = \case
     Full.ScalarTypeDefinition _ _ directives' ->
-        directives context rule directives'
+        directives context rule scalarLocation directives'
     Full.ObjectTypeDefinition _ _ _ directives' fields
-        -> directives context rule directives'
+        -> directives context rule objectLocation directives'
          >< foldMap (fieldDefinition context rule) fields
     Full.InterfaceTypeDefinition _ _ directives' fields
-        -> directives context rule directives'
+        -> directives context rule interfaceLocation directives'
         >< foldMap (fieldDefinition context rule) fields
     Full.UnionTypeDefinition _ _ directives' _ ->
-        directives context rule directives'
+        directives context rule unionLocation directives'
     Full.EnumTypeDefinition _ _ directives' values
-        -> directives context rule directives'
+        -> directives context rule enumLocation directives'
         >< foldMap (enumValueDefinition context rule) values
     Full.InputObjectTypeDefinition _ _ directives' fields
-        -> directives context rule directives'
-        <> foldMap (inputValueDefinition context rule) fields
+        -> directives context rule inputObjectLocation directives'
+        <> foldMap forEachInputFieldDefinition fields
+  where
+    forEachInputFieldDefinition =
+        inputValueDefinition context rule inputFieldDefinitionLocation
 
 enumValueDefinition :: forall m
     . Validation m
     -> ApplyRule m Full.EnumValueDefinition
 enumValueDefinition context rule (Full.EnumValueDefinition _ _ directives') =
-    directives context rule directives'
+    directives context rule enumValueLocation directives'
 
 fieldDefinition :: forall m. Validation m -> ApplyRule m Full.FieldDefinition
 fieldDefinition context rule (Full.FieldDefinition _ _ arguments' _ directives')
-    = directives context rule directives'
+    = directives context rule fieldDefinitionLocation directives'
     >< argumentsDefinition context rule arguments'
 
 argumentsDefinition :: forall m
     . Validation m
     -> ApplyRule m Full.ArgumentsDefinition
 argumentsDefinition context rule (Full.ArgumentsDefinition definitions) =
-    foldMap (inputValueDefinition context rule) definitions
+    foldMap forEachArgument definitions
+  where
+    forEachArgument =
+        inputValueDefinition context rule argumentDefinitionLocation
 
 inputValueDefinition :: forall m
     . Validation m
-    -> ApplyRule m Full.InputValueDefinition
-inputValueDefinition context rule (Full.InputValueDefinition _ _ _ _ directives') =
-    directives context rule directives'
+    -> Validation.Rule m
+    -> DirectiveLocation
+    -> Full.InputValueDefinition
+    -> Seq (Validation.RuleT m)
+inputValueDefinition context rule directiveLocation definition' =
+    let Full.InputValueDefinition _ _ _ _ directives' = definition'
+     in directives context rule directiveLocation directives'
 
 operationDefinition :: forall m
     . Validation.Rule m
@@ -239,18 +316,22 @@ operationDefinition rule context operation
     , Full.OperationDefinition _ _ variables _ _ _ <- operation =
         foldMap (variableDefinition context rule) variables |> variablesRule variables
     | Full.SelectionSet selections _ <- operation =
-        selectionSet context types' rule (getRootType Full.Query) selections
-    | Full.OperationDefinition operationType _ _ directives' selections _  <- operation
-        = selectionSet context types' rule (getRootType operationType) selections
-        >< directives context rule directives'
+        selectionSet context types' rule queryRoot selections
+    | Full.OperationDefinition Full.Query _ _ directives' selections _  <- operation
+        = selectionSet context types' rule queryRoot selections
+        >< directives context rule queryLocation directives'
+    | Full.OperationDefinition Full.Mutation _ _ directives' selections _  <- operation =
+        let root = Out.NamedObjectType <$> Schema.mutation schema'
+         in selectionSet context types' rule root selections
+        >< directives context rule mutationLocation directives'
+    | Full.OperationDefinition Full.Subscription _ _ directives' selections _  <- operation =
+        let root = Out.NamedObjectType <$> Schema.subscription schema'
+         in selectionSet context types' rule root selections
+        >< directives context rule subscriptionLocation directives'
   where
+    schema' = Validation.schema context
+    queryRoot = Just $ Out.NamedObjectType $ Schema.query schema'
     types' = Validation.types context
-    getRootType Full.Query =
-       Just $ Out.NamedObjectType $ Schema.query $ Validation.schema context
-    getRootType Full.Mutation =
-       Out.NamedObjectType <$> Schema.mutation (Validation.schema context)
-    getRootType Full.Subscription =
-        Out.NamedObjectType <$> Schema.subscription (Validation.schema context)
         
 typeToOut :: forall m. Schema.Type m -> Maybe (Out.Type m)
 typeToOut (Schema.ObjectType objectType) =
@@ -320,7 +401,7 @@ fragmentDefinition rule context definition'
     types' = Validation.types context
     applyToChildren typeCondition directives' selections
         = selectionSet context types' rule (lookupType' typeCondition) selections
-        >< directives context rule directives'
+        >< directives context rule fragmentDefinitionLocation directives'
     lookupType' = flip lookupType types'
 
 lookupType :: forall m
@@ -367,7 +448,7 @@ field context types' rule objectType field' = go field'
             typeField = objectType >>= lookupTypeField fieldName
             argumentTypes = maybe mempty typeFieldArguments typeField
          in selectionSet context types' rule (typeFieldType <$> typeField) selections
-            >< directives context rule directives'
+            >< directives context rule fieldLocation directives'
             >< arguments rule argumentTypes arguments'
 
 arguments :: forall m
@@ -424,7 +505,7 @@ inlineFragment context types' rule objectType inlineFragment' =
     refineTarget Nothing = objectType
     applyToChildren objectType' directives' selections
         = selectionSet context types' rule objectType' selections
-        >< directives context rule directives'
+        >< directives context rule inlineFragmentLocation directives'
 
 fragmentSpread :: forall m. Validation m -> ApplyRule m Full.FragmentSpread
 fragmentSpread context rule fragmentSpread'@(Full.FragmentSpread _ directives' _)
@@ -432,15 +513,18 @@ fragmentSpread context rule fragmentSpread'@(Full.FragmentSpread _ directives' _
         applyToChildren |> fragmentRule fragmentSpread'
     | otherwise = applyToChildren
   where
-    applyToChildren = directives context rule directives'
+    applyToChildren = directives context rule fragmentSpreadLocation directives'
 
 directives :: Traversable t
     => forall m
     . Validation m
-    -> ApplyRule m (t Full.Directive)
-directives context rule directives'
+    -> Validation.Rule m
+    -> DirectiveLocation
+    -> t Full.Directive
+    -> Seq (Validation.RuleT m)
+directives context rule directiveLocation directives'
     | Validation.DirectivesRule directivesRule <- rule =
-        applyToChildren |> directivesRule directiveList
+        applyToChildren |> directivesRule directiveLocation directiveList
     | otherwise = applyToChildren
   where
     directiveList = toList directives'

@@ -10,7 +10,8 @@
 
 -- | This module contains default rules defined in the GraphQL specification.
 module Language.GraphQL.Validate.Rules
-    ( executableDefinitionsRule
+    ( directivesInValidLocationsRule
+    , executableDefinitionsRule
     , fieldsOnCorrectTypeRule
     , fragmentsOnCompositeTypesRule
     , fragmentSpreadTargetDefinedRule
@@ -90,6 +91,7 @@ specifiedRules =
     , uniqueInputFieldNamesRule
     -- Directives.
     , knownDirectiveNamesRule
+    , directivesInValidLocationsRule
     , uniqueDirectiveNamesRule
     -- Variables.
     , uniqueVariableNamesRule
@@ -514,7 +516,7 @@ uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
 -- of each directive is allowed per location.
 uniqueDirectiveNamesRule :: forall m. Rule m
 uniqueDirectiveNamesRule = DirectivesRule
-    $ lift . filterDuplicates extract "directive"
+    $ const $ lift . filterDuplicates extract "directive"
   where
     extract (Directive directiveName _ location') = (directiveName, location')
 
@@ -818,7 +820,7 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
 -- | GraphQL servers define what directives they support. For each usage of a
 -- directive, the directive must be available on that server.
 knownDirectiveNamesRule :: Rule m
-knownDirectiveNamesRule = DirectivesRule $ \directives' -> do
+knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
     definitions' <- asks directives
     let directiveSet = HashSet.fromList $ fmap directiveName directives'
     let definitionSet = HashSet.fromList $ HashMap.keys definitions'
@@ -866,4 +868,28 @@ knownInputFieldNamesRule = ValueRule go constGo
         , "\" is not defined by type \""
         , Text.unpack typeName
         , "\"."
+        ]
+
+-- | GraphQL servers define what directives they support and where they support
+-- them. For each usage of a directive, the directive must be used in a location
+-- that the server has declared support for.
+directivesInValidLocationsRule :: Rule m
+directivesInValidLocationsRule = DirectivesRule directivesRule
+  where
+    directivesRule directiveLocation directives' = do
+        Directive directiveName _ location <- lift $ Seq.fromList directives'
+        maybeDefinition <- asks $ HashMap.lookup directiveName . directives
+        case maybeDefinition of
+            Just (Schema.Directive _ allowedLocations _)
+                | directiveLocation `notElem` allowedLocations -> pure $ Error
+                    { message = errorMessage directiveName directiveLocation
+                    , locations = [location]
+                    }
+            _ -> lift mempty
+    errorMessage directiveName directiveLocation = concat
+        [ "Directive \"@"
+        , Text.unpack directiveName
+        , "\" may not be used on "
+        , show directiveLocation
+        , "."
         ]

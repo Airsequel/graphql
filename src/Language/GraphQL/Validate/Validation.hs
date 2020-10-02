@@ -13,6 +13,7 @@ module Language.GraphQL.Validate.Validation
 import Control.Monad.Trans.Reader (ReaderT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq)
+import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -45,7 +46,7 @@ data Rule m
     | FragmentSpreadRule (FragmentSpread -> RuleT m)
     | FieldRule (Maybe (Out.Type m) -> Field -> RuleT m)
     | ArgumentsRule (Maybe (Out.Type m) -> Field -> RuleT m) (Directive -> RuleT m)
-    | DirectivesRule ([Directive] -> RuleT m)
+    | DirectivesRule (DirectiveLocation -> [Directive] -> RuleT m)
     | VariablesRule ([VariableDefinition] -> RuleT m)
     | ValueRule (Maybe In.Type -> Value -> RuleT m) (Maybe In.Type -> ConstValue -> RuleT m)
 

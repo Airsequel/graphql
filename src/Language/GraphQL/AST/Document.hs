@@ -1,5 +1,6 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Safe #-}
 
 -- | This module defines an abstract syntax tree for the @GraphQL@ language. It
 -- follows closely the structure given in the specification. Please refer to

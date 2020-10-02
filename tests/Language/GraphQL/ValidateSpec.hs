@@ -606,3 +606,17 @@ spec =
                     , locations = [AST.Location 3 36]
                     }
              in validate queryString `shouldBe` [expected]
+
+        it "rejects directives in invalid locations" $
+            let queryString = [r|
+              query @skip(if: $foo) {
+                dog {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message = "Directive \"@skip\" may not be used on QUERY."
+                    , locations = [AST.Location 2 21]
+                    }
+             in validate queryString `shouldBe` [expected]

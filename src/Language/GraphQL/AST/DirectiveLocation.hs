@@ -2,6 +2,8 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
+{-# LANGUAGE Safe #-}
+
 -- | Various parts of a GraphQL document can be annotated with directives. 
 -- This module describes locations in a document where directives can appear.
 module Language.GraphQL.AST.DirectiveLocation
@@ -16,7 +18,13 @@ module Language.GraphQL.AST.DirectiveLocation
 data DirectiveLocation
     = ExecutableDirectiveLocation ExecutableDirectiveLocation
     | TypeSystemDirectiveLocation TypeSystemDirectiveLocation
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show DirectiveLocation where
+    show (ExecutableDirectiveLocation directiveLocation) =
+        show directiveLocation
+    show (TypeSystemDirectiveLocation directiveLocation) =
+        show directiveLocation
 
 -- | Where directives can appear in an executable definition, like a query.
 data ExecutableDirectiveLocation
@@ -27,7 +35,16 @@ data ExecutableDirectiveLocation
     | FragmentDefinition
     | FragmentSpread
     | InlineFragment
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show ExecutableDirectiveLocation where
+    show Query = "QUERY"
+    show Mutation = "MUTATION"
+    show Subscription = "SUBSCRIPTION"
+    show Field = "FIELD"
+    show FragmentDefinition = "FRAGMENT_DEFINITION"
+    show FragmentSpread = "FRAGMENT_SPREAD"
+    show InlineFragment = "INLINE_FRAGMENT"
 
 -- | Where directives can appear in a type system definition.
 data TypeSystemDirectiveLocation
@@ -42,4 +59,17 @@ data TypeSystemDirectiveLocation
     | EnumValue
     | InputObject
     | InputFieldDefinition
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show TypeSystemDirectiveLocation where
+    show Schema = "SCHEMA"
+    show Scalar = "SCALAR"
+    show Object = "OBJECT"
+    show FieldDefinition = "FIELD_DEFINITION"
+    show ArgumentDefinition = "ARGUMENT_DEFINITION"
+    show Interface = "INTERFACE"
+    show Union = "UNION"
+    show Enum = "ENUM"
+    show EnumValue = "ENUM_VALUE"
+    show InputObject = "INPUT_OBJECT"
+    show InputFieldDefinition = "INPUT_FIELD_DEFINITION"
