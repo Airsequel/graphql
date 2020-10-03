@@ -76,7 +76,7 @@ instance forall a. Eq (UnionType a) where
 data Field m = Field
     (Maybe Text) -- ^ Description.
     (Type m) -- ^ Field type.
-    (HashMap Name In.Argument) -- ^ Arguments.
+    In.Arguments -- ^ Arguments.
 
 -- | These types may be used as output types as the result of fields.
 --

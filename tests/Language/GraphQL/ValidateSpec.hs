@@ -550,7 +550,7 @@ spec =
             let queryString = [r|
               {
                 dog {
-                  doesKnowCommand(command: CLEAN_UP_HOUSE)
+                  doesKnowCommand(command: CLEAN_UP_HOUSE, dogCommand: SIT)
                 }
               }
             |]
@@ -566,7 +566,7 @@ spec =
             let queryString = [r|
               {
                 dog {
-                  isHousetrained(atOtherHomes: true) @include(unless: false)
+                  isHousetrained(atOtherHomes: true) @include(unless: false, if: true)
                 }
               }
             |]

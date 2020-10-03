@@ -52,6 +52,8 @@ and this project adheres to
   - `scalarLeafsRule`
   - `knownArgumentNamesRule`
   - `knownDirectiveNamesRule`
+  - `directivesInValidLocationsRule`
+  - `providedRequiredArgumentsRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

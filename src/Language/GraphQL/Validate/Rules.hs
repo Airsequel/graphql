@@ -24,6 +24,7 @@ module Language.GraphQL.Validate.Rules
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
     , noUnusedVariablesRule
+    , providedRequiredArgumentsRule
     , scalarLeafsRule
     , singleFieldSubscriptionsRule
     , specifiedRules
@@ -47,7 +48,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (isNothing, mapMaybe)
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
@@ -79,6 +80,7 @@ specifiedRules =
     -- Arguments.
     , knownArgumentNamesRule
     , uniqueArgumentNamesRule
+    , providedRequiredArgumentsRule
     -- Fragments.
     , uniqueFragmentNamesRule
     , fragmentSpreadTypeExistenceRule
@@ -892,4 +894,65 @@ directivesInValidLocationsRule = DirectivesRule directivesRule
         , "\" may not be used on "
         , show directiveLocation
         , "."
+        ]
+
+-- | Arguments can be required. An argument is required if the argument type is
+-- non‐null and does not have a default value. Otherwise, the argument is
+-- optional.
+providedRequiredArgumentsRule :: Rule m
+providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
+  where
+    fieldRule (Just objectType) (Field _ fieldName arguments  _ _ location')
+        | Just typeField <- lookupTypeField fieldName objectType
+        , Out.Field _ _ definitions <- typeField =
+            let forEach = go (fieldMessage fieldName) arguments location'
+             in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
+    fieldRule _ _ = lift mempty
+    directiveRule (Directive directiveName arguments location') = do
+        available <- asks $ HashMap.lookup directiveName . directives
+        case available of
+            Just (Schema.Directive _ _ definitions) ->
+                let forEach = go (directiveMessage directiveName) arguments location'
+                 in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
+            _ -> lift mempty
+    inputTypeName (In.ScalarBaseType (Definition.ScalarType typeName _)) =
+        typeName
+    inputTypeName (In.EnumBaseType (Definition.EnumType typeName _ _)) =
+        typeName
+    inputTypeName (In.InputObjectBaseType (In.InputObjectType typeName _ _)) =
+        typeName
+    inputTypeName (In.ListBaseType listType) = inputTypeName listType
+    go makeMessage arguments location' argumentName argumentType errors
+        | In.Argument _ type' optionalValue <- argumentType
+        , In.isNonNullType type'
+        , typeName <- inputTypeName type'
+        , isNothing optionalValue
+        , isNothingOrNull $ find (lookupArgument argumentName) arguments
+            = errors
+            |> makeError (makeMessage argumentName typeName) location'
+        | otherwise = errors
+    makeError errorMessage location' = Error
+        { message = errorMessage
+        , locations = [location']
+        }
+    isNothingOrNull (Just (Argument _ (Node Null _) _)) = True
+    isNothingOrNull x = isNothing x
+    lookupArgument needle (Argument argumentName _ _) = needle == argumentName
+    fieldMessage fieldName argumentName typeName = concat
+        [ "Field \""
+        , Text.unpack fieldName
+        , "\" argument \""
+        , Text.unpack argumentName
+        , "\" of type \""
+        , Text.unpack typeName
+        , "\" is required, but it was not provided."
+        ]
+    directiveMessage directiveName argumentName typeName = concat
+        [ "Directive \"@"
+        , Text.unpack directiveName
+        , "\" argument \""
+        , Text.unpack argumentName
+        , "\" of type \""
+        , Text.unpack typeName
+        , "\" is required, but it was not provided."
         ]
