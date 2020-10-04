@@ -48,7 +48,7 @@ data Rule m
     | ArgumentsRule (Maybe (Out.Type m) -> Field -> RuleT m) (Directive -> RuleT m)
     | DirectivesRule (DirectiveLocation -> [Directive] -> RuleT m)
     | VariablesRule ([VariableDefinition] -> RuleT m)
-    | ValueRule (Maybe In.Type -> Value -> RuleT m) (Maybe In.Type -> ConstValue -> RuleT m)
+    | ValueRule (Maybe In.Type -> Node Value -> RuleT m) (Maybe In.Type -> Node ConstValue -> RuleT m)
 
 -- | Monad transformer used by the rules.
 type RuleT m = ReaderT (Validation m) Seq Error

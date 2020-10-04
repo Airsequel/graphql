@@ -461,7 +461,7 @@ value = Full.Variable <$> variable
     <|> Full.String <$> stringValue
     <|> Full.Enum <$> try enumValue
     <|> Full.List <$> brackets (some value)
-    <|> Full.Object <$> braces (some $ objectField value)
+    <|> Full.Object <$> braces (some $ objectField $ valueNode value)
     <?> "Value"
 
 constValue :: Parser Full.ConstValue
@@ -472,7 +472,7 @@ constValue = Full.ConstFloat <$> try float
     <|> Full.ConstString <$> stringValue
     <|> Full.ConstEnum <$> try enumValue
     <|> Full.ConstList <$> brackets (some constValue)
-    <|> Full.ConstObject <$> braces (some $ objectField constValue)
+    <|> Full.ConstObject <$> braces (some $ objectField $ valueNode constValue)
     <?> "Value"
 
 booleanValue :: Parser Bool
@@ -493,7 +493,7 @@ stringValue = blockString <|> string <?> "StringValue"
 nullValue :: Parser Text
 nullValue = symbol "null" <?> "NullValue"
 
-objectField :: Parser a -> Parser (Full.ObjectField a)
+objectField :: forall a. Parser (Full.Node a) -> Parser (Full.ObjectField a)
 objectField valueParser = label "ObjectField" $ do
     location <- getLocation
     fieldName <- name

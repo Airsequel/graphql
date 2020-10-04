@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -349,25 +350,25 @@ variableDefinition :: forall m
 variableDefinition context rule (Full.VariableDefinition _ typeName value' _)
     | Just defaultValue' <- value'
     , variableType <- lookupInputType typeName $ Validation.types context =
-        constValue rule variableType $ Full.value defaultValue'
+        constValue rule variableType defaultValue'
 variableDefinition _ _ _ = mempty
 
 constValue :: forall m
     . Validation.Rule m
     -> Maybe In.Type
-    -> Full.ConstValue
+    -> Full.Node Full.ConstValue
     -> Seq (Validation.RuleT m)
 constValue (Validation.ValueRule _ rule) valueType = go valueType
   where
-    go inputObjectType value'@(Full.ConstObject fields)
+    go inputObjectType value'@(Full.Node (Full.ConstObject fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.ConstList values)
-        = foldMap (go $ valueTypeFromList listType) (Seq.fromList values)
+    go listType value'@(Full.Node (Full.ConstList values) location')
+        = embedListLocation go listType values location'
         |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
-    forEach inputObjectType (Full.ObjectField fieldName fieldValue _) =
-        go (valueTypeByName fieldName inputObjectType) fieldValue
+    forEach inputObjectType Full.ObjectField{value = value', ..} =
+        go (valueTypeByName name inputObjectType) value'
 constValue _ _ = const mempty
 
 inputFieldType :: In.InputField -> In.Type
@@ -378,10 +379,6 @@ valueTypeByName fieldName (Just( In.InputObjectBaseType inputObjectType)) =
     let In.InputObjectType _ _ fieldTypes = inputObjectType
      in inputFieldType <$> HashMap.lookup fieldName fieldTypes
 valueTypeByName _ _ = Nothing
-
-valueTypeFromList :: Maybe In.Type -> Maybe In.Type
-valueTypeFromList (Just (In.ListBaseType listType)) = Just listType
-valueTypeFromList _ = Nothing
 
 fragmentDefinition :: forall m
     . Validation.Rule m
@@ -468,26 +465,40 @@ argument :: forall m
     -> Full.Argument
     -> Seq (Validation.RuleT m)
 argument rule argumentType (Full.Argument _ value' _) =
-    value rule (valueType <$> argumentType) $ Full.value value'
+    value rule (valueType <$> argumentType) value'
   where
     valueType (In.Argument _ valueType' _) = valueType'
+
+-- valueTypeFromList :: Maybe In.Type -> Maybe In.Type
+embedListLocation :: forall a m
+    . (Maybe In.Type -> Full.Node a -> Seq m)
+    -> Maybe In.Type
+    -> [a]
+    -> Full.Location
+    -> Seq m
+embedListLocation go listType values location'
+    = foldMap (go $ valueTypeFromList listType) 
+    $ flip Full.Node location' <$> Seq.fromList values
+  where
+    valueTypeFromList (Just (In.ListBaseType baseType)) = Just baseType
+    valueTypeFromList _ = Nothing
 
 value :: forall m
     . Validation.Rule m
     -> Maybe In.Type
-    -> Full.Value
+    -> Full.Node Full.Value
     -> Seq (Validation.RuleT m)
 value (Validation.ValueRule rule _) valueType = go valueType
   where
-    go inputObjectType value'@(Full.Object fields)
+    go inputObjectType value'@(Full.Node (Full.Object fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.List values)
-        = foldMap (go $ valueTypeFromList listType) (Seq.fromList values)
+    go listType value'@(Full.Node (Full.List values) location')
+        = embedListLocation go listType values location'
         |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
-    forEach inputObjectType (Full.ObjectField fieldName fieldValue _) =
-        go (valueTypeByName fieldName inputObjectType) fieldValue
+    forEach inputObjectType Full.ObjectField{value = value', ..} =
+        go (valueTypeByName name inputObjectType) value'
 value _ _ = const mempty
 
 inlineFragment :: forall m

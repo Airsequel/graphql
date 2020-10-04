@@ -594,7 +594,7 @@ spec =
         it "rejects undefined input object fields" $
             let queryString = [r|
               {
-                findDog(complex: { favoriteCookieFlavor: "Bacon" }) {
+                findDog(complex: { favoriteCookieFlavor: "Bacon", name: "Jack" }) {
                   name
                 }
               }
@@ -618,5 +618,21 @@ spec =
                 expected = Error
                     { message = "Directive \"@skip\" may not be used on QUERY."
                     , locations = [AST.Location 2 21]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects missing required input fields" $
+            let queryString = [r|
+              {
+                findDog(complex: { name: null }) {
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Input field \"name\" of type \"DogData\" is required, \
+                        \but it was not provided."
+                    , locations = [AST.Location 3 34]
                     }
              in validate queryString `shouldBe` [expected]

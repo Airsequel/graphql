@@ -54,6 +54,7 @@ and this project adheres to
   - `knownDirectiveNamesRule`
   - `directivesInValidLocationsRule`
   - `providedRequiredArgumentsRule`
+  - `providedRequiredInputFieldsRule`
 - `AST.Document.Field`.
 - `AST.Document.FragmentSpread`.
 - `AST.Document.InlineFragment`.

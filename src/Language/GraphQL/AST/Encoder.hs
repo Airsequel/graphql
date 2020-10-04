@@ -1,6 +1,7 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Safe #-}
 
 -- | This module defines a minifier and a printer for the @GraphQL@ language.
@@ -101,7 +102,7 @@ variableDefinition formatter variableDefinition' =
      in variable variableName
     <> eitherFormat formatter ": " ":"
     <> type' variableType
-    <> maybe mempty (defaultValue formatter) (Full.value <$> defaultValue')
+    <> maybe mempty (defaultValue formatter) (Full.node <$> defaultValue')
 
 defaultValue :: Formatter -> Full.ConstValue -> Lazy.Text
 defaultValue formatter val
@@ -164,7 +165,7 @@ argument :: Formatter -> Full.Argument -> Lazy.Text
 argument formatter (Full.Argument name value' _)
     = Lazy.Text.fromStrict name
     <> colon formatter
-    <> value formatter (Full.value value')
+    <> value formatter (Full.node value')
 
 -- * Fragments
 
@@ -222,8 +223,8 @@ fromConstValue (Full.ConstEnum x) = Full.Enum x
 fromConstValue (Full.ConstList x) = Full.List $ fromConstValue <$> x
 fromConstValue (Full.ConstObject x) = Full.Object $ fromConstObjectField <$> x
   where
-    fromConstObjectField (Full.ObjectField key value' location) =
-        Full.ObjectField key (fromConstValue value') location
+    fromConstObjectField Full.ObjectField{value = value', ..} =
+        Full.ObjectField name (fromConstValue <$> value') location
 
 booleanValue :: Bool -> Lazy.Text
 booleanValue True  = "true"
@@ -292,7 +293,7 @@ objectValue formatter = intercalate $ objectField formatter
         . fmap f
 
 objectField :: Formatter -> Full.ObjectField Full.Value -> Lazy.Text
-objectField formatter (Full.ObjectField name value' _) =
+objectField formatter (Full.ObjectField name (Full.Node value' _) _) =
     Lazy.Text.fromStrict name <> colon formatter <> value formatter value'
 
 -- | Converts a 'Type' a type into a string.

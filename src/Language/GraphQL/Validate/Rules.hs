@@ -24,6 +24,7 @@ module Language.GraphQL.Validate.Rules
     , noUndefinedVariablesRule
     , noUnusedFragmentsRule
     , noUnusedVariablesRule
+    , providedRequiredInputFieldsRule
     , providedRequiredArgumentsRule
     , scalarLeafsRule
     , singleFieldSubscriptionsRule
@@ -91,6 +92,7 @@ specifiedRules =
     -- Values
     , knownInputFieldNamesRule
     , uniqueInputFieldNamesRule
+    , providedRequiredInputFieldsRule
     -- Directives.
     , knownDirectiveNamesRule
     , directivesInValidLocationsRule
@@ -646,7 +648,7 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
     findDirectiveVariables (Directive _ arguments _) = mapArguments arguments
     mapArguments = Seq.fromList . mapMaybe findArgumentVariables
     mapDirectives = foldMap findDirectiveVariables
-    findArgumentVariables (Argument _ Node{ value = Variable value', ..} _) =
+    findArgumentVariables (Argument _ Node{ node = Variable value', ..} _) =
         Just (value', [location])
     findArgumentVariables _ = Nothing
     makeError operationName (variableName, locations') = Error
@@ -680,12 +682,12 @@ uniqueInputFieldNamesRule :: forall m. Rule m
 uniqueInputFieldNamesRule =
     ValueRule (const $ lift . go) (const $ lift . constGo)
   where
-    go (Object fields) = filterFieldDuplicates fields
+    go (Node (Object fields) _) = filterFieldDuplicates fields
     go _ = mempty
     filterFieldDuplicates fields =
         filterDuplicates getFieldName "input field" fields
     getFieldName (ObjectField fieldName _ location') = (fieldName, location')
-    constGo (ConstObject fields) = filterFieldDuplicates fields
+    constGo (Node (ConstObject fields) _) = filterFieldDuplicates fields
     constGo _ = mempty
 
 -- | The target field of a field selection must be defined on the scoped type of
@@ -848,11 +850,11 @@ knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
 knownInputFieldNamesRule :: Rule m
 knownInputFieldNamesRule = ValueRule go constGo
   where
-    go (Just valueType) (Object inputFields)
+    go (Just valueType) (Node (Object inputFields) _)
         | In.InputObjectBaseType objectType <- valueType =
              lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
     go _ _ = lift mempty
-    constGo (Just valueType) (ConstObject inputFields)
+    constGo (Just valueType) (Node (ConstObject inputFields) _)
         | In.InputObjectBaseType objectType <- valueType =
              lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
     constGo  _ _ = lift mempty
@@ -915,13 +917,6 @@ providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
                 let forEach = go (directiveMessage directiveName) arguments location'
                  in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
             _ -> lift mempty
-    inputTypeName (In.ScalarBaseType (Definition.ScalarType typeName _)) =
-        typeName
-    inputTypeName (In.EnumBaseType (Definition.EnumType typeName _ _)) =
-        typeName
-    inputTypeName (In.InputObjectBaseType (In.InputObjectType typeName _ _)) =
-        typeName
-    inputTypeName (In.ListBaseType listType) = inputTypeName listType
     go makeMessage arguments location' argumentName argumentType errors
         | In.Argument _ type' optionalValue <- argumentType
         , In.isNonNullType type'
@@ -952,6 +947,52 @@ providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
         , Text.unpack directiveName
         , "\" argument \""
         , Text.unpack argumentName
+        , "\" of type \""
+        , Text.unpack typeName
+        , "\" is required, but it was not provided."
+        ]
+
+inputTypeName :: In.Type -> Text
+inputTypeName (In.ScalarBaseType (Definition.ScalarType typeName _)) = typeName
+inputTypeName (In.EnumBaseType (Definition.EnumType typeName _ _)) = typeName
+inputTypeName (In.InputObjectBaseType (In.InputObjectType typeName _ _)) =
+    typeName
+inputTypeName (In.ListBaseType listType) = inputTypeName listType
+
+-- | Input object fields may be required. Much like a field may have required
+-- arguments, an input object may have required fields. An input field is
+-- required if it has a non‐null type and does not have a default value.
+-- Otherwise, the input object field is optional.
+providedRequiredInputFieldsRule :: Rule m
+providedRequiredInputFieldsRule = ValueRule go constGo
+  where
+    go (Just valueType) (Node (Object inputFields) location')
+        | In.InputObjectBaseType objectType <- valueType
+        , In.InputObjectType objectTypeName _ fieldDefinitions <- objectType
+            = lift
+            $ Seq.fromList
+            $ HashMap.elems
+            $ flip HashMap.mapMaybeWithKey fieldDefinitions
+            $ forEach inputFields objectTypeName location'
+    go _ _ = lift mempty
+    constGo  _ _ = lift mempty
+    forEach inputFields typeName location' definitionName fieldDefinition
+        | In.InputField _ inputType optionalValue <- fieldDefinition
+        , In.isNonNullType inputType
+        , isNothing optionalValue
+        , isNothingOrNull $ find (lookupField definitionName) inputFields =
+            Just $ makeError definitionName typeName location'
+        | otherwise = Nothing
+    isNothingOrNull (Just (ObjectField _ (Node Null _) _)) = True
+    isNothingOrNull x = isNothing x
+    lookupField needle (ObjectField fieldName _ _) = needle == fieldName
+    makeError fieldName typeName location' = Error
+        { message = errorMessage fieldName typeName
+        , locations = [location']
+        }
+    errorMessage fieldName typeName = concat
+        [ "Input field \""
+        , Text.unpack fieldName
         , "\" of type \""
         , Text.unpack typeName
         , "\" is required, but it was not provided."

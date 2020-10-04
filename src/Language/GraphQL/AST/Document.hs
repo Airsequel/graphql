@@ -1,5 +1,7 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Safe #-}
 
 -- | This module defines an abstract syntax tree for the @GraphQL@ language. It
@@ -75,9 +77,12 @@ instance Ord Location where
 
 -- | Contains some tree node with a location.
 data Node a = Node
-    { value :: a
+    { node :: a
     , location :: Location
     } deriving (Eq, Show)
+
+instance Functor Node where
+    fmap f Node{..} = Node (f node) location
 
 -- ** Document
 
@@ -241,8 +246,11 @@ data ConstValue
 -- | Key-value pair.
 --
 -- A list of 'ObjectField's represents a GraphQL object type.
-data ObjectField a = ObjectField Name a Location
-    deriving (Eq, Show)
+data ObjectField a = ObjectField
+    { name :: Name
+    , value :: Node a
+    , location :: Location
+    } deriving (Eq, Show)
 
 -- ** Variables
 
