@@ -56,7 +56,7 @@ document formatter defs
         definition formatter executableDefinition' : acc
     executableDefinition _ acc = acc
 
--- | Converts a t'ExecutableDefinition' into a string.
+-- | Converts a t'Full.ExecutableDefinition' into a string.
 definition :: Formatter -> Full.ExecutableDefinition -> Lazy.Text
 definition formatter x
     | Pretty _ <- formatter = Lazy.Text.snoc (encodeDefinition x) '\n'
@@ -67,7 +67,7 @@ definition formatter x
     encodeDefinition (Full.DefinitionFragment fragment)
         = fragmentDefinition formatter fragment
 
--- | Converts a 'OperationDefinition into a string.
+-- | Converts a 'Full.OperationDefinition into a string.
 operationDefinition :: Formatter -> Full.OperationDefinition -> Lazy.Text
 operationDefinition formatter = \case
     Full.SelectionSet sels _ -> selectionSet formatter sels
@@ -192,7 +192,7 @@ fragmentDefinition formatter (Full.FragmentDefinition name tc dirs sels _)
 
 -- * Miscellaneous
 
--- | Converts a 'Directive' into a string.
+-- | Converts a 'Full.Directive' into a string.
 directive :: Formatter -> Full.Directive -> Lazy.Text
 directive formatter (Full.Directive name args _)
     = "@" <> Lazy.Text.fromStrict name <> optempty (arguments formatter) args
@@ -201,7 +201,7 @@ directives :: Formatter -> [Full.Directive] -> Lazy.Text
 directives Minified = spaces (directive Minified)
 directives formatter = Lazy.Text.cons ' ' . spaces (directive formatter)
 
--- | Converts a 'Value' into a string.
+-- | Converts a 'Full.Value' into a string.
 value :: Formatter -> Full.Value -> Lazy.Text
 value _ (Full.Variable x) = variable x
 value _ (Full.Int x) = Builder.toLazyText $ decimal x
@@ -296,7 +296,7 @@ objectField :: Formatter -> Full.ObjectField Full.Value -> Lazy.Text
 objectField formatter (Full.ObjectField name (Full.Node value' _) _) =
     Lazy.Text.fromStrict name <> colon formatter <> value formatter value'
 
--- | Converts a 'Type' a type into a string.
+-- | Converts a 'Full.Type' a type into a string.
 type' :: Full.Type -> Lazy.Text
 type' (Full.TypeNamed x) = Lazy.Text.fromStrict x
 type' (Full.TypeList x) = listType x

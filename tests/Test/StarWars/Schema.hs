@@ -18,7 +18,7 @@ import Prelude hiding (id)
 -- See https://github.com/graphql/graphql-js/blob/master/src/__tests__/starWarsSchema.js
 
 starWarsSchema :: Schema (Either SomeException)
-starWarsSchema = schema queryType
+starWarsSchema = schema queryType Nothing Nothing mempty
   where
     queryType = Out.ObjectType "Query" Nothing [] $ HashMap.fromList
         [ ("hero", heroFieldResolver)

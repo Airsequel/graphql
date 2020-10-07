@@ -23,7 +23,9 @@ and this project adheres to
   the path without executing the query.
 - `Error.Error`: `path` added. It is currently always empty.
 - `Validate.Validation.Path` was moved to `Error`.
-- `Type.Schema.Schema` gets an additional field, `Schema.directives`.
+- `Type.Schema.Schema`: data constructor is hidden, fields are accessible with
+  freestanding functions: `query`, `mutation`, `subscription`, `directives` and
+  `types`.
 
 ### Added
 - `Validate.Validation.Rule` constructors:
@@ -62,7 +64,7 @@ and this project adheres to
 - `Type.In.Arguments`: Type alias for an argument map.
 - `Type.Schema.Directive` and `Type.Schema.Directives` are directive definition
   representation.
-- `Type.Schema.schema`: Shortcut for creating a schema.
+- `Type.Schema.schema`: Schema constructor.
 
 ### Fixed
 - Collecting existing types from the schema considers subscriptions.

@@ -47,9 +47,8 @@ import Language.GraphQL.AST (Name)
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type as Type
-import Language.GraphQL.Type.Internal
+import qualified Language.GraphQL.Type.Internal as Type
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
 
 -- | Associates a fragment name with a list of 'Field's.
@@ -64,7 +63,7 @@ type FragmentDefinitions = HashMap Full.Name Full.FragmentDefinition
 
 -- | Represents fragments and inline fragments.
 data Fragment m
-    = Fragment (CompositeType m) (Seq (Selection m))
+    = Fragment (Type.CompositeType m) (Seq (Selection m))
 
 -- | Single selection element.
 data Selection m
@@ -154,7 +153,7 @@ coerceVariableValues types operationDefinition variableValues =
         let Full.VariableDefinition variableName variableTypeName defaultValue _ =
                 variableDefinition
         let defaultValue' = constValue . Full.node <$> defaultValue
-        variableType <- lookupInputType variableTypeName types
+        variableType <- Type.lookupInputType variableTypeName types
 
         Coerce.matchFieldValues
             coerceVariableValue'
@@ -185,13 +184,13 @@ constValue (Full.ConstObject o) =
 -- for query execution.
 document :: Coerce.VariableValue a
     => forall m
-    . Schema m
+    . Type.Schema m
     -> Maybe Full.Name
     -> HashMap Full.Name a
     -> Full.Document
     -> Either QueryError (Document m)
 document schema operationName subs ast = do
-    let referencedTypes = collectReferencedTypes schema
+    let referencedTypes = Schema.types schema
 
     (operations, fragmentTable) <- defragment ast
     chosenOperation <- getOperation operationName operations
@@ -311,7 +310,7 @@ inlineFragment (Full.InlineFragment type' directives' selections _) = do
                 Nothing -> pure $ Left fragmentSelectionSet
                 Just typeName -> do
                     types' <- gets types
-                    case lookupTypeCondition typeName types' of
+                    case Type.lookupTypeCondition typeName types' of
                         Just typeCondition -> pure $
                             selectionFragment typeCondition fragmentSelectionSet
                         Nothing -> pure $ Left mempty
@@ -358,7 +357,7 @@ fragmentDefinition (Full.FragmentDefinition name type' _ selections _) = do
     fragmentSelection <- appendSelection selections
     types' <- gets types
 
-    case lookupTypeCondition type' types' of
+    case Type.lookupTypeCondition type' types' of
         Just compositeType -> do
             let newValue = Fragment compositeType fragmentSelection
             modify $ insertFragment newValue

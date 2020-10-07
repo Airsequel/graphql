@@ -75,7 +75,7 @@ import qualified Language.GraphQL.Type.Out as Out
 -- GraphQL supports 3 kinds of operations: queries, mutations and subscriptions.
 -- Our first schema supports only queries.
 citeSchema :: Schema IO
-citeSchema = schema queryType
+citeSchema = schema queryType Nothing Nothing mempty
 
 -- GraphQL distinguishes between input and output types. Input types are field
 -- argument types and they are defined in Language.GraphQL.Type.In. Output types

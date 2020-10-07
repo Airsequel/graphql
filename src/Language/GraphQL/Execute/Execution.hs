@@ -27,8 +27,7 @@ import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
-import Language.GraphQL.Type.Internal
-import Language.GraphQL.Type.Schema
+import qualified Language.GraphQL.Type.Internal as Internal
 import Prelude hiding (null)
 
 resolveFieldValue :: MonadCatch m
@@ -60,7 +59,7 @@ collectFields objectType = foldl forEach Map.empty
          in Map.insertWith (<>) responseKey (field :| []) groupedFields
     forEach groupedFields (Transform.SelectionFragment selectionFragment)
         | Transform.Fragment fragmentType fragmentSelectionSet <- selectionFragment
-        , doesFragmentTypeApply fragmentType objectType =
+        , Internal.doesFragmentTypeApply fragmentType objectType =
             let fragmentGroupedFieldSet = collectFields objectType fragmentSelectionSet
              in Map.unionWith (<>) groupedFields fragmentGroupedFieldSet
         | otherwise = groupedFields
@@ -69,15 +68,15 @@ aliasOrName :: forall m. Transform.Field m -> Name
 aliasOrName (Transform.Field alias name _ _) = fromMaybe name alias
 
 resolveAbstractType :: Monad m
-    => AbstractType m
+    => Internal.AbstractType m
     -> Type.Subs
     -> CollectErrsT m (Maybe (Out.ObjectType m))
 resolveAbstractType abstractType values'
     | Just (Type.String typeName) <- HashMap.lookup "__typename" values' = do
         types' <- gets types
         case HashMap.lookup typeName types' of
-            Just (ObjectType objectType) ->
-                if instanceOf objectType abstractType
+            Just (Internal.ObjectType objectType) ->
+                if Internal.instanceOf objectType abstractType
                     then pure $ Just objectType
                     else pure Nothing
             _ -> pure Nothing
@@ -129,7 +128,7 @@ completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
     | Type.Object objectMap <- result = do
-        let abstractType = AbstractInterfaceType interfaceType
+        let abstractType = Internal.AbstractInterfaceType interfaceType
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
@@ -137,7 +136,7 @@ completeValue (Out.InterfaceBaseType interfaceType) fields result
             Nothing -> addErrMsg "Interface value completion failed."
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
-        let abstractType = AbstractUnionType unionType
+        let abstractType = Internal.AbstractUnionType unionType
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
             Just objectType -> executeSelectionSet result objectType

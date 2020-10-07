@@ -26,12 +26,7 @@ import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
 philosopherSchema :: Schema (Either SomeException)
-philosopherSchema = Schema
-    { query = queryType
-    , mutation = Nothing
-    , subscription = Just subscriptionType
-    , directives = HashMap.empty
-    }
+philosopherSchema = schema queryType Nothing (Just subscriptionType) mempty
 
 queryType :: Out.ObjectType (Either SomeException)
 queryType = Out.ObjectType "Query" Nothing []

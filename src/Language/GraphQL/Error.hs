@@ -5,8 +5,7 @@
 
 -- | Error handling.
 module Language.GraphQL.Error
-    ( parseError
-    , CollectErrsT
+    ( CollectErrsT
     , Error(..)
     , Path(..)
     , Resolution(..)
@@ -15,6 +14,7 @@ module Language.GraphQL.Error
     , ResponseEventStream
     , addErr
     , addErrMsg
+    , parseError
     , runCollectErrs
     , singleError
     ) where
@@ -29,7 +29,7 @@ import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST (Location(..), Name)
 import Language.GraphQL.Execute.Coerce
-import Language.GraphQL.Type.Schema
+import qualified Language.GraphQL.Type.Schema as Schema
 import Prelude hiding (null)
 import Text.Megaparsec
     ( ParseErrorBundle(..)
@@ -44,7 +44,7 @@ import Text.Megaparsec
 -- | Executor context.
 data Resolution m = Resolution
     { errors :: Seq Error
-    , types :: HashMap Name (Type m)
+    , types :: HashMap Name (Schema.Type m)
     }
 
 -- | Wraps a parse error into a list of errors.
@@ -129,7 +129,7 @@ instance Exception ResolverException
 -- | Runs the given query computation, but collects the errors into an error
 -- list, which is then sent back with the data.
 runCollectErrs :: (Monad m, Serialize a)
-    => HashMap Name (Type m)
+    => HashMap Name (Schema.Type m)
     -> CollectErrsT m a
     -> m (Response a)
 runCollectErrs types' res = do

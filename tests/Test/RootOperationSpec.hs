@@ -24,13 +24,10 @@ hatType = Out.ObjectType "Hat" Nothing []
     $ pure $ Int 60
 
 garmentSchema :: Schema IO
-garmentSchema = Schema
-    { query = Out.ObjectType "Query" Nothing [] hatFieldResolver
-    , mutation = Just $ Out.ObjectType "Mutation" Nothing [] incrementFieldResolver
-    , subscription = Nothing
-    , directives = HashMap.empty
-    }
+garmentSchema = schema queryType (Just mutationType) Nothing mempty
   where
+    queryType = Out.ObjectType "Query" Nothing [] hatFieldResolver
+    mutationType = Out.ObjectType "Mutation" Nothing [] incrementFieldResolver
     garment = pure $ Object $ HashMap.fromList
         [ ("circumference", Int 60)
         ]

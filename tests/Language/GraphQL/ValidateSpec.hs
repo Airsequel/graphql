@@ -22,12 +22,7 @@ import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
 petSchema :: Schema IO
-petSchema = Schema
-    { query = queryType
-    , mutation = Nothing
-    , subscription = Just subscriptionType
-    , directives = HashMap.empty
-    } 
+petSchema = schema queryType Nothing (Just subscriptionType) mempty
 
 queryType :: ObjectType IO
 queryType = ObjectType "Query" Nothing [] $ HashMap.fromList

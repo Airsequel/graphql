@@ -55,16 +55,17 @@ import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.AST.Document as Full
 import qualified Language.GraphQL.Type.Definition as Definition
-import Language.GraphQL.Type.Internal
+import qualified Language.GraphQL.Type.Internal as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Validate.Validation
 
 -- Local help type that contains a hash set to track visited fragments.
-type ValidationState m a = StateT (HashSet Name) (ReaderT (Validation m) Seq) a
+type ValidationState m a =
+    StateT (HashSet Full.Name) (ReaderT (Validation m) Seq) a
 
 -- | Default rules given in the specification.
 specifiedRules :: forall m. [Rule m]
@@ -107,9 +108,9 @@ specifiedRules =
 -- | Definition must be OperationDefinition or FragmentDefinition.
 executableDefinitionsRule :: forall m. Rule m
 executableDefinitionsRule = DefinitionRule $ \case
-    ExecutableDefinition _ -> lift mempty
-    TypeSystemDefinition _ location' -> pure $ error' location'
-    TypeSystemExtension _ location' -> pure $ error' location'
+    Full.ExecutableDefinition _ -> lift mempty
+    Full.TypeSystemDefinition _ location' -> pure $ error' location'
+    Full.TypeSystemExtension _ location' -> pure $ error' location'
   where
     error' location' = Error
         { message =
@@ -120,7 +121,7 @@ executableDefinitionsRule = DefinitionRule $ \case
 -- | Subscription operations must have exactly one root field.
 singleFieldSubscriptionsRule :: forall m. Rule m
 singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
-    OperationDefinition Subscription name' _ _ rootFields location' -> do
+    Full.OperationDefinition Full.Subscription name' _ _ rootFields location' -> do
         groupedFieldSet <- evalStateT (collectFields rootFields) HashSet.empty
         case HashSet.size groupedFieldSet of
             1 -> lift mempty
@@ -143,46 +144,46 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
         "Anonymous Subscription must select only one top level field."
     collectFields selectionSet = foldM forEach HashSet.empty selectionSet
     forEach accumulator = \case
-        FieldSelection fieldSelection -> forField accumulator fieldSelection
-        FragmentSpreadSelection fragmentSelection ->
+        Full.FieldSelection fieldSelection -> forField accumulator fieldSelection
+        Full.FragmentSpreadSelection fragmentSelection ->
             forSpread accumulator fragmentSelection
-        InlineFragmentSelection fragmentSelection ->
+        Full.InlineFragmentSelection fragmentSelection ->
             forInline accumulator fragmentSelection
-    forField accumulator (Field alias name _ directives' _ _)
+    forField accumulator (Full.Field alias name _ directives' _ _)
         | any skip directives' = pure accumulator
         | Just aliasedName <- alias = pure
             $ HashSet.insert aliasedName accumulator
         | otherwise = pure $ HashSet.insert name accumulator
-    forSpread accumulator (FragmentSpread fragmentName directives' _)
+    forSpread accumulator (Full.FragmentSpread fragmentName directives' _)
         | any skip directives' = pure accumulator
         | otherwise = do
             inVisitetFragments <- gets $ HashSet.member fragmentName
             if inVisitetFragments
                then pure accumulator
                else collectFromSpread fragmentName accumulator
-    forInline accumulator (InlineFragment maybeType directives' selections _)
+    forInline accumulator (Full.InlineFragment maybeType directives' selections _)
         | any skip directives' = pure accumulator
         | Just typeCondition <- maybeType =
             collectFromFragment typeCondition selections accumulator
         | otherwise = HashSet.union accumulator
             <$> collectFields selections
-    skip (Directive "skip" [Argument "if" (Node argumentValue _) _] _) =
-        Boolean True == argumentValue
-    skip (Directive "include" [Argument "if" (Node argumentValue _) _] _) =
-        Boolean False == argumentValue
+    skip (Full.Directive "skip" [Full.Argument "if" (Full.Node argumentValue _) _] _) =
+        Full.Boolean True == argumentValue
+    skip (Full.Directive "include" [Full.Argument "if" (Full.Node argumentValue _) _] _) =
+        Full.Boolean False == argumentValue
     skip _ = False
-    findFragmentDefinition (ExecutableDefinition executableDefinition) Nothing
-        | DefinitionFragment fragmentDefinition <- executableDefinition =
+    findFragmentDefinition (Full.ExecutableDefinition executableDefinition) Nothing
+        | Full.DefinitionFragment fragmentDefinition <- executableDefinition =
             Just fragmentDefinition
     findFragmentDefinition _ accumulator = accumulator
     collectFromFragment typeCondition selectionSet accumulator = do
-        types' <- lift $ asks types
+        types' <- lift $ asks $ Schema.types . schema
         schema' <- lift $ asks schema
-        case lookupTypeCondition typeCondition types' of
+        case Type.lookupTypeCondition typeCondition types' of
             Nothing -> pure accumulator
             Just compositeType
                 | Just objectType <- Schema.subscription schema'
-                , True <- doesFragmentTypeApply compositeType objectType ->
+                , True <- Type.doesFragmentTypeApply compositeType objectType ->
                     HashSet.union accumulator <$> collectFields selectionSet
                 | otherwise -> pure accumulator
     collectFromSpread fragmentName accumulator = do
@@ -190,15 +191,16 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
         ast' <- lift $ asks ast
         case foldr findFragmentDefinition Nothing ast' of
             Nothing -> pure accumulator
-            Just (FragmentDefinition _ typeCondition _ selectionSet _) ->
+            Just (Full.FragmentDefinition _ typeCondition _ selectionSet _) ->
                 collectFromFragment typeCondition selectionSet accumulator
 
 -- | GraphQL allows a short‐hand form for defining query operations when only
 -- that one operation exists in the document.
 loneAnonymousOperationRule :: forall m. Rule m
 loneAnonymousOperationRule = OperationDefinitionRule $ \case
-      SelectionSet _ thisLocation -> check thisLocation
-      OperationDefinition _ Nothing _ _ _ thisLocation -> check thisLocation
+      Full.SelectionSet _ thisLocation -> check thisLocation
+      Full.OperationDefinition _ Nothing _ _ _ thisLocation ->
+          check thisLocation
       _ -> lift mempty
     where
       check thisLocation = asks ast
@@ -208,9 +210,9 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
               compareAnonymousOperations thisLocation operationDefinition
       filterAnonymousOperations _ _ accumulator = accumulator
       compareAnonymousOperations thisLocation = \case
-          OperationDefinition _ _ _ _ _ thatLocation
+          Full.OperationDefinition _ _ _ _ _ thatLocation
               | thisLocation /= thatLocation -> pure $ error' thisLocation
-          SelectionSet _ thatLocation
+          Full.SelectionSet _ thatLocation
               | thisLocation /= thatLocation -> pure $ error' thisLocation
           _ -> mempty
       error' location' = Error
@@ -223,7 +225,7 @@ loneAnonymousOperationRule = OperationDefinitionRule $ \case
 -- referred to by its name.
 uniqueOperationNamesRule :: forall m. Rule m
 uniqueOperationNamesRule = OperationDefinitionRule $ \case
-    OperationDefinition _ (Just thisName) _ _ _ thisLocation ->
+    Full.OperationDefinition _ (Just thisName) _ _ _ thisLocation ->
         findDuplicates (filterByName thisName) thisLocation (error' thisName)
     _ -> lift mempty
   where
@@ -234,12 +236,12 @@ uniqueOperationNamesRule = OperationDefinitionRule $ \case
         ]
     filterByName thisName definition' accumulator
         | (viewOperation -> Just operationDefinition) <- definition'
-        , OperationDefinition _ (Just thatName) _ _ _ thatLocation <- operationDefinition
+        , Full.OperationDefinition _ (Just thatName) _ _ _ thatLocation <- operationDefinition
         , thisName == thatName = thatLocation : accumulator
         | otherwise = accumulator
 
-findDuplicates :: (Definition -> [Location] -> [Location])
-    -> Location
+findDuplicates :: (Full.Definition -> [Full.Location] -> [Full.Location])
+    -> Full.Location
     -> String
     -> RuleT m
 findDuplicates filterByName thisLocation errorMessage = do
@@ -254,17 +256,17 @@ findDuplicates filterByName thisLocation errorMessage = do
         , locations = locations'
         }
 
-viewOperation :: Definition -> Maybe OperationDefinition
+viewOperation :: Full.Definition -> Maybe Full.OperationDefinition
 viewOperation definition
-    | ExecutableDefinition executableDefinition <- definition
-    , DefinitionOperation operationDefinition <- executableDefinition =
+    | Full.ExecutableDefinition executableDefinition <- definition
+    , Full.DefinitionOperation operationDefinition <- executableDefinition =
         Just operationDefinition
 viewOperation _ = Nothing
 
-viewFragment :: Definition -> Maybe FragmentDefinition
+viewFragment :: Full.Definition -> Maybe Full.FragmentDefinition
 viewFragment definition
-    | ExecutableDefinition executableDefinition <- definition
-    , DefinitionFragment fragmentDefinition <- executableDefinition =
+    | Full.ExecutableDefinition executableDefinition <- definition
+    , Full.DefinitionFragment fragmentDefinition <- executableDefinition =
         Just fragmentDefinition
 viewFragment _ = Nothing
 
@@ -275,7 +277,7 @@ viewFragment _ = Nothing
 -- by this validation rule.
 uniqueFragmentNamesRule :: forall m. Rule m
 uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
-    FragmentDefinition thisName _ _ _ thisLocation ->
+    Full.FragmentDefinition thisName _ _ _ thisLocation ->
         findDuplicates (filterByName thisName) thisLocation (error' thisName)
   where
     error' fragmentName = concat
@@ -285,7 +287,7 @@ uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
         ]
     filterByName thisName definition accumulator
         | Just fragmentDefinition <- viewFragment definition
-        , FragmentDefinition thatName _ _ _ thatLocation <- fragmentDefinition
+        , Full.FragmentDefinition thatName _ _ _ thatLocation <- fragmentDefinition
         , thisName == thatName = thatLocation : accumulator
         | otherwise = accumulator
 
@@ -293,7 +295,7 @@ uniqueFragmentNamesRule = FragmentDefinitionRule $ \case
 -- It is a validation error if the target of a spread is not defined.
 fragmentSpreadTargetDefinedRule :: forall m. Rule m
 fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
-    FragmentSpread fragmentName _ location' -> do
+    Full.FragmentSpread fragmentName _ location' -> do
         ast' <- asks ast
         case find (isSpreadTarget fragmentName) ast' of
             Nothing -> pure $ Error
@@ -308,9 +310,9 @@ fragmentSpreadTargetDefinedRule = FragmentSpreadRule $ \case
         , "\" is undefined."
         ]
 
-isSpreadTarget :: Text -> Definition -> Bool
+isSpreadTarget :: Text -> Full.Definition -> Bool
 isSpreadTarget thisName (viewFragment -> Just fragmentDefinition)
-    | FragmentDefinition thatName _ _ _ _ <- fragmentDefinition
+    | Full.FragmentDefinition thatName _ _ _ _ <- fragmentDefinition
     , thisName == thatName = True
 isSpreadTarget _ _ = False
 
@@ -319,22 +321,22 @@ isSpreadTarget _ _ = False
 -- the query does not validate.
 fragmentSpreadTypeExistenceRule :: forall m. Rule m
 fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
-    FragmentSpreadSelection fragmentSelection
-        | FragmentSpread fragmentName _ location' <- fragmentSelection -> do
+    Full.FragmentSpreadSelection fragmentSelection
+        | Full.FragmentSpread fragmentName _ location' <- fragmentSelection -> do
             ast' <- asks ast
             let target = find (isSpreadTarget fragmentName) ast'
             typeCondition <- lift $ maybeToSeq $ target >>= extractTypeCondition
-            types' <- asks types
+            types' <- asks $ Schema.types . schema
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = spreadError fragmentName typeCondition
                     , locations = [location']
                     }
                 Just _ -> lift mempty
-    InlineFragmentSelection fragmentSelection
-        | InlineFragment maybeType _ _ location' <- fragmentSelection
+    Full.InlineFragmentSelection fragmentSelection
+        | Full.InlineFragment maybeType _ _ location' <- fragmentSelection
         , Just typeCondition <- maybeType -> do
-            types' <- asks types
+            types' <- asks $ Schema.types . schema
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = inlineError typeCondition
@@ -344,7 +346,7 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
     _ -> lift mempty
   where
     extractTypeCondition (viewFragment -> Just fragmentDefinition) =
-        let FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
+        let Full.FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
          in Just typeCondition
     extractTypeCondition _ = Nothing
     spreadError fragmentName typeCondition = concat
@@ -370,16 +372,16 @@ maybeToSeq Nothing = mempty
 fragmentsOnCompositeTypesRule :: forall m. Rule m
 fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
   where
-    inlineRule (InlineFragment (Just typeCondition) _ _ location') =
+    inlineRule (Full.InlineFragment (Just typeCondition) _ _ location') =
         check typeCondition location'
     inlineRule _ = lift mempty
-    definitionRule (FragmentDefinition _ typeCondition _ _ location') =
+    definitionRule (Full.FragmentDefinition _ typeCondition _ _ location') =
         check typeCondition location'
     check typeCondition location' = do
-        types' <- asks types
+        types' <- asks $ Schema.types . schema
         -- Skip unknown types, they are checked by another rule.
         _ <- lift $ maybeToSeq $ HashMap.lookup typeCondition types'
-        case lookupTypeCondition typeCondition types' of
+        case Type.lookupTypeCondition typeCondition types' of
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
                 , locations = [location']
@@ -394,7 +396,7 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
 -- | Defined fragments must be used within a document.
 noUnusedFragmentsRule :: forall m. Rule m
 noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment -> do
-    let FragmentDefinition fragmentName _ _ _ location' = fragment
+    let Full.FragmentDefinition fragmentName _ _ _ location' = fragment
      in mapReaderT (checkFragmentName fragmentName location')
         $ asks ast
         >>= flip evalStateT HashSet.empty
@@ -414,35 +416,36 @@ noUnusedFragmentsRule = FragmentDefinitionRule $ \fragment -> do
         , "\" is never used."
         ]
     evaluateSelection selection
-        | FragmentSpreadSelection spreadSelection <- selection
-        , FragmentSpread spreadName _ _ <- spreadSelection =
+        | Full.FragmentSpreadSelection spreadSelection <- selection
+        , Full.FragmentSpread spreadName _ _ <- spreadSelection =
             lift $ pure spreadName
     evaluateSelection _ = lift $ lift mempty
 
-definitionSelections :: Definition -> SelectionSetOpt
+definitionSelections :: Full.Definition -> Full.SelectionSetOpt
 definitionSelections (viewOperation -> Just operation)
-    | OperationDefinition _ _ _ _ selections _ <- operation = toList selections
-    | SelectionSet selections _ <- operation = toList selections
+    | Full.OperationDefinition _ _ _ _ selections _ <- operation =
+        toList selections
+    | Full.SelectionSet selections _ <- operation = toList selections
 definitionSelections (viewFragment -> Just fragment)
-    | FragmentDefinition _ _ _ selections _ <- fragment = toList selections
+    | Full.FragmentDefinition _ _ _ selections _ <- fragment = toList selections
 definitionSelections _ = []
 
 filterSelections :: Foldable t
     => forall a m
-    . (Selection -> ValidationState m a)
-    -> t Selection
+    . (Full.Selection -> ValidationState m a)
+    -> t Full.Selection
     -> ValidationState m a
 filterSelections applyFilter selections
     = (lift . lift) (Seq.fromList $ foldr evaluateSelection mempty selections)
     >>= applyFilter
   where
     evaluateSelection selection accumulator
-        | FragmentSpreadSelection{} <- selection = selection : accumulator
-        | FieldSelection fieldSelection <- selection
-        , Field _ _ _ _ subselections _ <- fieldSelection =
+        | Full.FragmentSpreadSelection{} <- selection = selection : accumulator
+        | Full.FieldSelection fieldSelection <- selection
+        , Full.Field _ _ _ _ subselections _ <- fieldSelection =
             selection : foldr evaluateSelection accumulator subselections
-        | InlineFragmentSelection inlineSelection <- selection
-        , InlineFragment _ _ subselections _ <- inlineSelection =
+        | Full.InlineFragmentSelection inlineSelection <- selection
+        , Full.InlineFragment _ _ subselections _ <- inlineSelection =
             selection : foldr evaluateSelection accumulator subselections
 
 -- | The graph of fragment spreads must not form any cycles including spreading
@@ -450,7 +453,7 @@ filterSelections applyFilter selections
 -- on cycles in the underlying data.
 noFragmentCyclesRule :: forall m. Rule m
 noFragmentCyclesRule = FragmentDefinitionRule $ \case
-    FragmentDefinition fragmentName _ _ selections location' -> do
+    Full.FragmentDefinition fragmentName _ _ selections location' -> do
         state <- evalStateT (collectFields selections)
             (0, fragmentName)
         let spreadPath = fst <$> sortBy (comparing snd) (HashMap.toList state)
@@ -468,16 +471,16 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
             _ -> lift mempty
   where
     collectFields :: Traversable t
-        => t Selection
-        -> StateT (Int, Name) (ReaderT (Validation m) Seq) (HashMap Name Int)
+        => t Full.Selection
+        -> StateT (Int, Full.Name) (ReaderT (Validation m) Seq) (HashMap Full.Name Int)
     collectFields selectionSet = foldM forEach HashMap.empty selectionSet
     forEach accumulator = \case
-        FieldSelection fieldSelection -> forField accumulator fieldSelection
-        InlineFragmentSelection fragmentSelection ->
+        Full.FieldSelection fieldSelection -> forField accumulator fieldSelection
+        Full.InlineFragmentSelection fragmentSelection ->
             forInline accumulator fragmentSelection
-        FragmentSpreadSelection fragmentSelection ->
+        Full.FragmentSpreadSelection fragmentSelection ->
             forSpread accumulator fragmentSelection
-    forSpread accumulator (FragmentSpread fragmentName _ _) = do
+    forSpread accumulator (Full.FragmentSpread fragmentName _ _) = do
         firstFragmentName <- gets snd
         modify $ first (+ 1)
         lastIndex <- gets fst
@@ -486,20 +489,20 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
         if fragmentName == firstFragmentName || inVisitetFragment
             then pure newAccumulator
             else collectFromSpread fragmentName newAccumulator
-    forInline accumulator (InlineFragment _ _ selections _) =
+    forInline accumulator (Full.InlineFragment _ _ selections _) =
         (accumulator <>) <$> collectFields selections
-    forField accumulator (Field _ _ _ _ selections _) =
+    forField accumulator (Full.Field _ _ _ _ selections _) =
         (accumulator <>) <$> collectFields selections
-    findFragmentDefinition n (ExecutableDefinition executableDefinition) Nothing
-        | DefinitionFragment fragmentDefinition <- executableDefinition
-        , FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition
+    findFragmentDefinition n (Full.ExecutableDefinition executableDefinition) Nothing
+        | Full.DefinitionFragment fragmentDefinition <- executableDefinition
+        , Full.FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition
         , fragmentName == n = Just fragmentDefinition
     findFragmentDefinition _ _ accumulator = accumulator
     collectFromSpread _fragmentName accumulator = do
         ast' <- lift $ asks ast
         case foldr (findFragmentDefinition _fragmentName) Nothing ast' of
             Nothing -> pure accumulator
-            Just (FragmentDefinition _ _ _ selections _) ->
+            Just (Full.FragmentDefinition _ _ _ selections _) ->
                 (accumulator <>) <$> collectFields selections
 
 -- | Fields and directives treat arguments as a mapping of argument name to
@@ -508,11 +511,11 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
 uniqueArgumentNamesRule :: forall m. Rule m
 uniqueArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
-    fieldRule _ (Field _ _ arguments _ _ _) =
+    fieldRule _ (Full.Field _ _ arguments _ _ _) =
         lift $ filterDuplicates extract "argument" arguments
-    directiveRule (Directive _ arguments _) =
+    directiveRule (Full.Directive _ arguments _) =
         lift $ filterDuplicates extract "argument" arguments
-    extract (Argument argumentName _ location') = (argumentName, location')
+    extract (Full.Argument argumentName _ location') = (argumentName, location')
 
 -- | Directives are used to describe some metadata or behavioral change on the
 -- definition they apply to. When more than one directive of the same name is
@@ -522,9 +525,10 @@ uniqueDirectiveNamesRule :: forall m. Rule m
 uniqueDirectiveNamesRule = DirectivesRule
     $ const $ lift . filterDuplicates extract "directive"
   where
-    extract (Directive directiveName _ location') = (directiveName, location')
+    extract (Full.Directive directiveName _ location') =
+        (directiveName, location')
 
-filterDuplicates :: (a -> (Text, Location)) -> String -> [a] -> Seq Error
+filterDuplicates :: (a -> (Text, Full.Location)) -> String -> [a] -> Seq Error
 filterDuplicates extract nodeType = Seq.fromList
     . fmap makeError
     . filter ((> 1) . length)
@@ -552,7 +556,7 @@ uniqueVariableNamesRule :: forall m. Rule m
 uniqueVariableNamesRule = VariablesRule
     $ lift . filterDuplicates extract "variable"
   where
-    extract (VariableDefinition variableName _ _ location') =
+    extract (Full.VariableDefinition variableName _ _ location') =
         (variableName, location')
 
 -- | Variables can only be input types. Objects, unions and interfaces cannot be
@@ -561,11 +565,11 @@ variablesAreInputTypesRule :: forall m. Rule m
 variablesAreInputTypesRule = VariablesRule
     $ (traverse check . Seq.fromList) >=> lift
   where
-    check (VariableDefinition name typeName _ location')
-        = asks types
+    check (Full.VariableDefinition name typeName _ location')
+        = asks (Schema.types . schema)
         >>= lift
         . maybe (makeError name typeName location') (const mempty)
-        . lookupInputType typeName
+        . Type.lookupInputType typeName
     makeError name typeName location' = pure $ Error
         { message = concat
             [ "Variable \"$"
@@ -576,10 +580,11 @@ variablesAreInputTypesRule = VariablesRule
             ]
         , locations = [location']
         }
-    getTypeName (TypeNamed name) = name
-    getTypeName (TypeList name) = getTypeName name
-    getTypeName (TypeNonNull (NonNullTypeNamed nonNull)) = nonNull
-    getTypeName (TypeNonNull (NonNullTypeList nonNull)) = getTypeName nonNull
+    getTypeName (Full.TypeNamed name) = name
+    getTypeName (Full.TypeList name) = getTypeName name
+    getTypeName (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) = nonNull
+    getTypeName (Full.TypeNonNull (Full.NonNullTypeList nonNull)) =
+        getTypeName nonNull
 
 -- | Variables are scoped on a per‐operation basis. That means that any variable
 -- used within the context of an operation must be defined at the top level of
@@ -601,13 +606,17 @@ noUndefinedVariablesRule =
         , "\"."
         ]
 
-variableUsageDifference :: forall m
-    . (HashMap Name [Location] -> HashMap Name [Location] -> HashMap Name [Location])
-    -> (Maybe Name -> Name -> String)
+type UsageDifference
+    = HashMap Full.Name [Full.Location]
+    -> HashMap Full.Name [Full.Location]
+    -> HashMap Full.Name [Full.Location]
+
+variableUsageDifference :: forall m. UsageDifference
+    -> (Maybe Full.Name -> Full.Name -> String)
     -> Rule m
 variableUsageDifference difference errorMessage = OperationDefinitionRule $ \case
-    SelectionSet _ _ -> lift mempty
-    OperationDefinition _ operationName variables _ selections _ ->
+    Full.SelectionSet _ _ -> lift mempty
+    Full.OperationDefinition _ operationName variables _ selections _ ->
         let variableNames = HashMap.fromList $ getVariableName <$> variables
          in mapReaderT (readerMapper operationName variableNames)
             $ flip evalStateT HashSet.empty
@@ -620,21 +629,21 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
         . difference variableNames'
         . HashMap.fromListWith (++)
         . toList
-    getVariableName (VariableDefinition variableName _ _ location') =
+    getVariableName (Full.VariableDefinition variableName _ _ location') =
         (variableName, [location'])
     filterSelections' :: Foldable t
-        => t Selection
-        -> ValidationState m (Name, [Location])
+        => t Full.Selection
+        -> ValidationState m (Full.Name, [Full.Location])
     filterSelections' = filterSelections variableFilter
-    variableFilter :: Selection -> ValidationState m (Name, [Location])
-    variableFilter (InlineFragmentSelection inline)
-        | InlineFragment _ directives' _ _ <- inline =
+    variableFilter :: Full.Selection -> ValidationState m (Full.Name, [Full.Location])
+    variableFilter (Full.InlineFragmentSelection inline)
+        | Full.InlineFragment _ directives' _ _ <- inline =
             lift $ lift $ mapDirectives directives'
-    variableFilter (FieldSelection fieldSelection)
-        | Field _ _ arguments directives' _ _ <- fieldSelection =
+    variableFilter (Full.FieldSelection fieldSelection)
+        | Full.Field _ _ arguments directives' _ _ <- fieldSelection =
             lift $ lift $ mapArguments arguments <> mapDirectives directives'
-    variableFilter (FragmentSpreadSelection spread)
-        | FragmentSpread fragmentName _ _ <- spread = do
+    variableFilter (Full.FragmentSpreadSelection spread)
+        | Full.FragmentSpread fragmentName _ _ <- spread = do
             definitions <- lift $ asks ast
             visited <- gets (HashSet.member fragmentName)
             modify (HashSet.insert fragmentName)
@@ -642,13 +651,13 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
                 Just (viewFragment -> Just fragmentDefinition)
                     | not visited -> diveIntoSpread fragmentDefinition
                 _ -> lift $ lift mempty
-    diveIntoSpread (FragmentDefinition _ _ directives' selections _)
+    diveIntoSpread (Full.FragmentDefinition _ _ directives' selections _)
         = filterSelections' selections
         >>= lift . mapReaderT (<> mapDirectives directives') . pure
-    findDirectiveVariables (Directive _ arguments _) = mapArguments arguments
+    findDirectiveVariables (Full.Directive _ arguments _) = mapArguments arguments
     mapArguments = Seq.fromList . mapMaybe findArgumentVariables
     mapDirectives = foldMap findDirectiveVariables
-    findArgumentVariables (Argument _ Node{ node = Variable value', ..} _) =
+    findArgumentVariables (Full.Argument _ Full.Node{ node = Full.Variable value', ..} _) =
         Just (value', [location])
     findArgumentVariables _ = Nothing
     makeError operationName (variableName, locations') = Error
@@ -682,12 +691,12 @@ uniqueInputFieldNamesRule :: forall m. Rule m
 uniqueInputFieldNamesRule =
     ValueRule (const $ lift . go) (const $ lift . constGo)
   where
-    go (Node (Object fields) _) = filterFieldDuplicates fields
+    go (Full.Node (Full.Object fields) _) = filterFieldDuplicates fields
     go _ = mempty
     filterFieldDuplicates fields =
         filterDuplicates getFieldName "input field" fields
-    getFieldName (ObjectField fieldName _ location') = (fieldName, location')
-    constGo (Node (ConstObject fields) _) = filterFieldDuplicates fields
+    getFieldName (Full.ObjectField fieldName _ location') = (fieldName, location')
+    constGo (Full.Node (Full.ConstObject fields) _) = filterFieldDuplicates fields
     constGo _ = mempty
 
 -- | The target field of a field selection must be defined on the scoped type of
@@ -695,9 +704,9 @@ uniqueInputFieldNamesRule =
 fieldsOnCorrectTypeRule :: forall m. Rule m
 fieldsOnCorrectTypeRule = FieldRule fieldRule
   where
-    fieldRule parentType (Field _ fieldName _ _ _ location')
+    fieldRule parentType (Full.Field _ fieldName _ _ _ location')
         | Just objectType <- parentType
-        , Nothing <- lookupTypeField fieldName objectType
+        , Nothing <- Type.lookupTypeField fieldName objectType
         , Just typeName <- compositeTypeName objectType = pure $ Error
             { message = errorMessage fieldName typeName
             , locations = [location']
@@ -711,7 +720,7 @@ fieldsOnCorrectTypeRule = FieldRule fieldRule
         , "\"."
         ]
 
-compositeTypeName :: forall m. Out.Type m -> Maybe Name
+compositeTypeName :: forall m. Out.Type m -> Maybe Full.Name
 compositeTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
     Just typeName
 compositeTypeName (Out.InterfaceBaseType interfaceType) =
@@ -731,9 +740,9 @@ compositeTypeName (Out.ListBaseType wrappedType) =
 scalarLeafsRule :: forall m. Rule m
 scalarLeafsRule = FieldRule fieldRule
   where
-    fieldRule parentType selectionField@(Field _ fieldName _ _ _ _)
+    fieldRule parentType selectionField@(Full.Field _ fieldName _ _ _ _)
         | Just objectType <- parentType
-        , Just field <- lookupTypeField fieldName objectType =
+        , Just field <- Type.lookupTypeField fieldName objectType =
             let Out.Field _ fieldType _ = field
              in lift $ check fieldType selectionField
         | otherwise = lift mempty
@@ -748,7 +757,7 @@ scalarLeafsRule = FieldRule fieldRule
     check (Out.EnumBaseType (Definition.EnumType typeName _ _)) =
         checkEmpty typeName
     check (Out.ListBaseType wrappedType) = check wrappedType
-    checkNotEmpty typeName (Field _ fieldName _ _ [] location') =
+    checkNotEmpty typeName (Full.Field _ fieldName _ _ [] location') =
         let fieldName' = Text.unpack fieldName
          in makeError location' $ concat
             [ "Field \""
@@ -760,9 +769,9 @@ scalarLeafsRule = FieldRule fieldRule
             , " { ... }\"?"
             ]
     checkNotEmpty _ _ = mempty
-    checkEmpty _ (Field _ _ _ _ [] _) = mempty
+    checkEmpty _ (Full.Field _ _ _ _ [] _) = mempty
     checkEmpty typeName field' =
-        let Field _ fieldName _ _ _ location' = field'
+        let Full.Field _ fieldName _ _ _ location' = field'
          in makeError location' $ concat
             [ "Field \""
             , Text.unpack fieldName
@@ -780,12 +789,12 @@ scalarLeafsRule = FieldRule fieldRule
 knownArgumentNamesRule :: forall m. Rule m
 knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
-    fieldRule (Just objectType) (Field _ fieldName arguments  _ _ _)
-        | Just typeField <- lookupTypeField fieldName objectType
+    fieldRule (Just objectType) (Full.Field _ fieldName arguments  _ _ _)
+        | Just typeField <- Type.lookupTypeField fieldName objectType
         , Just typeName <- compositeTypeName objectType =
             lift $ foldr (go typeName fieldName typeField) Seq.empty arguments
     fieldRule _ _ = lift mempty
-    go typeName fieldName fieldDefinition (Argument argumentName _ location') errors
+    go typeName fieldName fieldDefinition (Full.Argument argumentName _ location') errors
         | Out.Field _ _ definitions <- fieldDefinition
         , Just _ <- HashMap.lookup argumentName definitions = errors
         | otherwise = errors |> Error
@@ -801,9 +810,10 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         , Text.unpack fieldName
         , "\"."
         ]
-    directiveRule (Directive directiveName arguments _) = do
-        available <- asks $ HashMap.lookup directiveName . directives
-        Argument argumentName _ location' <- lift $ Seq.fromList arguments
+    directiveRule (Full.Directive directiveName arguments _) = do
+        available <- asks $ HashMap.lookup directiveName
+            . Schema.directives . schema
+        Full.Argument argumentName _ location' <- lift $ Seq.fromList arguments
         case available of
             Just (Schema.Directive _ _ definitions)
                 | not $ HashMap.member argumentName definitions ->
@@ -825,7 +835,7 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
 -- directive, the directive must be available on that server.
 knownDirectiveNamesRule :: Rule m
 knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
-    definitions' <- asks directives
+    definitions' <- asks $ Schema.directives . schema
     let directiveSet = HashSet.fromList $ fmap directiveName directives'
     let definitionSet = HashSet.fromList $ HashMap.keys definitions'
     let difference = HashSet.difference directiveSet definitionSet
@@ -834,8 +844,8 @@ knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
   where
     definitionFilter difference = flip HashSet.member difference
         . directiveName
-    directiveName (Directive directiveName' _ _) = directiveName'
-    makeError (Directive directiveName' _ location') = Error
+    directiveName (Full.Directive directiveName' _ _) = directiveName'
+    makeError (Full.Directive directiveName' _ location') = Error
         { message = errorMessage directiveName'
         , locations = [location']
         }
@@ -850,15 +860,15 @@ knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
 knownInputFieldNamesRule :: Rule m
 knownInputFieldNamesRule = ValueRule go constGo
   where
-    go (Just valueType) (Node (Object inputFields) _)
+    go (Just valueType) (Full.Node (Full.Object inputFields) _)
         | In.InputObjectBaseType objectType <- valueType =
              lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
     go _ _ = lift mempty
-    constGo (Just valueType) (Node (ConstObject inputFields) _)
+    constGo (Just valueType) (Full.Node (Full.ConstObject inputFields) _)
         | In.InputObjectBaseType objectType <- valueType =
              lift $ Seq.fromList $ mapMaybe (forEach objectType) inputFields
     constGo  _ _ = lift mempty
-    forEach objectType (ObjectField inputFieldName _ location')
+    forEach objectType (Full.ObjectField inputFieldName _ location')
         | In.InputObjectType _ _ fieldTypes <- objectType
         , Just _ <- HashMap.lookup inputFieldName fieldTypes = Nothing
         | otherwise
@@ -881,8 +891,9 @@ directivesInValidLocationsRule :: Rule m
 directivesInValidLocationsRule = DirectivesRule directivesRule
   where
     directivesRule directiveLocation directives' = do
-        Directive directiveName _ location <- lift $ Seq.fromList directives'
-        maybeDefinition <- asks $ HashMap.lookup directiveName . directives
+        Full.Directive directiveName _ location <- lift $ Seq.fromList directives'
+        maybeDefinition <- asks
+            $ HashMap.lookup directiveName . Schema.directives . schema
         case maybeDefinition of
             Just (Schema.Directive _ allowedLocations _)
                 | directiveLocation `notElem` allowedLocations -> pure $ Error
@@ -904,14 +915,15 @@ directivesInValidLocationsRule = DirectivesRule directivesRule
 providedRequiredArgumentsRule :: Rule m
 providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
   where
-    fieldRule (Just objectType) (Field _ fieldName arguments  _ _ location')
-        | Just typeField <- lookupTypeField fieldName objectType
+    fieldRule (Just objectType) (Full.Field _ fieldName arguments  _ _ location')
+        | Just typeField <- Type.lookupTypeField fieldName objectType
         , Out.Field _ _ definitions <- typeField =
             let forEach = go (fieldMessage fieldName) arguments location'
              in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
     fieldRule _ _ = lift mempty
-    directiveRule (Directive directiveName arguments location') = do
-        available <- asks $ HashMap.lookup directiveName . directives
+    directiveRule (Full.Directive directiveName arguments location') = do
+        available <- asks
+            $ HashMap.lookup directiveName . Schema.directives . schema
         case available of
             Just (Schema.Directive _ _ definitions) ->
                 let forEach = go (directiveMessage directiveName) arguments location'
@@ -930,9 +942,10 @@ providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
         { message = errorMessage
         , locations = [location']
         }
-    isNothingOrNull (Just (Argument _ (Node Null _) _)) = True
+    isNothingOrNull (Just (Full.Argument _ (Full.Node Full.Null _) _)) = True
     isNothingOrNull x = isNothing x
-    lookupArgument needle (Argument argumentName _ _) = needle == argumentName
+    lookupArgument needle (Full.Argument argumentName _ _) =
+        needle == argumentName
     fieldMessage fieldName argumentName typeName = concat
         [ "Field \""
         , Text.unpack fieldName
@@ -966,7 +979,7 @@ inputTypeName (In.ListBaseType listType) = inputTypeName listType
 providedRequiredInputFieldsRule :: Rule m
 providedRequiredInputFieldsRule = ValueRule go constGo
   where
-    go (Just valueType) (Node (Object inputFields) location')
+    go (Just valueType) (Full.Node (Full.Object inputFields) location')
         | In.InputObjectBaseType objectType <- valueType
         , In.InputObjectType objectTypeName _ fieldDefinitions <- objectType
             = lift
@@ -983,9 +996,9 @@ providedRequiredInputFieldsRule = ValueRule go constGo
         , isNothingOrNull $ find (lookupField definitionName) inputFields =
             Just $ makeError definitionName typeName location'
         | otherwise = Nothing
-    isNothingOrNull (Just (ObjectField _ (Node Null _) _)) = True
+    isNothingOrNull (Just (Full.ObjectField _ (Full.Node Full.Null _) _)) = True
     isNothingOrNull x = isNothing x
-    lookupField needle (ObjectField fieldName _ _) = needle == fieldName
+    lookupField needle (Full.ObjectField fieldName _ _) = needle == fieldName
     makeError fieldName typeName location' = Error
         { message = errorMessage fieldName typeName
         , locations = [location']

@@ -25,8 +25,7 @@ import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import qualified Language.GraphQL.AST.DirectiveLocation as DirectiveLocation
 import qualified Language.GraphQL.AST.Document as Full
-import Language.GraphQL.Type.Internal
-import qualified Language.GraphQL.Type.Definition as Definition
+import qualified Language.GraphQL.Type.Internal as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema (Schema)
@@ -57,55 +56,7 @@ document schema' rules' document' =
     context = Validation
         { Validation.ast = document'
         , Validation.schema = schema'
-        , Validation.types = collectReferencedTypes schema'
-        , Validation.directives = allDirectives
         }
-    allDirectives = 
-        HashMap.union (Schema.directives schema') defaultDirectives
-    defaultDirectives = HashMap.fromList
-        [ ("skip", skipDirective)
-        , ("include", includeDirective)
-        , ("deprecated", deprecatedDirective)
-        ]
-    includeDirective =
-        Schema.Directive includeDescription skipIncludeLocations includeArguments
-    includeArguments = HashMap.singleton "if"
-        $ In.Argument (Just "Included when true.") ifType Nothing
-    includeDescription = Just
-        "Directs the executor to include this field or fragment only when the \
-        \`if` argument is true."
-    skipDirective =
-        Schema.Directive skipDescription skipIncludeLocations skipArguments
-    skipArguments = HashMap.singleton "if"
-        $ In.Argument (Just "skipped when true.") ifType Nothing
-    ifType = In.NonNullScalarType Definition.boolean
-    skipDescription = Just
-        "Directs the executor to skip this field or fragment when the `if` \
-        \argument is true."
-    skipIncludeLocations =
-        [ ExecutableDirectiveLocation DirectiveLocation.Field
-        , ExecutableDirectiveLocation DirectiveLocation.FragmentSpread
-        , ExecutableDirectiveLocation DirectiveLocation.InlineFragment
-        ]
-    deprecatedDirective =
-        Schema.Directive deprecatedDescription deprecatedLocations deprecatedArguments
-    reasonDescription = Just
-        "Explains why this element was deprecated, usually also including a \
-        \suggestion for how to access supported similar data. Formatted using \
-        \the Markdown syntax, as specified by \
-        \[CommonMark](https://commonmark.org/).'"
-    deprecatedArguments = HashMap.singleton "reason"
-        $ In.Argument reasonDescription reasonType
-        $ Just "No longer supported"
-    reasonType = In.NamedScalarType Definition.string
-    deprecatedDescription = Just
-        "Marks an element of a GraphQL schema as no longer supported."
-    deprecatedLocations =
-        [ TypeSystemDirectiveLocation DirectiveLocation.FieldDefinition
-        , TypeSystemDirectiveLocation DirectiveLocation.ArgumentDefinition
-        , TypeSystemDirectiveLocation DirectiveLocation.InputFieldDefinition
-        , TypeSystemDirectiveLocation DirectiveLocation.EnumValue
-        ]
     reader = do
         rule' <- lift $ Seq.fromList rules'
         join $ lift $ foldr (definition rule' context) Seq.empty document'
@@ -332,7 +283,7 @@ operationDefinition rule context operation
   where
     schema' = Validation.schema context
     queryRoot = Just $ Out.NamedObjectType $ Schema.query schema'
-    types' = Validation.types context
+    types' = Schema.types schema'
         
 typeToOut :: forall m. Schema.Type m -> Maybe (Out.Type m)
 typeToOut (Schema.ObjectType objectType) =
@@ -349,7 +300,8 @@ variableDefinition :: forall m
     -> ApplyRule m Full.VariableDefinition
 variableDefinition context rule (Full.VariableDefinition _ typeName value' _)
     | Just defaultValue' <- value'
-    , variableType <- lookupInputType typeName $ Validation.types context =
+    , types <- Schema.types $ Validation.schema context
+    , variableType <- Type.lookupInputType typeName types =
         constValue rule variableType defaultValue'
 variableDefinition _ _ _ = mempty
 
@@ -395,7 +347,7 @@ fragmentDefinition rule context definition'
     | Full.FragmentDefinition _ typeCondition directives' selections _ <- definition'
         = applyToChildren typeCondition directives' selections
   where
-    types' = Validation.types context
+    types' = Schema.types $ Validation.schema context
     applyToChildren typeCondition directives' selections
         = selectionSet context types' rule (lookupType' typeCondition) selections
         >< directives context rule fragmentDefinitionLocation directives'
@@ -442,7 +394,7 @@ field context types' rule objectType field' = go field'
     typeFieldArguments (Out.Field _ _ argumentTypes) = argumentTypes
     applyToChildren fieldName =
         let Full.Field _ _ arguments' directives' selections _ = field'
-            typeField = objectType >>= lookupTypeField fieldName
+            typeField = objectType >>= Type.lookupTypeField fieldName
             argumentTypes = maybe mempty typeFieldArguments typeField
          in selectionSet context types' rule (typeFieldType <$> typeField) selections
             >< directives context rule fieldLocation directives'
@@ -546,7 +498,9 @@ directive _ (Validation.ArgumentsRule _ argumentsRule) directive' =
     pure $ argumentsRule directive'
 directive context rule (Full.Directive directiveName arguments' _) =
     let argumentTypes = maybe HashMap.empty directiveArguments
-            $ HashMap.lookup directiveName (Validation.directives context)
+            $ HashMap.lookup directiveName
+            $ Schema.directives
+            $ Validation.schema context
      in arguments rule argumentTypes arguments'
   where
     directiveArguments (Schema.Directive _ _ argumentTypes) = argumentTypes

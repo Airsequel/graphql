@@ -21,6 +21,6 @@ module Language.GraphQL.Type
     ) where
 
 import Language.GraphQL.Type.Definition
-import Language.GraphQL.Type.Schema (Schema(..), schema)
+import Language.GraphQL.Type.Schema (Schema, schema)
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out

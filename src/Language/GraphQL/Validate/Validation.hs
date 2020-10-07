@@ -11,14 +11,12 @@ module Language.GraphQL.Validate.Validation
     ) where
 
 import Control.Monad.Trans.Reader (ReaderT)
-import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq)
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema (Schema)
-import qualified Language.GraphQL.Type.Schema as Schema
 
 -- | Validation error.
 data Error = Error
@@ -30,8 +28,6 @@ data Error = Error
 data Validation m = Validation
     { ast :: Document
     , schema :: Schema m
-    , types :: HashMap Name (Schema.Type m)
-    , directives :: Schema.Directives
     }
 
 -- | 'Rule' assigns a function to each AST node that can be validated. If the
