@@ -1,12 +1,15 @@
-name:                graphql
-version:             0.10.0.0
-synopsis:            Haskell GraphQL implementation
+name: graphql
+version: 0.10.0.0
+synopsis: Haskell GraphQL implementation
 description:
-  This package provides a rudimentary parser for the
-  <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
-maintainer:          belka@caraus.de
-github:              caraus-ecms/graphql
-category:            Language
+  Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
+maintainer: belka@caraus.de
+git: git://caraus.tech/pub/graphql.git
+homepage: https://www.caraus.tech/projects/pub-graphql
+bug-reports: https://www.caraus.tech/projects/pub-graphql/issues
+category: Language
+license: MPL-2.0 AND BSD-3-Clause
+
 copyright:
 - (c) 2019-2020 Eugen Wissner
 - (c) 2015-2017 J. Daniel Navarro
@@ -15,10 +18,12 @@ author:
 - Matthías Páll Gissurarson <mpg@mpg.is>
 - Sólrún Halla Einarsdóttir <she@mpg.is>
 
+license-file:
+- LICENSE
+- LICENSE.MPL
 extra-source-files:
 - CHANGELOG.md
 - CONTRIBUTING.md
-- LICENSE
 - README.md
 - docs/tutorial/tutorial.lhs
 

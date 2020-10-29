@@ -1,37 +1,37 @@
-cabal-version: 1.12
+cabal-version: 2.2
 
 -- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 3ef060c57424074b84204bae61ee0a63e3470a7a060c45a977ff2bcbe4df8775
+-- hash: 64b8d806f87030d33d1f8d505887d4913689ee48bc6e79b1c24b5226ffd07ee8
 
 name:           graphql
 version:        0.10.0.0
 synopsis:       Haskell GraphQL implementation
-description:    This package provides a rudimentary parser for the <https://graphql.github.io/graphql-spec/June2018/ GraphQL> language.
+description:    Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
 category:       Language
-homepage:       https://github.com/caraus-ecms/graphql#readme
-bug-reports:    https://github.com/caraus-ecms/graphql/issues
+homepage:       https://www.caraus.tech/projects/pub-graphql
+bug-reports:    https://www.caraus.tech/projects/pub-graphql/issues
 author:         Danny Navarro <j@dannynavarro.net>,
                 Matthías Páll Gissurarson <mpg@mpg.is>,
                 Sólrún Halla Einarsdóttir <she@mpg.is>
 maintainer:     belka@caraus.de
 copyright:      (c) 2019-2020 Eugen Wissner,
                 (c) 2015-2017 J. Daniel Navarro
-license:        BSD3
-license-file:   LICENSE
+license:        MPL-2.0 AND BSD-3-Clause
+license-files:  LICENSE,
+                LICENSE.MPL
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
     CONTRIBUTING.md
-    LICENSE
     README.md
     docs/tutorial/tutorial.lhs
 
 source-repository head
   type: git
-  location: https://github.com/caraus-ecms/graphql
+  location: git://caraus.tech/pub/graphql.git
 
 library
   exposed-modules:

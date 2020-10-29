@@ -1,11 +1,5 @@
 # GraphQL implementation in Haskell
 
-[![Hackage Version](https://img.shields.io/hackage/v/graphql.svg)](https://hackage.haskell.org/package/graphql)
-[![Hackage CI](https://matrix.hackage.haskell.org/api/v2/packages/graphql/badge)](https://matrix.hackage.haskell.org/package/graphql)
-[![Build Status](https://github.com/caraus-ecms/graphql/workflows/Haskell%20CI/badge.svg)](https://github.com/caraus-ecms/graphql/actions?query=workflow%3A%22Haskell+CI%22)
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](https://raw.githubusercontent.com/caraus-ecms/graphql/master/LICENSE)
-[![Simple Haskell](https://www.simplehaskell.org/badges/badge.svg)](https://www.simplehaskell.org)
-
 This implementation is relatively low-level by design, it doesn't provide any
 mappings between the GraphQL types and Haskell's type system and avoids
 compile-time magic. It focuses on flexibility instead, so other solutions can
@@ -25,16 +19,16 @@ For now this library provides:
 But the idea is to be a Haskell port of
 [`graphql-js`](https://github.com/graphql/graphql-js).
 
-For a more precise list of currently missing features see issues marked as
-"[not implemented](https://github.com/caraus-ecms/graphql/labels/not%20implemented)".
+For a more precise list of currently missing features see
+[issues](https://www.caraus.tech/projects/pub-graphql/issues).
 
 ## Documentation
 
 API documentation is available through
 [Hackage](https://hackage.haskell.org/package/graphql).
 
-You'll also find a small tutorial with some examples under
-[docs/tutorial](https://github.com/caraus-ecms/graphql/tree/master/docs/tutorial).
+Further documentation will be made available in the
+[Wiki](https://www.caraus.tech/projects/pub-graphql/wiki).
 
 ### Getting started
 
@@ -129,20 +123,9 @@ Executing this query produces the following JSON:
 }
 ```
 
-## Further information
-
-- [Contributing guidelines](CONTRIBUTING.md).
-- [Changelog](CHANGELOG.md) – this one contains the most recent changes; 
-  individual changelogs for specific versions can be found on
-  [Hackage](https://hackage.haskell.org/package/graphql).
-
 ## Contact
 
-Suggestions, contributions and bug reports are welcome.
+Suggestions, patches and bug reports are welcome.
 
 Should you have questions on usage, please open an issue and ask – this helps
 to write useful documentation.
-
-Feel free to contact on Slack in [#haskell on
-GraphQL](https://graphql.slack.com/messages/haskell/). You can obtain an
-invitation [here](https://graphql-slack.herokuapp.com/).
