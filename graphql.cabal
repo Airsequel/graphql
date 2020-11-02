@@ -4,7 +4,7 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 64b8d806f87030d33d1f8d505887d4913689ee48bc6e79b1c24b5226ffd07ee8
+-- hash: ddb79ddbd13b917f320fff372b4a29b63b6eb0ed113ca732c1d779b4e6a296d8
 
 name:           graphql
 version:        0.10.0.0
@@ -25,9 +25,7 @@ license-files:  LICENSE,
 build-type:     Simple
 extra-source-files:
     CHANGELOG.md
-    CONTRIBUTING.md
     README.md
-    docs/tutorial/tutorial.lhs
 
 source-repository head
   type: git

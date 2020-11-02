@@ -23,9 +23,7 @@ license-file:
 - LICENSE.MPL
 extra-source-files:
 - CHANGELOG.md
-- CONTRIBUTING.md
 - README.md
-- docs/tutorial/tutorial.lhs
 
 dependencies:
 - aeson
