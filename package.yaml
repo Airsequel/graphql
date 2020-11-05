@@ -50,7 +50,7 @@ library:
   - Language.GraphQL.Validate.Rules
 
 tests:
-  tasty:
+  graphql-test:
     main: Spec.hs
     source-dirs: tests
     ghc-options:
