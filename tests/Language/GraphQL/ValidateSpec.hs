@@ -92,6 +92,7 @@ petType = InterfaceType "Pet" Nothing []
 subscriptionType :: ObjectType IO
 subscriptionType = ObjectType "Subscription" Nothing [] $ HashMap.fromList
     [ ("newMessage", newMessageResolver)
+    , ("disallowedSecondRootField", newMessageResolver)
     ]
   where
     newMessageField = Field Nothing (Out.NonNullObjectType messageType) mempty
@@ -165,7 +166,8 @@ spec =
             |]
                 expected = Error
                     { message =
-                        "Subscription sub must select only one top level field."
+                        "Subscription \"sub\" must select only one top level \
+                        \field."
                     , locations = [AST.Location 2 15]
                     }
              in validate queryString `shouldContain` [expected]
@@ -186,7 +188,8 @@ spec =
             |]
                 expected = Error
                     { message =
-                        "Subscription sub must select only one top level field."
+                        "Subscription \"sub\" must select only one top level \
+                        \field."
                     , locations = [AST.Location 2 15]
                     }
              in validate queryString `shouldContain` [expected]
@@ -629,5 +632,34 @@ spec =
                         "Input field \"name\" of type \"DogData\" is required, \
                         \but it was not provided."
                     , locations = [AST.Location 3 34]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "finds corresponding subscription fragment" $
+            let queryString = [r|
+              subscription sub {
+                ...anotherSubscription
+                ...multipleSubscriptions
+              }
+              fragment multipleSubscriptions on Subscription {
+                newMessage {
+                  body
+                }
+                disallowedSecondRootField {
+                  sender
+                }
+              }
+              fragment anotherSubscription on Subscription {
+                newMessage {
+                  body
+                  sender
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Subscription \"sub\" must select only one top level \
+                        \field."
+                    , locations = [AST.Location 2 15]
                     }
              in validate queryString `shouldBe` [expected]
