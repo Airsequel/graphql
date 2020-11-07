@@ -1,5 +1,5 @@
 name: graphql
-version: 0.10.0.0
+version: 0.11.0.0
 synopsis: Haskell GraphQL implementation
 description:
   Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
@@ -63,3 +63,5 @@ tests:
     - hspec-megaparsec
     - QuickCheck
     - raw-strings-qq
+    generated-other-modules:
+    - Paths_graphql

@@ -4,10 +4,10 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c943c792ef9717e8305e22059e7244a0a471b6d26a53e6e4dc162e4f4a6110b4
+-- hash: c89b0164372b6e02e4f338d3865dd6bb9dfd1a4475f25d808450480d73f94f91
 
 name:           graphql
-version:        0.10.0.0
+version:        0.11.0.0
 synopsis:       Haskell GraphQL implementation
 description:    Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
 category:       Language
@@ -89,6 +89,8 @@ test-suite graphql-test
       Test.DirectiveSpec
       Test.FragmentSpec
       Test.RootOperationSpec
+      Paths_graphql
+  autogen-modules:
       Paths_graphql
   hs-source-dirs:
       tests

@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [Unreleased]
+## [0.11.0.0] - 2020-11-07
 ### Changed
 - `AST.Document.Selection` wraps additional new types: `Field`, `FragmentSpread`
   and  `InlineFragment`. Thus validation rules can be defined more concise.
@@ -400,17 +400,17 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://github.com/caraus-ecms/graphql/compare/v0.10.0.0...HEAD
-[0.10.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.9.0.0...v0.10.0.0
-[0.9.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.8.0.0...v0.9.0.0
-[0.8.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.7.0.0...v0.8.0.0
-[0.7.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.1.0...v0.7.0.0
-[0.6.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.6.0.0...v0.6.1.0
-[0.6.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.1.0...v0.6.0.0
-[0.5.1.0]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.1...v0.5.1.0
-[0.5.0.1]: https://github.com/caraus-ecms/graphql/compare/v0.5.0.0...v0.5.0.1
-[0.5.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.4.0.0...v0.5.0.0
-[0.4.0.0]: https://github.com/caraus-ecms/graphql/compare/v0.3...v0.4.0.0
-[0.3]: https://github.com/caraus-ecms/graphql/compare/v0.2.1...v0.3
-[0.2.1]: https://github.com/caraus-ecms/graphql/compare/v0.2...v0.2.1
-[0.2]: https://github.com/caraus-ecms/graphql/compare/v0.1...v0.2
+[0.11.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.0.0&rev_to=v0.10.0.0
+[0.10.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.10.0.0&rev_to=v0.9.0.0
+[0.9.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.9.0.0&rev_to=v0.8.0.0
+[0.8.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.8.0.0&rev_to=v0.7.0.0
+[0.7.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.7.0.0&rev_to=v0.6.1.0
+[0.6.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.6.1.0&rev_to=v0.6.0.0
+[0.6.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.6.0.0&rev_to=v0.5.1.0
+[0.5.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.1.0&rev_to=v0.5.0.1
+[0.5.0.1]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.0.1&rev_to=v0.5.0.0
+[0.5.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.0.0&rev_to=v0.4.0.0
+[0.4.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.4.0.0&rev_to=v0.3
+[0.3]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.3&rev_to=v0.2.1
+[0.2.1]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.2.1&rev_to=v0.2
+[0.2]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.2&rev_to=v0.1
