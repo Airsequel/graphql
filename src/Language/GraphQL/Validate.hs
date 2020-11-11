@@ -210,7 +210,7 @@ typeDefinition context rule = \case
         directives context rule scalarLocation directives'
     Full.ObjectTypeDefinition _ _ _ directives' fields
         -> directives context rule objectLocation directives'
-         >< foldMap (fieldDefinition context rule) fields
+        >< foldMap (fieldDefinition context rule) fields
     Full.InterfaceTypeDefinition _ _ directives' fields
         -> directives context rule interfaceLocation directives'
         >< foldMap (fieldDefinition context rule) fields
