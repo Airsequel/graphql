@@ -15,10 +15,12 @@ module Language.GraphQL.Type.Internal
     , directives
     , doesFragmentTypeApply
     , instanceOf
+    , lookupCompositeField
     , lookupInputType
     , lookupTypeCondition
     , lookupTypeField
     , mutation
+    , outToComposite
     , subscription
     , query
     , types
@@ -160,12 +162,16 @@ lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types'
     <$> lookupInputType nonNull types'
 
 lookupTypeField :: forall a. Full.Name -> Out.Type a -> Maybe (Out.Field a)
-lookupTypeField fieldName = \case
-    Out.ObjectBaseType objectType ->
-        objectChild objectType
-    Out.InterfaceBaseType interfaceType ->
-        interfaceChild interfaceType
-    Out.ListBaseType listType -> lookupTypeField fieldName listType
+lookupTypeField fieldName outputType =
+    outToComposite outputType >>= lookupCompositeField fieldName
+
+lookupCompositeField :: forall a
+    . Full.Name
+    -> CompositeType a
+    -> Maybe (Out.Field a)
+lookupCompositeField fieldName = \case
+    CompositeObjectType objectType -> objectChild objectType
+    CompositeInterfaceType interfaceType -> interfaceChild interfaceType
     _ -> Nothing
   where
     objectChild (Out.ObjectType _ _ _ resolvers) =
@@ -174,3 +180,12 @@ lookupTypeField fieldName = \case
         HashMap.lookup fieldName fields
     resolverType (Out.ValueResolver objectField _) = objectField
     resolverType (Out.EventStreamResolver objectField _ _) = objectField
+
+outToComposite :: forall a. Out.Type a -> Maybe (CompositeType a)
+outToComposite = \case
+    Out.ObjectBaseType objectType -> Just $ CompositeObjectType objectType
+    Out.InterfaceBaseType interfaceType ->
+        Just $ CompositeInterfaceType interfaceType
+    Out.UnionBaseType unionType -> Just $ CompositeUnionType unionType
+    Out.ListBaseType listType -> outToComposite listType
+    _ -> Nothing

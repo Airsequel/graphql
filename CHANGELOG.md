@@ -7,6 +7,9 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+### Added
+- `Validate.Rules`:
+  - `overlappingFieldsCanBeMergedRule`
 
 ## [0.11.0.0] - 2020-11-07
 ### Changed

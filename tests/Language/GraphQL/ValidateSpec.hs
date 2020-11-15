@@ -663,3 +663,81 @@ spec =
                     , locations = [AST.Location 2 15]
                     }
              in validate queryString `shouldBe` [expected]
+
+        it "fails to merge fields of mismatching types" $
+            let queryString = [r|
+              {
+                dog {
+                  name: nickname
+                  name
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fields \"name\" conflict because \"nickname\" and \
+                        \\"name\" are different fields. Use different aliases \
+                        \on the fields to fetch both if this was intentional."
+                    , locations = [AST.Location 4 19, AST.Location 5 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "fails if the arguments of the same field don't match" $
+            let queryString = [r|
+              {
+                dog {
+                  doesKnowCommand(dogCommand: SIT)
+                  doesKnowCommand(dogCommand: HEEL)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fields \"doesKnowCommand\" conflict because they have \
+                        \different arguments. Use different aliases on the \
+                        \fields to fetch both if this was intentional."
+                    , locations = [AST.Location 4 19, AST.Location 5 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "fails to merge same-named field and alias" $
+            let queryString = [r|
+              {
+                dog {
+                  doesKnowCommand(dogCommand: SIT)
+                  doesKnowCommand: isHousetrained(atOtherHomes: true)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fields \"doesKnowCommand\" conflict because \
+                        \\"doesKnowCommand\" and \"isHousetrained\" are \
+                        \different fields. Use different aliases on the fields \
+                        \to fetch both if this was intentional."
+                    , locations = [AST.Location 4 19, AST.Location 5 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "looks for fields after a successfully merged field pair" $
+            let queryString = [r|
+              {
+                dog {
+                  name
+                  doesKnowCommand(dogCommand: SIT)
+                }
+                dog {
+                  name
+                  doesKnowCommand: isHousetrained(atOtherHomes: true)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fields \"doesKnowCommand\" conflict because \
+                        \\"doesKnowCommand\" and \"isHousetrained\" are \
+                        \different fields. Use different aliases on the fields \
+                        \to fetch both if this was intentional."
+                    , locations = [AST.Location 5 19, AST.Location 9 19]
+                    }
+             in validate queryString `shouldBe` [expected]
