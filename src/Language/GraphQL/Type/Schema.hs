@@ -23,6 +23,7 @@ import Language.GraphQL.Type.Internal
     , Schema
     , Type(..)
     , directives
+    , implementations
     , mutation
     , subscription
     , query
@@ -41,9 +42,11 @@ schema :: forall m
     -> Directives -- ^ Directive definitions.
     -> Schema m -- ^ Schema.
 schema queryRoot mutationRoot subscriptionRoot directiveDefinitions =
-    Internal.Schema queryRoot mutationRoot subscriptionRoot allDirectives collectedTypes
+    Internal.Schema queryRoot mutationRoot subscriptionRoot
+        allDirectives collectedTypes collectedImplementations
   where
     collectedTypes = collectReferencedTypes queryRoot mutationRoot subscriptionRoot
+    collectedImplementations = collectImplementations collectedTypes
     allDirectives = HashMap.union directiveDefinitions defaultDirectives
     defaultDirectives = HashMap.fromList
         [ ("skip", skipDirective)
@@ -153,3 +156,20 @@ collectReferencedTypes queryRoot mutationRoot subscriptionRoot =
     polymorphicTraverser interfaces fields
         = flip (foldr visitFields) fields
         . flip (foldr traverseInterfaceType) interfaces
+
+-- | Looks for objects and interfaces under the schema types and collects the
+-- interfaces they implement.
+collectImplementations :: forall m
+    . HashMap Full.Name (Type m)
+    -> HashMap Full.Name [Type m]
+collectImplementations = HashMap.foldr go HashMap.empty
+  where
+    go implementation@(InterfaceType interfaceType) accumulator =
+        let Out.InterfaceType _ _ interfaces _ = interfaceType
+         in foldr (add implementation) accumulator interfaces
+    go implementation@(ObjectType objectType) accumulator =
+        let Out.ObjectType _ _ interfaces _ = objectType
+         in foldr (add implementation) accumulator interfaces
+    go _ accumulator = accumulator
+    add implementation (Out.InterfaceType typeName _ _ _) accumulator =
+        HashMap.insertWith (++) typeName [implementation] accumulator

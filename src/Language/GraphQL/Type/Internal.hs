@@ -14,6 +14,7 @@ module Language.GraphQL.Type.Internal
     , Type(..)
     , directives
     , doesFragmentTypeApply
+    , implementations
     , instanceOf
     , lookupCompositeField
     , lookupInputType
@@ -64,26 +65,31 @@ data Schema m = Schema
     (Maybe (Out.ObjectType m))
     Directives
     (HashMap Full.Name (Type m))
+    (HashMap Full.Name [Type m])
 
 -- | Schema query type.
 query :: forall m. Schema m -> Out.ObjectType m
-query (Schema query' _ _ _ _) = query'
+query (Schema query' _ _ _ _ _) = query'
 
 -- | Schema mutation type.
 mutation :: forall m. Schema m -> Maybe (Out.ObjectType m)
-mutation (Schema _ mutation' _ _ _) = mutation'
+mutation (Schema _ mutation' _ _ _ _) = mutation'
 
 -- | Schema subscription type.
 subscription :: forall m. Schema m -> Maybe (Out.ObjectType m)
-subscription (Schema _ _ subscription' _ _) = subscription'
+subscription (Schema _ _ subscription' _ _ _) = subscription'
 
 -- | Schema directive definitions.
 directives :: forall m. Schema m -> Directives
-directives (Schema _ _ _ directives' _) = directives'
+directives (Schema _ _ _ directives' _ _) = directives'
 
 -- | Types referenced by the schema.
 types :: forall m. Schema m -> HashMap Full.Name (Type m)
-types (Schema _ _ _ _ types') = types'
+types (Schema _ _ _ _ types' _) = types'
+
+-- | Interface implementations.
+implementations :: forall m. Schema m -> HashMap Full.Name [Type m]
+implementations (Schema _ _ _ _ _ implementations') = implementations'
 
 -- | These types may describe the parent context of a selection set.
 data CompositeType m
