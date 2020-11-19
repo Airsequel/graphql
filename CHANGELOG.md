@@ -10,6 +10,7 @@ and this project adheres to
 ### Added
 - `Validate.Rules`:
   - `overlappingFieldsCanBeMergedRule`
+  - `possibleFragmentSpreadsRule`
 - `Type.Schema.implementations` contains a map from interfaces and objects to
   interfaces they implement.
 

@@ -25,6 +25,7 @@ module Language.GraphQL.Validate.Rules
     , noUnusedFragmentsRule
     , noUnusedVariablesRule
     , overlappingFieldsCanBeMergedRule
+    , possibleFragmentSpreadsRule
     , providedRequiredInputFieldsRule
     , providedRequiredArgumentsRule
     , scalarLeafsRule
@@ -93,6 +94,7 @@ specifiedRules =
     , noUnusedFragmentsRule
     , fragmentSpreadTargetDefinedRule
     , noFragmentCyclesRule
+    , possibleFragmentSpreadsRule
     -- Values
     , knownInputFieldNamesRule
     , uniqueInputFieldNamesRule
@@ -322,10 +324,8 @@ fragmentSpreadTypeExistenceRule :: forall m. Rule m
 fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
     Full.FragmentSpreadSelection fragmentSelection
         | Full.FragmentSpread fragmentName _ location' <- fragmentSelection -> do
-            ast' <- asks ast
-            let target = find (isSpreadTarget fragmentName) ast'
-            typeCondition <- lift $ maybeToSeq $ target >>= extractTypeCondition
             types' <- asks $ Schema.types . schema
+            typeCondition <- findSpreadTarget fragmentName
             case HashMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = spreadError fragmentName typeCondition
@@ -344,10 +344,6 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
                 Just _ -> lift mempty
     _ -> lift mempty
   where
-    extractTypeCondition (viewFragment -> Just fragmentDefinition) =
-        let Full.FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
-         in Just typeCondition
-    extractTypeCondition _ = Nothing
     spreadError fragmentName typeCondition = concat
         [ "Fragment \""
         , Text.unpack fragmentName
@@ -361,9 +357,9 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
         , "\" which doesn't exist in the schema."
         ]
 
-maybeToSeq :: forall a. Maybe a -> Seq a
-maybeToSeq (Just x) = pure x
-maybeToSeq Nothing = mempty
+maybeToSeq :: forall a m. Maybe a -> ReaderT (Validation m) Seq a
+maybeToSeq (Just x) = lift $ pure x
+maybeToSeq Nothing = lift mempty
 
 -- | Fragments can only be declared on unions, interfaces, and objects. They are
 -- invalid on scalars. They can only be applied on non‐leaf fields. This rule
@@ -379,7 +375,7 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
     check typeCondition location' = do
         types' <- asks $ Schema.types . schema
         -- Skip unknown types, they are checked by another rule.
-        _ <- lift $ maybeToSeq $ HashMap.lookup typeCondition types'
+        _ <- maybeToSeq $ HashMap.lookup typeCondition types'
         case Type.lookupTypeCondition typeCondition types' of
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
@@ -718,7 +714,7 @@ fieldsOnCorrectTypeRule = FieldRule fieldRule
     fieldRule parentType (Full.Field _ fieldName _ _ _ location')
         | Just objectType <- parentType
         , Nothing <- Type.lookupTypeField fieldName objectType
-        , Just typeName <- compositeTypeName objectType = pure $ Error
+        , Just typeName <- typeNameIfComposite objectType = pure $ Error
             { message = errorMessage fieldName typeName
             , locations = [location']
             }
@@ -731,20 +727,17 @@ fieldsOnCorrectTypeRule = FieldRule fieldRule
         , "\"."
         ]
 
-compositeTypeName :: forall m. Out.Type m -> Maybe Full.Name
-compositeTypeName (Out.ObjectBaseType (Out.ObjectType typeName _ _ _)) =
-    Just typeName
-compositeTypeName (Out.InterfaceBaseType interfaceType) =
+compositeTypeName :: forall m. Type.CompositeType m -> Full.Name
+compositeTypeName (Type.CompositeObjectType (Out.ObjectType typeName _ _ _)) =
+    typeName
+compositeTypeName (Type.CompositeInterfaceType interfaceType) =
     let Out.InterfaceType typeName _ _ _ = interfaceType
-        in Just typeName
-compositeTypeName (Out.UnionBaseType (Out.UnionType typeName _ _)) =
-    Just typeName
-compositeTypeName (Out.ScalarBaseType _) =
-    Nothing
-compositeTypeName (Out.EnumBaseType _) =
-    Nothing
-compositeTypeName (Out.ListBaseType wrappedType) =
-    compositeTypeName wrappedType
+     in typeName
+compositeTypeName (Type.CompositeUnionType (Out.UnionType typeName _ _)) =
+    typeName
+
+typeNameIfComposite :: forall m. Out.Type m -> Maybe Full.Name
+typeNameIfComposite = fmap compositeTypeName . Type.outToComposite
 
 -- | Field selections on scalars or enums are never allowed, because they are
 -- the leaf nodes of any GraphQL query.
@@ -802,7 +795,7 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
   where
     fieldRule (Just objectType) (Full.Field _ fieldName arguments  _ _ _)
         | Just typeField <- Type.lookupTypeField fieldName objectType
-        , Just typeName <- compositeTypeName objectType =
+        , Just typeName <- typeNameIfComposite objectType =
             lift $ foldr (go typeName fieldName typeField) Seq.empty arguments
     fieldRule _ _ = lift mempty
     go typeName fieldName fieldDefinition (Full.Argument argumentName _ location') errors
@@ -1205,3 +1198,91 @@ data FieldInfo m = FieldInfo
     , type' :: Out.Type m
     , parent :: Type.CompositeType m
     }
+
+-- | Fragments are declared on a type and will only apply when the runtime
+-- object type matches the type condition. They also are spread within the
+-- context of a parent type. A fragment spread is only valid if its type
+-- condition could ever apply within the parent type.
+possibleFragmentSpreadsRule :: forall m. Rule m
+possibleFragmentSpreadsRule = SelectionRule go
+  where
+    go (Just parentType) (Full.InlineFragmentSelection fragmentSelection)
+        | Full.InlineFragment maybeType _ _ location' <- fragmentSelection
+        , Just typeCondition <- maybeType = do
+            (fragmentTypeName, parentTypeName) <-
+                compareTypes typeCondition parentType
+            pure $ Error
+                { message = concat
+                    [ "Fragment cannot be spread here as objects of type \""
+                    , Text.unpack parentTypeName
+                    , "\" can never be of type \""
+                    , Text.unpack fragmentTypeName
+                    , "\"."
+                    ]
+                , locations = [location']
+                }
+    go (Just parentType) (Full.FragmentSpreadSelection fragmentSelection)
+        | Full.FragmentSpread fragmentName _ location' <- fragmentSelection = do
+            typeCondition <- findSpreadTarget fragmentName
+            (fragmentTypeName, parentTypeName) <-
+                compareTypes typeCondition parentType
+            pure $ Error
+                { message = concat
+                    [ "Fragment \""
+                    , Text.unpack fragmentName
+                    , "\" cannot be spread here as objects of type \""
+                    , Text.unpack parentTypeName
+                    , "\" can never be of type \""
+                    , Text.unpack fragmentTypeName
+                    , "\"."
+                    ]
+                , locations = [location']
+                }
+    go _ _ = lift mempty
+    compareTypes typeCondition parentType = do
+        types' <- asks $ Schema.types . schema
+        fragmentType <- maybeToSeq
+            $ Type.lookupTypeCondition typeCondition types'
+        parentComposite <- maybeToSeq
+            $ Type.outToComposite parentType
+        possibleFragments <- getPossibleTypes fragmentType
+        possibleParents <- getPossibleTypes parentComposite
+        let fragmentTypeName = compositeTypeName fragmentType
+        let parentTypeName = compositeTypeName parentComposite
+        if HashSet.null $ HashSet.intersection possibleFragments possibleParents
+            then pure (fragmentTypeName, parentTypeName)
+            else lift mempty
+    getPossibleTypeList (Type.CompositeObjectType objectType) =
+        pure [Schema.ObjectType objectType]
+    getPossibleTypeList (Type.CompositeUnionType unionType) =
+        let Out.UnionType _ _ members = unionType
+         in pure $ Schema.ObjectType <$> members
+    getPossibleTypeList (Type.CompositeInterfaceType interfaceType) =
+        let Out.InterfaceType typeName _ _ _ = interfaceType
+         in HashMap.lookupDefault [] typeName
+        <$> asks (Schema.implementations . schema)
+    getPossibleTypes compositeType
+        = foldr (HashSet.insert . internalTypeName) HashSet.empty
+        <$> getPossibleTypeList compositeType
+
+internalTypeName :: forall m. Schema.Type m -> Full.Name
+internalTypeName (Schema.ScalarType (Definition.ScalarType typeName _)) =
+    typeName
+internalTypeName (Schema.EnumType (Definition.EnumType typeName _ _)) = typeName
+internalTypeName (Schema.ObjectType (Out.ObjectType typeName _ _ _)) = typeName
+internalTypeName (Schema.InputObjectType (In.InputObjectType typeName _ _)) =
+    typeName
+internalTypeName (Schema.InterfaceType (Out.InterfaceType typeName _ _ _)) =
+    typeName
+internalTypeName (Schema.UnionType (Out.UnionType typeName _ _)) = typeName
+
+findSpreadTarget :: Full.Name -> ReaderT (Validation m1) Seq Full.TypeCondition
+findSpreadTarget fragmentName = do
+    ast' <- asks ast
+    let target = find (isSpreadTarget fragmentName) ast'
+    maybeToSeq $ target >>= extractTypeCondition
+  where
+    extractTypeCondition (viewFragment -> Just fragmentDefinition) =
+        let Full.FragmentDefinition _ typeCondition _ _ _ = fragmentDefinition
+            in Just typeCondition
+    extractTypeCondition _ = Nothing

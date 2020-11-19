@@ -18,7 +18,7 @@ import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Validate
 import Test.Hspec (Spec, describe, it, shouldBe, shouldContain)
-import Text.Megaparsec (parse)
+import Text.Megaparsec (parse, errorBundlePretty)
 import Text.RawString.QQ (r)
 
 petSchema :: Schema IO
@@ -27,6 +27,7 @@ petSchema = schema queryType Nothing (Just subscriptionType) mempty
 queryType :: ObjectType IO
 queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
     [ ("dog", dogResolver)
+    , ("cat", catResolver)
     , ("findDog", findDogResolver)
     ]
   where
@@ -36,6 +37,39 @@ queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
         $ In.Argument Nothing (In.NonNullInputObjectType dogDataType) Nothing
     findDogField = Field Nothing (Out.NamedObjectType dogType) findDogArguments
     findDogResolver = ValueResolver findDogField $ pure Null
+    catField = Field Nothing (Out.NamedObjectType catType) mempty
+    catResolver = ValueResolver catField $ pure Null
+
+catCommandType :: EnumType
+catCommandType = EnumType "CatCommand" Nothing $ HashMap.fromList
+    [ ("JUMP", EnumValue Nothing)
+    ]
+
+catType :: ObjectType IO
+catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
+    [ ("name", nameResolver)
+    , ("nickname", nicknameResolver)
+    , ("doesKnowCommand", doesKnowCommandResolver)
+    , ("meowVolume", meowVolumeResolver)
+    ]
+  where
+    meowVolumeField = Field Nothing (Out.NamedScalarType int) mempty
+    meowVolumeResolver = ValueResolver meowVolumeField $ pure $ Int 3
+    doesKnowCommandField = Field Nothing (Out.NonNullScalarType boolean)
+        $ HashMap.singleton "catCommand"
+        $ In.Argument Nothing (In.NonNullEnumType catCommandType) Nothing
+    doesKnowCommandResolver = ValueResolver doesKnowCommandField
+        $ pure $ Boolean True
+
+nameResolver :: Resolver IO
+nameResolver = ValueResolver nameField $ pure "Name"
+  where
+    nameField = Field Nothing (Out.NonNullScalarType string) mempty
+
+nicknameResolver :: Resolver IO
+nicknameResolver = ValueResolver nicknameField $ pure "Nickname"
+  where
+    nicknameField = Field Nothing (Out.NamedScalarType string) mempty
 
 dogCommandType :: EnumType
 dogCommandType = EnumType "DogCommand" Nothing $ HashMap.fromList
@@ -54,10 +88,6 @@ dogType = ObjectType "Dog" Nothing [petType] $ HashMap.fromList
     , ("owner", ownerResolver)
     ]
   where
-    nameField = Field Nothing (Out.NonNullScalarType string) mempty
-    nameResolver = ValueResolver nameField $ pure "Name"
-    nicknameField = Field Nothing (Out.NamedScalarType string) mempty
-    nicknameResolver = ValueResolver nicknameField $ pure "Nickname"
     barkVolumeField = Field Nothing (Out.NamedScalarType int) mempty
     barkVolumeResolver = ValueResolver barkVolumeField $ pure $ Int 3
     doesKnowCommandField = Field Nothing (Out.NonNullScalarType boolean)
@@ -116,8 +146,6 @@ humanType = ObjectType "Human" Nothing [sentientType] $ HashMap.fromList
     , ("pets", petsResolver)
     ]
   where
-    nameField = Field Nothing (Out.NonNullScalarType string) mempty
-    nameResolver = ValueResolver nameField $ pure "Name"
     petsField =
         Field Nothing (Out.ListType $ Out.NonNullInterfaceType petType) mempty
     petsResolver = ValueResolver petsField $ pure $ List []
@@ -128,7 +156,7 @@ catOrDogType = UnionType "CatOrDog" Nothing [catType, dogType]
 validate :: Text -> [Error]
 validate queryString =
     case parse AST.document "" queryString of
-        Left _ -> []
+        Left parseErrors -> error $ errorBundlePretty parseErrors
         Right ast -> toList $ document petSchema specifiedRules ast
 
 spec :: Spec
@@ -739,5 +767,44 @@ spec =
                         \different fields. Use different aliases on the fields \
                         \to fetch both if this was intentional."
                     , locations = [AST.Location 5 19, AST.Location 9 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects object inline spreads outside object scope" $
+            let queryString = [r|
+              {
+                dog {
+                  ... on Cat {
+                    meowVolume
+                  }
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment cannot be spread here as objects of type \
+                        \\"Dog\" can never be of type \"Cat\"."
+                    , locations = [AST.Location 4 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects object named spreads outside object scope" $
+            let queryString = [r|
+              {
+                dog {
+                  ... catInDogFragmentInvalid
+                }
+              }
+
+              fragment catInDogFragmentInvalid on Cat {
+                meowVolume
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Fragment \"catInDogFragmentInvalid\" cannot be spread \
+                        \here as objects of type \"Dog\" can never be of type \
+                        \\"Cat\"."
+                    , locations = [AST.Location 4 19]
                     }
              in validate queryString `shouldBe` [expected]
