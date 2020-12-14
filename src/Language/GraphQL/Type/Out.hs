@@ -38,6 +38,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Type.Definition
 import qualified Language.GraphQL.Type.In as In
@@ -52,6 +53,9 @@ data ObjectType m = ObjectType
 instance forall a. Eq (ObjectType a) where
     (ObjectType this _ _ _) == (ObjectType that _ _ _) = this == that
 
+instance forall a. Show (ObjectType a) where
+    show (ObjectType typeName _ _ _) = Text.unpack typeName
+
 -- | Interface Type Definition.
 --
 -- When a field can return one of a heterogeneous set of types, a Interface type
@@ -63,6 +67,9 @@ data InterfaceType m = InterfaceType
 instance forall a. Eq (InterfaceType a) where
     (InterfaceType this _ _ _) == (InterfaceType that _ _ _) = this == that
 
+instance forall a. Show (InterfaceType a) where
+    show (InterfaceType typeName _ _ _) = Text.unpack typeName
+
 -- | Union Type Definition.
 --
 -- When a field can return one of a heterogeneous set of types, a Union type is
@@ -71,6 +78,9 @@ data UnionType m = UnionType Name (Maybe Text) [ObjectType m]
 
 instance forall a. Eq (UnionType a) where
     (UnionType this _ _) == (UnionType that _ _) = this == that
+
+instance forall a. Show (UnionType a) where
+    show (UnionType typeName _ _) = Text.unpack typeName
 
 -- | Output object field definition.
 data Field m = Field
@@ -97,6 +107,20 @@ data Type m
     | NonNullUnionType (UnionType m)
     | NonNullListType (Type m)
     deriving Eq
+
+instance forall a. Show (Type a) where
+    show (NamedScalarType scalarType) = show scalarType
+    show (NamedEnumType enumType) = show enumType
+    show (NamedObjectType inputObjectType) = show inputObjectType
+    show (NamedInterfaceType interfaceType) = show interfaceType
+    show (NamedUnionType unionType) = show unionType
+    show (ListType baseType) = concat ["[", show baseType, "]"]
+    show (NonNullScalarType scalarType) = '!' : show scalarType
+    show (NonNullEnumType enumType) = '!' : show enumType
+    show (NonNullObjectType inputObjectType) = '!' : show inputObjectType
+    show (NonNullInterfaceType interfaceType) = '!' : show interfaceType
+    show (NonNullUnionType unionType) = '!' : show unionType
+    show (NonNullListType baseType) = concat ["![", show baseType, "]"]
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
 pattern ScalarBaseType :: forall m. ScalarType -> Type m

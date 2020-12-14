@@ -22,6 +22,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.String (IsString(..))
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Prelude hiding (id)
 
@@ -63,6 +64,9 @@ data ScalarType = ScalarType Name (Maybe Text)
 instance Eq ScalarType where
     (ScalarType this _) == (ScalarType that _) = this == that
 
+instance Show ScalarType where
+    show (ScalarType typeName _) = Text.unpack typeName
+
 -- | Enum type definition.
 --
 -- Some leaf values of requests and input values are Enums. GraphQL serializes
@@ -72,6 +76,9 @@ data EnumType = EnumType Name (Maybe Text) (HashMap Name EnumValue)
 
 instance Eq EnumType where
     (EnumType this _ _) == (EnumType that _ _) = this == that
+
+instance Show EnumType where
+    show (EnumType typeName _ _) = Text.unpack typeName
 
 -- | Enum value is a single member of an 'EnumType'.
 newtype EnumValue = EnumValue (Maybe Text)

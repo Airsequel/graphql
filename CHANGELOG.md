@@ -13,6 +13,7 @@ and this project adheres to
   - `possibleFragmentSpreadsRule`
 - `Type.Schema.implementations` contains a map from interfaces and objects to
   interfaces they implement.
+- Show instances for GraphQL type definitions in the `Type` modules.
 
 ## [0.11.0.0] - 2020-11-07
 ### Changed

@@ -24,6 +24,7 @@ module Language.GraphQL.Type.In
 
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST.Document (Name)
 import qualified Language.GraphQL.Type.Definition as Definition
 
@@ -40,6 +41,9 @@ data InputObjectType = InputObjectType
 instance Eq InputObjectType where
     (InputObjectType this _ _) == (InputObjectType that _ _) = this == that
 
+instance Show InputObjectType where
+    show (InputObjectType typeName _ _) = Text.unpack typeName
+
 -- | These types may be used as input types for arguments and directives.
 --
 -- GraphQL distinguishes between "wrapping" and "named" types. Each wrapping
@@ -55,6 +59,16 @@ data Type
     | NonNullInputObjectType InputObjectType
     | NonNullListType Type
     deriving Eq
+
+instance Show Type where
+    show (NamedScalarType scalarType) = show scalarType
+    show (NamedEnumType enumType) = show enumType
+    show (NamedInputObjectType inputObjectType) = show inputObjectType
+    show (ListType baseType) = concat ["[", show baseType, "]"]
+    show (NonNullScalarType scalarType) = '!' : show scalarType
+    show (NonNullEnumType enumType) = '!' : show enumType
+    show (NonNullInputObjectType inputObjectType) = '!' : show inputObjectType
+    show (NonNullListType baseType) = concat ["![", show baseType, "]"]
 
 -- | Field argument definition.
 data Argument = Argument (Maybe Text) Type (Maybe Definition.Value)
