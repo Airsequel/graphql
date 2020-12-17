@@ -281,7 +281,12 @@ data Type
     = TypeNamed Name
     | TypeList Type
     | TypeNonNull NonNullType
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show Type where
+    show (TypeNamed typeName) = Text.unpack typeName
+    show (TypeList listType) = concat ["[", show listType, "]"]
+    show (TypeNonNull nonNullType) = show nonNullType
 
 -- | Represents type names.
 type NamedType = Name
@@ -290,7 +295,11 @@ type NamedType = Name
 data NonNullType
     = NonNullTypeNamed Name
     | NonNullTypeList Type
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show NonNullType where
+    show (NonNullTypeNamed typeName) = '!' : Text.unpack typeName
+    show (NonNullTypeList listType) =  concat ["![", show listType, "]"]
 
 -- ** Directives
 
