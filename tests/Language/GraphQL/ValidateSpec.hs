@@ -485,7 +485,7 @@ spec =
                         "Variable \"$dog\" cannot be non-input type \"Dog\"."
                     , locations = [AST.Location 2 34]
                     }
-             in validate queryString `shouldBe` [expected]
+             in validate queryString `shouldContain` [expected]
 
         it "rejects undefined variables" $
             let queryString = [r|
@@ -806,5 +806,37 @@ spec =
                         \here as objects of type \"Dog\" can never be of type \
                         \\"Cat\"."
                     , locations = [AST.Location 4 19]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "wrongly typed variable arguments" $
+            let queryString = [r|
+              query catCommandArgQuery($catCommandArg: CatCommand) {
+                cat {
+                  doesKnowCommand(catCommand: $catCommandArg)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Variable \"$catCommandArg\" of type \"CatCommand\" \
+                        \used in position expecting type \"!CatCommand\"."
+                    , locations = [AST.Location 2 40]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "wrongly typed variable arguments" $
+            let queryString = [r|
+              query intCannotGoIntoBoolean($intArg: Int) {
+                dog {
+                  isHousetrained(atOtherHomes: $intArg)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Variable \"$intArg\" of type \"Int\" used in position \
+                        \expecting type \"Boolean\"."
+                    , locations = [AST.Location 2 44]
                     }
              in validate queryString `shouldBe` [expected]
