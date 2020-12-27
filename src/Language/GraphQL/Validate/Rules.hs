@@ -1328,6 +1328,12 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
         -> ValidationState m (Seq Error)
     visitSelectionSet variables selectionType selections =
         foldM (evaluateSelection variables selectionType) mempty selections
+    evaluateFieldSelection variables selections accumulator = \case
+        Just newParentType -> do
+            let folder = evaluateSelection variables newParentType
+            selectionErrors <- foldM folder accumulator selections
+            pure $ accumulator <> selectionErrors
+        Nothing -> pure accumulator
     evaluateSelection :: [Full.VariableDefinition]
         -> Type.CompositeType m
         -> Seq Error
@@ -1342,30 +1348,28 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
                 Just fragmentDefinition
                     | Full.FragmentDefinition _ typeCondition _ _ _ <- fragmentDefinition
                     , Just spreadType <- Type.lookupTypeCondition typeCondition types' -> do
-                        a <- spreadVariables variables spread
-                        b <- diveIntoSpread variables spreadType fragmentDefinition
-                        pure $ accumulator <> a <> b
+                        spreadErrors <- spreadVariables variables spread
+                        selectionErrors <- diveIntoSpread variables spreadType fragmentDefinition
+                        pure $ accumulator <> spreadErrors <> selectionErrors
                 _ -> lift $ lift mempty
         | Full.FieldSelection fieldSelection <- selection
         , Full.Field _ fieldName _ _ subselections _ <- fieldSelection =
             case Type.lookupCompositeField fieldName selectionType of
                 Just (Out.Field _ typeField argumentTypes) -> do
-                    a <- fieldVariables variables argumentTypes fieldSelection
-                    case Type.outToComposite typeField of
-                        Just newParentType -> do
-                            b <- foldM (evaluateSelection variables newParentType) accumulator subselections
-                            pure $ accumulator <> a <> b
-                        Nothing -> pure $ accumulator <> a
+                    fieldErrors <- fieldVariables variables argumentTypes fieldSelection
+                    selectionErrors <- evaluateFieldSelection variables subselections accumulator
+                            $ Type.outToComposite typeField
+                    pure $ selectionErrors <> fieldErrors
                 Nothing -> pure accumulator
         | Full.InlineFragmentSelection inlineSelection <- selection
         , Full.InlineFragment typeCondition _ subselections _ <- inlineSelection = do
             types' <- lift $ asks $ Schema.types . schema
             let inlineType = fromMaybe selectionType
-                    $ typeCondition
-                    >>= flip Type.lookupTypeCondition types'
-            a <- inlineVariables variables inlineSelection
-            b <- foldM (evaluateSelection variables inlineType) accumulator subselections
-            pure $ accumulator <> a <> b
+                    $ typeCondition >>= flip Type.lookupTypeCondition types'
+            fragmentErrors <- inlineVariables variables inlineSelection
+            let folder = evaluateSelection variables inlineType
+            selectionErrors <- foldM folder accumulator subselections
+            pure $ accumulator <> fragmentErrors <> selectionErrors
     inlineVariables variables inline
         | Full.InlineFragment _ directives' _ _ <- inline =
             mapDirectives variables directives'
@@ -1409,26 +1413,28 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     findVariableDefinition variableName variableDefinition =
         let Full.VariableDefinition variableName' _ _ _ = variableDefinition
          in variableName == variableName'
-    isVariableUsageAllowed (In.Argument _ locationType locationDefaultValue) variableDefinition@(Full.VariableDefinition _ variableType variableDefaultValue _)
-        | Full.TypeNonNull _ <- variableType =
+    isVariableUsageAllowed (In.Argument _ locationType locationDefaultValue) variableDefinition
+        | Full.VariableDefinition _ variableType _ _ <- variableDefinition
+        , Full.TypeNonNull _ <- variableType =
             typesCompatibleOrError variableDefinition locationType
         | Just nullableLocationType <- unwrapInType locationType
-        , hasNonNullVariableDefaultValue' <- hasNonNullVariableDefaultValue variableDefaultValue
+        , Full.VariableDefinition _ _ variableDefaultValue _ <- variableDefinition
+        , hasNonNullVariableDefaultValue' <-
+            hasNonNullVariableDefaultValue variableDefaultValue
         , hasLocationDefaultValue <- isJust locationDefaultValue =
             if hasNonNullVariableDefaultValue' || hasLocationDefaultValue
                 then typesCompatibleOrError variableDefinition nullableLocationType
-                else pure $ Just $ makeError variableDefinition locationType
+                else pure $ makeError variableDefinition locationType
         | otherwise = typesCompatibleOrError variableDefinition locationType
     typesCompatibleOrError variableDefinition locationType
         | Full.VariableDefinition _ variableType _ _ <- variableDefinition
         , areTypesCompatible variableType locationType = pure Nothing
-        | otherwise = pure $ Just $ makeError variableDefinition locationType
-    areTypesCompatible (Full.TypeNonNull nonNullType) (unwrapInType -> Just nullableLocationType) =
-        case nonNullType of
-            Full.NonNullTypeNamed n -> 
-                areTypesCompatible (Full.TypeNamed n) nullableLocationType
-            Full.NonNullTypeList n -> 
-                areTypesCompatible (Full.TypeList n) nullableLocationType
+        | otherwise = pure $ makeError variableDefinition locationType
+    areTypesCompatible nonNullType (unwrapInType -> Just nullableLocationType)
+        | Full.TypeNonNull (Full.NonNullTypeNamed namedType) <- nonNullType =
+            areTypesCompatible (Full.TypeNamed namedType) nullableLocationType
+        | Full.TypeNonNull (Full.NonNullTypeList namedList) <- nonNullType =
+            areTypesCompatible (Full.TypeList namedList) nullableLocationType
     areTypesCompatible _ (In.isNonNullType -> True) = False
     areTypesCompatible (Full.TypeNonNull nonNullType) locationType
         | Full.NonNullTypeNamed namedType <- nonNullType =
@@ -1469,15 +1475,18 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     unwrapInType (In.NonNullListType nonNullType) =
         Just $ In.ListType nonNullType
     unwrapInType _ = Nothing
-    makeError (Full.VariableDefinition variableName variableType _ location') expectedType = Error
-        { message = concat
-            [ "Variable \"$"
-            , Text.unpack variableName
-            , "\" of type \""
-            , show variableType
-            , "\" used in position expecting type \""
-            , show expectedType
-            , "\"."
-            ]
-        , locations = [location']
-        }
+    makeError variableDefinition expectedType =
+        let Full.VariableDefinition variableName variableType _ location' =
+                variableDefinition
+         in Just $ Error
+            { message = concat
+                [ "Variable \"$"
+                , Text.unpack variableName
+                , "\" of type \""
+                , show variableType
+                , "\" used in position expecting type \""
+                , show expectedType
+                , "\"."
+                ]
+            , locations = [location']
+            }
