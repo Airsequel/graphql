@@ -1403,6 +1403,20 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
         . traverse (findArgumentVariables variables argumentTypes)
     mapDirectives variables = fmap fold
         <$> traverse (findDirectiveVariables variables)
+    lookupInputObject variables objectFieldValue locationInfo
+        | Full.Node{ node = Full.Object objectFields, ..} <- objectFieldValue
+        , Just (expectedType, _) <- locationInfo
+        , In.InputObjectBaseType inputObjectType <- expectedType
+        , In.InputObjectType _ _ fieldTypes' <- inputObjectType =
+            fold <$> traverse (traverseObjectField variables fieldTypes') objectFields
+        | otherwise = pure mempty
+    maybeUsageAllowed variableName variables locationInfo
+        | Just (locationType, locationValue) <- locationInfo
+        , findVariableDefinition' <- findVariableDefinition variableName
+        , Just variableDefinition <- find findVariableDefinition' variables
+            = maybeToSeq
+            <$> isVariableUsageAllowed locationType locationValue variableDefinition
+        | otherwise = pure mempty
     findArgumentVariables :: [Full.VariableDefinition]
         -> HashMap Full.Name In.Argument
         -> Full.Argument
@@ -1410,23 +1424,27 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     findArgumentVariables variables argumentTypes argument
         | Full.Argument argumentName argumentValue _ <- argument
         , Full.Node{ node = Full.Variable variableName, ..} <- argumentValue
-        , Just expectedType <- HashMap.lookup argumentName argumentTypes
-        , findVariableDefinition' <- findVariableDefinition variableName
-        , Just variableDefinition <- find findVariableDefinition' variables =
-            maybeToSeq <$> isVariableUsageAllowed expectedType variableDefinition
+            = maybeUsageAllowed variableName variables
+            $ locationPair extractArgument argumentTypes argumentName
         | Full.Argument argumentName argumentValue _ <- argument
-        , Full.Node{ node = Full.Object objectFields, ..} <- argumentValue
-        , Just typeArgument <- HashMap.lookup argumentName argumentTypes
-        , In.Argument _ expectedType _ <- typeArgument
-        , In.InputObjectBaseType inputObjectType <- expectedType
-        , In.InputObjectType _ _ fieldTypes <- inputObjectType =
-            fold <$> traverse (traverseObjectField fieldTypes) objectFields
-        | otherwise = pure mempty
-    traverseObjectField _fieldTypes = const $ pure mempty
+            = lookupInputObject variables argumentValue
+            $ locationPair extractArgument argumentTypes argumentName
+    extractField (In.InputField _ locationType locationValue) =
+        (locationType, locationValue)
+    extractArgument (In.Argument _ locationType locationValue) =
+        (locationType, locationValue)
+    locationPair extract fieldTypes name =
+        extract <$> HashMap.lookup name fieldTypes
+    traverseObjectField variables fieldTypes Full.ObjectField{..}
+        | Full.Node{ node = Full.Variable variableName } <- value
+            = maybeUsageAllowed variableName variables
+            $ locationPair extractField fieldTypes name
+        | otherwise = lookupInputObject variables value
+            $  locationPair extractField fieldTypes name
     findVariableDefinition variableName variableDefinition =
         let Full.VariableDefinition variableName' _ _ _ = variableDefinition
          in variableName == variableName'
-    isVariableUsageAllowed (In.Argument _ locationType locationDefaultValue) variableDefinition
+    isVariableUsageAllowed locationType locationDefaultValue variableDefinition
         | Full.VariableDefinition _ variableType _ _ <- variableDefinition
         , Full.TypeNonNull _ <- variableType =
             typesCompatibleOrError variableDefinition locationType
