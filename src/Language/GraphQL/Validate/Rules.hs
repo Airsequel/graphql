@@ -1404,7 +1404,7 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     mapDirectives variables = fmap fold
         <$> traverse (findDirectiveVariables variables)
     lookupInputObject variables objectFieldValue locationInfo
-        | Full.Node{ node = Full.Object objectFields, ..} <- objectFieldValue
+        | Full.Node{ node = Full.Object objectFields } <- objectFieldValue
         , Just (expectedType, _) <- locationInfo
         , In.InputObjectBaseType inputObjectType <- expectedType
         , In.InputObjectType _ _ fieldTypes' <- inputObjectType =
@@ -1423,7 +1423,7 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
         -> ValidationState m (Seq Error)
     findArgumentVariables variables argumentTypes argument
         | Full.Argument argumentName argumentValue _ <- argument
-        , Full.Node{ node = Full.Variable variableName, ..} <- argumentValue
+        , Full.Node{ node = Full.Variable variableName } <- argumentValue
             = maybeUsageAllowed variableName variables
             $ locationPair extractArgument argumentTypes argumentName
         | Full.Argument argumentName argumentValue _ <- argument
