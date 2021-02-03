@@ -809,7 +809,7 @@ spec =
                     }
              in validate queryString `shouldBe` [expected]
 
-        it "wrongly typed variable arguments" $
+        it "rejects wrongly typed variable arguments" $
             let queryString = [r|
               query catCommandArgQuery($catCommandArg: CatCommand) {
                 cat {
@@ -825,7 +825,7 @@ spec =
                     }
              in validate queryString `shouldBe` [expected]
 
-        it "wrongly typed variable arguments" $
+        it "rejects wrongly typed variable arguments" $
             let queryString = [r|
               query intCannotGoIntoBoolean($intArg: Int) {
                 dog {
@@ -838,5 +838,37 @@ spec =
                         "Variable \"$intArg\" of type \"Int\" used in position \
                         \expecting type \"Boolean\"."
                     , locations = [AST.Location 2 44]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "rejects values of incorrect types" $
+            let queryString = [r|
+              {
+                dog {
+                  isHousetrained(atOtherHomes: 3)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Value ConstInt 3 cannot be coerced to type \"Boolean\"."
+                    , locations = [AST.Location 4 48]
+                    }
+             in validate queryString `shouldBe` [expected]
+
+        it "checks for (non-)nullable arguments" $
+            let queryString = [r|
+              {
+                dog {
+                  doesKnowCommand(dogCommand: null)
+                }
+              }
+            |]
+                expected = Error
+                    { message =
+                        "Field \"doesKnowCommand\" argument \"dogCommand\" of \
+                        \type \"DogCommand\" is required, but it was not \
+                        \provided."
+                    , locations = [AST.Location 4 19]
                     }
              in validate queryString `shouldBe` [expected]

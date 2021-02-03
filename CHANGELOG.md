@@ -12,6 +12,7 @@ and this project adheres to
   - `overlappingFieldsCanBeMergedRule`
   - `possibleFragmentSpreadsRule`
   - `variablesInAllowedPositionRule`
+  - `valuesOfCorrectTypeRule`
 - `Type.Schema.implementations` contains a map from interfaces and objects to
   interfaces they implement.
 - Show instances for GraphQL type definitions in the `Type` modules.

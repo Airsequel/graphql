@@ -252,6 +252,9 @@ data ObjectField a = ObjectField
     , location :: Location
     } deriving (Eq, Show)
 
+instance Functor ObjectField where
+    fmap f ObjectField{..} = ObjectField name (f <$> value) location
+
 -- ** Variables
 
 -- | Variable definition.

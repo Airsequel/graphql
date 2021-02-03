@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -37,6 +38,7 @@ module Language.GraphQL.Validate.Rules
     , uniqueInputFieldNamesRule
     , uniqueOperationNamesRule
     , uniqueVariableNamesRule
+    , valuesOfCorrectTypeRule
     , variablesInAllowedPositionRule
     , variablesAreInputTypesRule
     ) where
@@ -52,7 +54,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
-import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
+import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..), (|>))
@@ -97,6 +99,7 @@ specifiedRules =
     , noFragmentCyclesRule
     , possibleFragmentSpreadsRule
     -- Values
+    , valuesOfCorrectTypeRule
     , knownInputFieldNamesRule
     , uniqueInputFieldNamesRule
     , providedRequiredInputFieldsRule
@@ -1523,3 +1526,80 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
                 ]
             , locations = [location']
             }
+
+-- | Literal values must be compatible with the type expected in the position
+-- they are found as per the coercion rules.
+--
+-- The type expected in a position include the type defined by the argument a
+-- value is provided for, the type defined by an input object field a value is
+-- provided for, and the type of a variable definition a default value is
+-- provided for.
+valuesOfCorrectTypeRule :: forall m. Rule m
+valuesOfCorrectTypeRule = ValueRule go constGo
+  where
+    go (Just inputType) value
+        | Just constValue <- toConstNode value =
+            lift $ check inputType constValue
+    go _ _ = lift mempty
+    toConstNode Full.Node{..} = flip Full.Node location <$> toConst node
+    toConst (Full.Variable _) = Nothing
+    toConst (Full.Int integer) = Just $ Full.ConstInt integer
+    toConst (Full.Float double) = Just $ Full.ConstFloat double
+    toConst (Full.String string) = Just $ Full.ConstString string
+    toConst (Full.Boolean boolean) = Just $ Full.ConstBoolean boolean
+    toConst Full.Null = Just Full.ConstNull
+    toConst (Full.Enum enum) = Just $ Full.ConstEnum enum
+    toConst (Full.List values) =
+        Just $ Full.ConstList $ catMaybes $ toConst <$> values
+    toConst (Full.Object fields) = Just $ Full.ConstObject
+        $ catMaybes $ constObjectField <$> fields
+    constObjectField Full.ObjectField{..}
+        | Just constValue <- toConstNode value =
+            Just $ Full.ObjectField name constValue location
+        | otherwise = Nothing
+    constGo Nothing = const $ lift mempty
+    constGo (Just inputType) = lift . check inputType
+    check :: In.Type -> Full.Node Full.ConstValue -> Seq Error
+    check _ Full.Node{ node = Full.ConstNull } =
+        mempty -- Ignore, required fields are checked elsewhere.
+    check (In.ScalarBaseType scalarType) Full.Node{ node }
+        | Definition.ScalarType "Int" _ <- scalarType
+        , Full.ConstInt _ <- node = mempty
+        | Definition.ScalarType "Boolean" _ <- scalarType
+        , Full.ConstBoolean _ <- node = mempty
+        | Definition.ScalarType "String" _ <- scalarType
+        , Full.ConstString _ <- node = mempty
+        | Definition.ScalarType "ID" _ <- scalarType
+        , Full.ConstString _ <- node = mempty
+        | Definition.ScalarType "ID" _ <- scalarType
+        , Full.ConstInt _ <- node = mempty
+        | Definition.ScalarType "Float" _ <- scalarType
+        , Full.ConstFloat _ <- node = mempty
+        | Definition.ScalarType "Float" _ <- scalarType
+        , Full.ConstInt _ <- node = mempty
+    check (In.EnumBaseType enumType) Full.Node{ node }
+        | Definition.EnumType _ _ members <- enumType
+        , Full.ConstEnum memberValue <- node
+        , HashMap.member memberValue members = mempty
+    check (In.InputObjectBaseType objectType) Full.Node{ node }
+        | In.InputObjectType _ _ typeFields <- objectType
+        , Full.ConstObject valueFields <- node =
+            foldMap (checkObjectField typeFields) valueFields
+    check (In.ListBaseType listType) constValue@Full.Node{ .. }
+        | Full.ConstList listValues <- node =
+            foldMap (check listType) $ flip Full.Node location <$> listValues
+        | otherwise = check listType constValue
+    check inputType Full.Node{ .. } = pure $ Error
+        { message = concat
+            [ "Value "
+            , show node, " cannot be coerced to type \""
+            , show inputType
+            , "\"."
+            ]
+        , locations = [location]
+        }
+    checkObjectField typeFields Full.ObjectField{..}
+        | Just typeField <- HashMap.lookup name typeFields
+        , In.InputField _ fieldType _ <- typeField =
+            check fieldType value
+    checkObjectField _ _ = mempty
