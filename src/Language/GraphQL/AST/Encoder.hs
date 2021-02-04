@@ -16,7 +16,6 @@ module Language.GraphQL.AST.Encoder
     , value
     ) where
 
-import Data.Char (ord)
 import Data.Foldable (fold)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
@@ -25,7 +24,7 @@ import qualified Data.Text.Lazy as Lazy (Text)
 import qualified Data.Text.Lazy as Lazy.Text
 import Data.Text.Lazy.Builder (Builder)
 import qualified Data.Text.Lazy.Builder as Builder
-import Data.Text.Lazy.Builder.Int (decimal, hexadecimal)
+import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 import qualified Language.GraphQL.AST.Document as Full
 
@@ -234,11 +233,12 @@ quote :: Builder.Builder
 quote = Builder.singleton '\"'
 
 oneLine :: Text -> Builder
-oneLine string = quote <> Text.foldr (mappend . escape) quote string
+oneLine string = quote <> Text.foldr merge quote string
+  where
+    merge = mappend . Builder.fromString . Full.escape
 
 stringValue :: Formatter -> Text -> Lazy.Text
-stringValue Minified string = Builder.toLazyText
-    $ quote <> Text.foldr (mappend . escape) quote string
+stringValue Minified string = Builder.toLazyText $ oneLine string
 stringValue (Pretty indentation) string =
   if hasEscaped string
   then stringValue Minified string
@@ -265,21 +265,6 @@ stringValue (Pretty indentation) string =
       transformLine line' acc
             = Builder.fromLazyText (indent (indentation + 1))
             <> line' <> newline <> acc
-
-escape :: Char -> Builder
-escape char'
-    | char' == '\\' = Builder.fromString "\\\\"
-    | char' == '\"' = Builder.fromString "\\\""
-    | char' == '\b' = Builder.fromString "\\b"
-    | char' == '\f' = Builder.fromString "\\f"
-    | char' == '\n' = Builder.fromString "\\n"
-    | char' == '\r' = Builder.fromString "\\r"
-    | char' == '\t' = Builder.fromString "\\t"
-    | char' < '\x0010' = unicode  "\\u000" char'
-    | char' < '\x0020' = unicode "\\u00" char'
-    | otherwise = Builder.singleton char'
-  where
-    unicode prefix = mappend (Builder.fromString prefix) . (hexadecimal . ord)
 
 listValue :: Formatter -> [Full.Value] -> Lazy.Text
 listValue formatter = bracketsCommas formatter $ value formatter

@@ -1,5 +1,6 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Safe #-}
@@ -47,11 +48,15 @@ module Language.GraphQL.AST.Document
     , UnionMemberTypes(..)
     , Value(..)
     , VariableDefinition(..)
+    , escape
     ) where
 
+import Data.Char (ord)
 import Data.Foldable (toList)
 import Data.Int (Int32)
+import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty)
+import Numeric (showFloat, showHex)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation)
@@ -79,7 +84,10 @@ instance Ord Location where
 data Node a = Node
     { node :: a
     , location :: Location
-    } deriving (Eq, Show)
+    } deriving Eq
+
+instance Show a => Show (Node a) where
+    show Node{ node } = show node
 
 instance Functor Node where
     fmap f Node{..} = Node (f node) location
@@ -218,6 +226,28 @@ type TypeCondition = Name
 
 -- ** Input Values
 
+escape :: Char -> String
+escape char'
+    | char' == '\\' = "\\\\"
+    | char' == '\"' = "\\\""
+    | char' == '\b' = "\\b"
+    | char' == '\f' = "\\f"
+    | char' == '\n' = "\\n"
+    | char' == '\r' = "\\r"
+    | char' == '\t' = "\\t"
+    | char' < '\x0010' = unicode  "\\u000" char'
+    | char' < '\x0020' = unicode "\\u00" char'
+    | otherwise = [char']
+  where
+    unicode prefix uchar = prefix <> (showHex $ ord uchar) ""
+
+showList' :: Show a => [a] -> String
+showList' list = "[" ++ intercalate ", " (show <$> list) ++ "]"
+
+showObject :: Show a => [ObjectField a] -> String
+showObject fields =
+    "{ " ++ intercalate ", " (show <$> fields) ++ " }"
+
 -- | Input value (literal or variable).
 data Value
     = Variable Name
@@ -229,7 +259,19 @@ data Value
     | Enum Name
     | List [Value]
     | Object [ObjectField Value]
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show Value where
+    showList = mappend . showList'
+    show (Variable variableName) = '$' : Text.unpack variableName
+    show (Int integer) = show integer
+    show (Float float) = show $ ConstFloat float
+    show (String text) = show $  ConstString text
+    show (Boolean boolean) = show boolean
+    show Null = "null"
+    show (Enum name) = Text.unpack name
+    show (List list) = show list
+    show (Object fields) = showObject fields
 
 -- | Constant input value.
 data ConstValue
@@ -241,7 +283,18 @@ data ConstValue
     | ConstEnum Name
     | ConstList [ConstValue]
     | ConstObject [ObjectField ConstValue]
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show ConstValue where
+    showList = mappend . showList'
+    show (ConstInt integer) = show integer
+    show (ConstFloat float) = showFloat float mempty
+    show (ConstString text) = "\"" <> Text.foldr (mappend . escape) "\"" text
+    show (ConstBoolean boolean) = show boolean
+    show ConstNull = "null"
+    show (ConstEnum name) = Text.unpack name
+    show (ConstList list) = show list
+    show (ConstObject fields) = showObject fields
 
 -- | Key-value pair.
 --
@@ -250,7 +303,10 @@ data ObjectField a = ObjectField
     { name :: Name
     , value :: Node a
     , location :: Location
-    } deriving (Eq, Show)
+    } deriving Eq
+
+instance Show a => Show (ObjectField a) where
+    show ObjectField{..} = Text.unpack name ++ ": " ++ show value
 
 instance Functor ObjectField where
     fmap f ObjectField{..} = ObjectField name (f <$> value) location

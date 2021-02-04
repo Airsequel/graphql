@@ -851,7 +851,7 @@ spec =
             |]
                 expected = Error
                     { message =
-                        "Value ConstInt 3 cannot be coerced to type \"Boolean\"."
+                        "Value 3 cannot be coerced to type \"Boolean\"."
                     , locations = [AST.Location 4 48]
                     }
              in validate queryString `shouldBe` [expected]
