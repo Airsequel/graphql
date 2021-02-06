@@ -17,6 +17,7 @@ and this project adheres to
   interfaces they implement.
 - Show instances for GraphQL type definitions in the `Type` modules.
 - Custom Show instances for type and value representations in the AST.
+- `AST.Document.escape` escapes a single character in a `StringValue`.
 
 ## [0.11.0.0] - 2020-11-07
 ### Changed
