@@ -226,6 +226,12 @@ type TypeCondition = Name
 
 -- ** Input Values
 
+-- | Escapes a single character according to the GraphQL escaping rules for
+-- double-quoted string values.
+--
+-- Characters, that should be escaped, are written as escaped characters with a
+-- backslash or Unicode with an \"\\u\". Other characters are returned as
+-- strings.
 escape :: Char -> String
 escape char'
     | char' == '\\' = "\\\\"
@@ -318,13 +324,13 @@ instance Functor ObjectField where
 -- Each operation can include a list of variables:
 --
 -- @
--- query (protagonist: String = "Zarathustra") {
+-- query (protagonist: String = \"Zarathustra\") {
 --   getAuthor(protagonist: $protagonist)
 -- }
 -- @
 --
 -- This query defines an optional variable @protagonist@ of type @String@,
--- its default value is "Zarathustra". If no default value is defined and no
+-- its default value is \"Zarathustra\". If no default value is defined and no
 -- value is provided, a variable can still be @null@ if its type is nullable.
 --
 -- Variables are usually passed along with the query, but not in the query
