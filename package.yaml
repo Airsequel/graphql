@@ -38,6 +38,7 @@ dependencies:
 - text
 - transformers
 - unordered-containers
+- vector
 
 library:
   source-dirs: src
