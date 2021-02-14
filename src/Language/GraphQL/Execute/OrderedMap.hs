@@ -3,16 +3,25 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
+
+-- | This module contains a map data structure, that preserves insertion order.
 module Language.GraphQL.Execute.OrderedMap
     ( OrderedMap
+    , elems
+    , insert
+    , keys
+    , lookup
     , singleton
+    , size
     ) where
 
+import qualified Data.Foldable as Foldable
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
+import Prelude hiding (lookup)
 
 data OrderedMap v = OrderedMap (Vector Text) (HashMap Text v)
 
@@ -27,16 +36,10 @@ instance Show v => Show (OrderedMap v) where
     showsPrec precedence map' = showParen (precedence > 10)
         $ showString "fromList " . shows (toList map')
 
-instance Semigroup (OrderedMap v) where
-    (<>) = foldrWithKey go
-      where
-        go key value accumulator@(OrderedMap vector hashMap)
-            | Nothing <- HashMap.lookup key hashMap
-                = OrderedMap (Vector.snoc vector key)
-                $ HashMap.insert key value hashMap
-            | otherwise = accumulator
+instance Semigroup v => Semigroup (OrderedMap v) where
+    (<>) = foldrWithKey insert
 
-instance Monoid (OrderedMap v) where
+instance Monoid v => Monoid (OrderedMap v) where
     mempty = OrderedMap mempty mempty
 
 -- * Construction
@@ -53,12 +56,38 @@ singleton key value = OrderedMap (Vector.singleton key)
 foldrWithKey :: forall v a. (Text -> v -> a -> a) -> a -> OrderedMap v -> a
 foldrWithKey f initial (OrderedMap vector hashMap) = foldr go initial vector
   where
-    go key accumulator = f key (hashMap HashMap.! key) accumulator
+    go key = f key (hashMap HashMap.! key)
 
 -- * Lists
 
 -- | Converts this map to the list of key-value pairs.
 toList :: forall v. OrderedMap v -> [(Text, v)]
-toList = foldrWithKey f []
-  where
-    f key value accumulator = (key, value) : accumulator
+toList = foldrWithKey ((.) (:) . (,)) []
+
+-- | Returns a list with all keys in this map.
+keys :: forall v. OrderedMap v -> [Text]
+keys (OrderedMap vector _) = Foldable.toList vector
+
+-- | Returns a list with all elements in this map.
+elems :: forall v. OrderedMap v -> [v]
+elems = fmap snd . toList
+
+-- * Basic interface
+
+-- | Associates the specified value with the specified key in this map. If this
+-- map previously contained a mapping for the key, the existing and new values
+-- are combined.
+insert :: Semigroup v => Text -> v -> OrderedMap v -> OrderedMap v
+insert key value (OrderedMap vector hashMap)
+    | Just available <- HashMap.lookup key hashMap = OrderedMap vector
+        $ HashMap.insert key (available <> value) hashMap
+    | otherwise = OrderedMap (Vector.snoc vector key)
+        $ HashMap.insert key value hashMap
+
+-- | Gives the size of this map, i.e. number of elements in it.
+size :: forall v. OrderedMap v -> Int
+size (OrderedMap vector _) = Vector.length vector
+
+-- | Looks up a value in this map by key.
+lookup :: forall v. Text -> OrderedMap v -> Maybe v
+lookup key (OrderedMap _ hashMap) = HashMap.lookup key hashMap
