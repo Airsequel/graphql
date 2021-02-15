@@ -5,25 +5,38 @@
 {-# LANGUAGE ExplicitForAll #-}
 
 -- | This module contains a map data structure, that preserves insertion order.
+-- Some definitions conflict with functions from prelude, so this module should
+-- probably be imported qualified.
 module Language.GraphQL.Execute.OrderedMap
     ( OrderedMap
     , elems
+    , empty
     , insert
+    , foldlWithKey'
     , keys
     , lookup
     , singleton
     , size
+    , traverseMaybe
     ) where
 
 import qualified Data.Foldable as Foldable
-import Data.HashMap.Strict (HashMap)
+import Data.HashMap.Strict (HashMap, (!))
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
-import Prelude hiding (lookup)
+import Prelude hiding (filter, lookup)
 
+-- | This map associates values with the given text keys. Insertion order is
+-- preserved. When inserting a value with a key, that is already available in
+-- the map, the existing value isn't overridden, but combined with the new value
+-- using its 'Semigroup' instance.
+--
+-- Internally this map uses an array with keys to preserve the order and an
+-- unorded map with key-value pairs.
 data OrderedMap v = OrderedMap (Vector Text) (HashMap Text v)
+    deriving (Eq)
 
 instance Functor OrderedMap where
     fmap f (OrderedMap vector hashMap) = OrderedMap vector $ fmap f hashMap
@@ -32,15 +45,20 @@ instance Foldable OrderedMap where
     foldr f = foldrWithKey $ const f
     null (OrderedMap vector _) = Vector.null vector
 
-instance Show v => Show (OrderedMap v) where
-    showsPrec precedence map' = showParen (precedence > 10)
-        $ showString "fromList " . shows (toList map')
-
 instance Semigroup v => Semigroup (OrderedMap v) where
-    (<>) = foldrWithKey insert
+    (<>) = foldlWithKey'
+        $ \accumulator key value -> insert key value accumulator
 
 instance Monoid v => Monoid (OrderedMap v) where
     mempty = OrderedMap mempty mempty
+
+instance Traversable OrderedMap where
+    traverse f (OrderedMap vector hashMap) = OrderedMap vector
+        <$> traverse f hashMap
+
+instance Show v => Show (OrderedMap v) where
+    showsPrec precedence map' = showParen (precedence > 10)
+        $ showString "fromList " . shows (toList map')
 
 -- * Construction
 
@@ -49,14 +67,39 @@ singleton :: forall v. Text -> v -> OrderedMap v
 singleton key value = OrderedMap (Vector.singleton key)
     $ HashMap.singleton key value
 
--- * Folds
+-- | Constructs an empty map.
+empty :: Monoid v => OrderedMap v
+empty = mempty
 
--- | Reduces this map by applying a binary operator to all elements, using the
--- given starting value.
+-- * Traversal
+
+-- | Reduces this map by applying a binary operator from right to left to all
+-- elements, using the given starting value.
 foldrWithKey :: forall v a. (Text -> v -> a -> a) -> a -> OrderedMap v -> a
 foldrWithKey f initial (OrderedMap vector hashMap) = foldr go initial vector
   where
-    go key = f key (hashMap HashMap.! key)
+    go key = f key (hashMap ! key)
+
+-- | Reduces this map by applying a binary operator from left to right to all
+-- elements, using the given starting value.
+foldlWithKey' :: forall v a. (a -> Text -> v -> a) -> a -> OrderedMap v -> a
+foldlWithKey' f initial (OrderedMap vector hashMap) =
+    Vector.foldl' go initial vector
+  where
+    go accumulator key = f accumulator key (hashMap ! key)
+
+-- | Traverse over the elements and collect the 'Just' results.
+traverseMaybe
+    :: (Applicative f, Monoid b)
+    => forall a
+    . (a -> f (Maybe b))
+    -> OrderedMap a
+    -> f (OrderedMap b)
+traverseMaybe f orderedMap = foldlWithKey' filter empty
+    <$> traverse f orderedMap
+  where
+    filter accumulator key (Just value) = insert key value accumulator
+    filter accumulator _ Nothing = accumulator
 
 -- * Lists
 

@@ -22,3 +22,45 @@ spec =
             let value :: String
                 value = "value"
              in OrderedMap.size (OrderedMap.singleton "key" value) `shouldBe` 1
+
+        it "combines inserted vales" $
+            let key = "key"
+                map1 = OrderedMap.singleton key ("1" :: String)
+                map2 = OrderedMap.singleton key ("2" :: String)
+             in OrderedMap.lookup key (map1 <> map2) `shouldBe` Just "12"
+
+        it "shows the map" $
+            let actual = show
+                    $ OrderedMap.insert "key1" "1"
+                    $ OrderedMap.singleton "key2" ("2" :: String)
+                expected = "fromList [(\"key2\",\"2\"),(\"key1\",\"1\")]"
+             in actual `shouldBe` expected
+
+        it "traverses a map of just values" $
+            let actual = sequence
+                    $ OrderedMap.insert "key1" (Just "2")
+                    $ OrderedMap.singleton "key2" $ Just ("1" :: String)
+                expected = Just
+                    $ OrderedMap.insert "key1" "2"
+                    $ OrderedMap.singleton "key2" ("1" :: String)
+             in actual `shouldBe` expected
+
+        it "traverses a map with a Nothing" $
+            let actual = sequence
+                    $ OrderedMap.insert "key1" Nothing
+                    $ OrderedMap.singleton "key2" $ Just ("1" :: String)
+                expected = Nothing
+             in actual `shouldBe` expected
+
+        it "combines two maps preserving the order of the second one" $
+            let map1 :: OrderedMap String
+                map1 = OrderedMap.insert "key2" "2"
+                    $ OrderedMap.singleton "key1" "1"
+                map2 :: OrderedMap String
+                map2 = OrderedMap.insert "key4" "4"
+                    $ OrderedMap.singleton "key3" "3"
+                expected = OrderedMap.insert "key4" "4"
+                    $ OrderedMap.insert "key3" "3"
+                    $ OrderedMap.insert "key2" "2"
+                    $ OrderedMap.singleton "key1" "1"
+             in (map1 <> map2) `shouldBe` expected
