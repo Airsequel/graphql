@@ -7,6 +7,9 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
+### Added
+- `Language.GraphQL.Execute.OrderedMap` is a map data structure, that preserves
+  insertion order.
 
 ## [0.11.1.0] - 2021-02-07
 ### Added

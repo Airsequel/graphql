@@ -15,8 +15,10 @@ module Language.GraphQL.Execute.OrderedMap
     , foldlWithKey'
     , keys
     , lookup
+    , replace
     , singleton
     , size
+    , toList
     , traverseMaybe
     ) where
 
@@ -49,8 +51,8 @@ instance Semigroup v => Semigroup (OrderedMap v) where
     (<>) = foldlWithKey'
         $ \accumulator key value -> insert key value accumulator
 
-instance Monoid v => Monoid (OrderedMap v) where
-    mempty = OrderedMap mempty mempty
+instance Semigroup v => Monoid (OrderedMap v) where
+    mempty = empty
 
 instance Traversable OrderedMap where
     traverse f (OrderedMap vector hashMap) = OrderedMap vector
@@ -68,8 +70,8 @@ singleton key value = OrderedMap (Vector.singleton key)
     $ HashMap.singleton key value
 
 -- | Constructs an empty map.
-empty :: Monoid v => OrderedMap v
-empty = mempty
+empty :: forall v. OrderedMap v
+empty = OrderedMap mempty mempty
 
 -- * Traversal
 
@@ -90,7 +92,7 @@ foldlWithKey' f initial (OrderedMap vector hashMap) =
 
 -- | Traverse over the elements and collect the 'Just' results.
 traverseMaybe
-    :: (Applicative f, Monoid b)
+    :: Applicative f
     => forall a
     . (a -> f (Maybe b))
     -> OrderedMap a
@@ -98,7 +100,7 @@ traverseMaybe
 traverseMaybe f orderedMap = foldlWithKey' filter empty
     <$> traverse f orderedMap
   where
-    filter accumulator key (Just value) = insert key value accumulator
+    filter accumulator key (Just value) = replace key value accumulator
     filter accumulator _ Nothing = accumulator
 
 -- * Lists
@@ -124,6 +126,16 @@ insert :: Semigroup v => Text -> v -> OrderedMap v -> OrderedMap v
 insert key value (OrderedMap vector hashMap)
     | Just available <- HashMap.lookup key hashMap = OrderedMap vector
         $ HashMap.insert key (available <> value) hashMap
+    | otherwise = OrderedMap (Vector.snoc vector key)
+        $ HashMap.insert key value hashMap
+
+-- | Associates the specified value with the specified key in this map. If this
+-- map previously contained a mapping for the key, the existing value is
+-- replaced by the new one.
+replace :: Text -> v -> OrderedMap v -> OrderedMap v
+replace key value (OrderedMap vector hashMap)
+    | HashMap.member key hashMap = OrderedMap vector
+        $ HashMap.insert key value hashMap
     | otherwise = OrderedMap (Vector.snoc vector key)
         $ HashMap.insert key value hashMap
 

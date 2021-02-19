@@ -13,16 +13,16 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.State (gets)
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.Map.Strict (Map)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
 import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
+import Language.GraphQL.Execute.OrderedMap (OrderedMap)
+import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
@@ -51,17 +51,17 @@ resolveFieldValue result args resolver =
 collectFields :: Monad m
     => Out.ObjectType m
     -> Seq (Transform.Selection m)
-    -> Map Name (NonEmpty (Transform.Field m))
-collectFields objectType = foldl forEach Map.empty
+    -> OrderedMap (NonEmpty (Transform.Field m))
+collectFields objectType = foldl forEach OrderedMap.empty
   where
     forEach groupedFields (Transform.SelectionField field) =
         let responseKey = aliasOrName field
-         in Map.insertWith (<>) responseKey (field :| []) groupedFields
+         in OrderedMap.insert responseKey (field :| []) groupedFields
     forEach groupedFields (Transform.SelectionFragment selectionFragment)
         | Transform.Fragment fragmentType fragmentSelectionSet <- selectionFragment
         , Internal.doesFragmentTypeApply fragmentType objectType =
             let fragmentGroupedFieldSet = collectFields objectType fragmentSelectionSet
-             in Map.unionWith (<>) groupedFields fragmentGroupedFieldSet
+             in groupedFields <> fragmentGroupedFieldSet
         | otherwise = groupedFields
 
 aliasOrName :: forall m. Transform.Field m -> Name
@@ -170,10 +170,10 @@ executeSelectionSet :: (MonadCatch m, Serialize a)
     -> CollectErrsT m a
 executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selectionSet = do
     let fields = collectFields objectType selectionSet
-    resolvedValues <- Map.traverseMaybeWithKey forEach fields
+    resolvedValues <- OrderedMap.traverseMaybe forEach fields
     coerceResult (Out.NonNullObjectType objectType) $ Object resolvedValues
   where
-    forEach _ fields@(field :| _) =
+    forEach fields@(field :| _) =
         let Transform.Field _ name _ _ = field
          in traverse (tryResolver fields) $ lookupResolver name
     lookupResolver = flip HashMap.lookup resolvers

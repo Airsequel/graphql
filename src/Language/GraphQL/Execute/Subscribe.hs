@@ -13,7 +13,6 @@ import Control.Monad.Catch (Exception(..), MonadCatch(..))
 import Control.Monad.Trans.Reader (ReaderT(..), runReaderT)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map.Strict as Map
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
@@ -21,6 +20,7 @@ import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
+import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
 import qualified Language.GraphQL.Type.Definition as Definition
@@ -55,7 +55,7 @@ createSourceEventStream :: MonadCatch m
     -> Seq (Transform.Selection m)
     -> m (Either Text (Out.SourceEventStream m))
 createSourceEventStream _types subscriptionType@(Out.ObjectType _ _ _ fieldTypes) fields
-    | [fieldGroup] <- Map.elems groupedFieldSet
+    | [fieldGroup] <- OrderedMap.elems groupedFieldSet
     , Transform.Field _ fieldName arguments' _ <- NonEmpty.head fieldGroup
     , resolverT <- fieldTypes HashMap.! fieldName
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT

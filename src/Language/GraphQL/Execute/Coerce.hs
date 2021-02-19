@@ -19,7 +19,6 @@ import qualified Data.Aeson as Aeson
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.Map.Strict (Map)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text.Lazy as Text.Lazy
@@ -27,6 +26,8 @@ import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
 import Data.Scientific (toBoundedInteger, toRealFloat)
 import Language.GraphQL.AST (Name)
+import Language.GraphQL.Execute.OrderedMap (OrderedMap)
+import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -209,7 +210,7 @@ data Output a
     | Boolean Bool
     | Enum Name
     | List [a]
-    | Object (Map Name a)
+    | Object (OrderedMap a)
     deriving (Eq, Show)
 
 instance forall a. IsString (Output a) where
@@ -229,6 +230,9 @@ instance Serialize Aeson.Value where
         , Boolean boolean <- value = Just $ Aeson.Bool boolean
     serialize _ (Enum enum) = Just $ Aeson.String enum
     serialize _ (List list) = Just $ Aeson.toJSON list
-    serialize _ (Object object) = Just $ Aeson.toJSON object
+    serialize _ (Object object) = Just
+        $ Aeson.object
+        $ OrderedMap.toList
+        $ Aeson.toJSON <$> object
     serialize _ _ = Nothing
     null = Aeson.Null

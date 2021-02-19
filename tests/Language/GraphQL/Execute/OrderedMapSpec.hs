@@ -64,3 +64,9 @@ spec =
                     $ OrderedMap.insert "key2" "2"
                     $ OrderedMap.singleton "key1" "1"
              in (map1 <> map2) `shouldBe` expected
+
+        it "replaces existing values" $
+            let key = "key"
+                actual = OrderedMap.replace key ("2" :: String)
+                        $ OrderedMap.singleton key ("1" :: String)
+             in OrderedMap.lookup key actual `shouldBe` Just "2"
