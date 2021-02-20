@@ -6,6 +6,7 @@ module Language.GraphQL.AST.ParserSpec
 
 import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST.Document
+import qualified Language.GraphQL.AST.DirectiveLocation as DirLoc
 import Language.GraphQL.AST.Parser
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
@@ -118,6 +119,56 @@ spec = describe "Parser" $ do
               | FIELD
               | FRAGMENT_SPREAD
         |]
+
+    it "parses two minimal directive definitions" $
+        let directive nm loc =
+                TypeSystemDefinition
+                    (DirectiveDefinition
+                         (Description Nothing)
+                         nm
+                         (ArgumentsDefinition [])
+                         (loc :| []))
+            example1 =
+                directive "example1"
+                    (DirLoc.TypeSystemDirectiveLocation DirLoc.FieldDefinition)
+                    (Location {line = 2, column = 17})
+            example2 =
+                directive "example2"
+                    (DirLoc.ExecutableDirectiveLocation DirLoc.Field)
+                    (Location {line = 3, column = 17})
+            testSchemaExtension = example1 :| [ example2 ]
+            query = [r|
+                directive @example1 on FIELD_DEFINITION
+                directive @example2 on FIELD
+            |]
+         in parse document "" query `shouldParse` testSchemaExtension
+
+    it "parses a directive definition with a default empty list argument" $
+        let directive nm loc args =
+                TypeSystemDefinition
+                    (DirectiveDefinition
+                         (Description Nothing)
+                         nm
+                         (ArgumentsDefinition
+                              [ InputValueDefinition
+                                    (Description Nothing)
+                                    argName
+                                    argType
+                                    argValue
+                                    []
+                              | (argName, argType, argValue) <- args])
+                         (loc :| []))
+            defn =
+                directive "test"
+                    (DirLoc.TypeSystemDirectiveLocation DirLoc.FieldDefinition)
+                    [("foo",
+                      TypeList (TypeNamed "String"),
+                      Just
+                          $ Node (ConstList [])
+                          $ Location {line = 1, column = 33})]
+                    (Location {line = 1, column = 1})
+            query = [r|directive @test(foo: [String] = []) on FIELD_DEFINITION|]
+         in parse document "" query `shouldParse` (defn :| [ ])
 
     it "parses schema extension with a new directive" $
         parse document "" `shouldSucceedOn`[r|

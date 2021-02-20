@@ -11,6 +11,10 @@ and this project adheres to
 - `Language.GraphQL.Execute.OrderedMap` is a map data structure, that preserves
   insertion order.
 
+### Fixed
+- Parser now accepts empty lists and objects.
+- Parser now accepts all directive locations.
+
 ## [0.11.1.0] - 2021-02-07
 ### Added
 - `Validate.Rules`:
@@ -109,7 +113,7 @@ and this project adheres to
   `locations`.
 - Parsing comments in the front of definitions.
 - Some missing labels were added to the parsers, some labels were fixed to
-  refer to the AST nodes being parsed. 
+  refer to the AST nodes being parsed.
 
 ### Added
 - `AST` reexports `AST.Parser`.

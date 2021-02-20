@@ -14,11 +14,7 @@ import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Text (Text)
 import qualified Language.GraphQL.AST.DirectiveLocation as Directive
-import Language.GraphQL.AST.DirectiveLocation
-    ( DirectiveLocation
-    , ExecutableDirectiveLocation
-    , TypeSystemDirectiveLocation
-    )
+import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation)
 import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.AST.Lexer
 import Text.Megaparsec
@@ -96,34 +92,28 @@ directiveLocations = optional pipe
     <?> "DirectiveLocations"
 
 directiveLocation :: Parser DirectiveLocation
-directiveLocation
-    = Directive.ExecutableDirectiveLocation <$> executableDirectiveLocation
-    <|> Directive.TypeSystemDirectiveLocation <$> typeSystemDirectiveLocation
+directiveLocation = e (Directive.Query <$ symbol "QUERY")
+    <|> e (Directive.Mutation <$ symbol "MUTATION")
+    <|> e (Directive.Subscription <$ symbol "SUBSCRIPTION")
+    <|> t (Directive.FieldDefinition <$ symbol "FIELD_DEFINITION")
+    <|> e (Directive.Field <$ symbol "FIELD")
+    <|> e (Directive.FragmentDefinition <$ "FRAGMENT_DEFINITION")
+    <|> e (Directive.FragmentSpread <$ "FRAGMENT_SPREAD")
+    <|> e (Directive.InlineFragment <$ "INLINE_FRAGMENT")
+    <|> t (Directive.Schema <$ symbol "SCHEMA")
+    <|> t (Directive.Scalar <$ symbol "SCALAR")
+    <|> t (Directive.Object <$ symbol "OBJECT")
+    <|> t (Directive.ArgumentDefinition <$ symbol "ARGUMENT_DEFINITION")
+    <|> t (Directive.Interface <$ symbol "INTERFACE")
+    <|> t (Directive.Union <$ symbol "UNION")
+    <|> t (Directive.EnumValue <$ symbol "ENUM_VALUE")
+    <|> t (Directive.Enum <$ symbol "ENUM")
+    <|> t (Directive.InputObject <$ symbol "INPUT_OBJECT")
+    <|> t (Directive.InputFieldDefinition <$ symbol "INPUT_FIELD_DEFINITION")
     <?> "DirectiveLocation"
-
-executableDirectiveLocation :: Parser ExecutableDirectiveLocation
-executableDirectiveLocation = Directive.Query <$ symbol "QUERY"
-    <|> Directive.Mutation <$ symbol "MUTATION"
-    <|> Directive.Subscription <$ symbol "SUBSCRIPTION"
-    <|> Directive.Field <$ symbol "FIELD"
-    <|> Directive.FragmentDefinition <$ "FRAGMENT_DEFINITION"
-    <|> Directive.FragmentSpread <$ "FRAGMENT_SPREAD"
-    <|> Directive.InlineFragment <$ "INLINE_FRAGMENT"
-    <?> "ExecutableDirectiveLocation"
-
-typeSystemDirectiveLocation :: Parser TypeSystemDirectiveLocation
-typeSystemDirectiveLocation = Directive.Schema <$ symbol "SCHEMA"
-    <|> Directive.Scalar <$ symbol "SCALAR"
-    <|> Directive.Object <$ symbol "OBJECT"
-    <|> Directive.FieldDefinition <$ symbol "FIELD_DEFINITION"
-    <|> Directive.ArgumentDefinition <$ symbol "ARGUMENT_DEFINITION"
-    <|> Directive.Interface <$ symbol "INTERFACE"
-    <|> Directive.Union <$ symbol "UNION"
-    <|> Directive.Enum <$ symbol "ENUM"
-    <|> Directive.EnumValue <$ symbol "ENUM_VALUE"
-    <|> Directive.InputObject <$ symbol "INPUT_OBJECT"
-    <|> Directive.InputFieldDefinition <$ symbol "INPUT_FIELD_DEFINITION"
-    <?> "TypeSystemDirectiveLocation"
+  where
+    e = fmap Directive.ExecutableDirectiveLocation
+    t = fmap Directive.TypeSystemDirectiveLocation
 
 typeDefinition :: Full.Description -> Parser Full.TypeDefinition
 typeDefinition description' = scalarTypeDefinition description'
@@ -471,8 +461,8 @@ constValue = Full.ConstFloat <$> try float
     <|> Full.ConstNull <$ nullValue
     <|> Full.ConstString <$> stringValue
     <|> Full.ConstEnum <$> try enumValue
-    <|> Full.ConstList <$> brackets (some constValue)
-    <|> Full.ConstObject <$> braces (some $ objectField $ valueNode constValue)
+    <|> Full.ConstList <$> brackets (many constValue)
+    <|> Full.ConstObject <$> braces (many $ objectField $ valueNode constValue)
     <?> "Value"
 
 booleanValue :: Parser Bool
