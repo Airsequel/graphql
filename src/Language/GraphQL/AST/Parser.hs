@@ -450,7 +450,7 @@ value = Full.Variable <$> variable
     <|> Full.Null <$  nullValue
     <|> Full.String <$> stringValue
     <|> Full.Enum <$> try enumValue
-    <|> Full.List <$> brackets (some value)
+    <|> Full.List <$> brackets (some $ valueNode value)
     <|> Full.Object <$> braces (some $ objectField $ valueNode value)
     <?> "Value"
 
@@ -461,7 +461,7 @@ constValue = Full.ConstFloat <$> try float
     <|> Full.ConstNull <$ nullValue
     <|> Full.ConstString <$> stringValue
     <|> Full.ConstEnum <$> try enumValue
-    <|> Full.ConstList <$> brackets (many constValue)
+    <|> Full.ConstList <$> brackets (many $ valueNode constValue)
     <|> Full.ConstObject <$> braces (many $ objectField $ valueNode constValue)
     <?> "Value"
 

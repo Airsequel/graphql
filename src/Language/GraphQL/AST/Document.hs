@@ -263,7 +263,7 @@ data Value
     | Boolean Bool
     | Null
     | Enum Name
-    | List [Value]
+    | List [Node Value]
     | Object [ObjectField Value]
     deriving Eq
 
@@ -287,7 +287,7 @@ data ConstValue
     | ConstBoolean Bool
     | ConstNull
     | ConstEnum Name
-    | ConstList [ConstValue]
+    | ConstList [Node ConstValue]
     | ConstObject [ObjectField ConstValue]
     deriving Eq
 

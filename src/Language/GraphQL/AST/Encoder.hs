@@ -219,7 +219,7 @@ fromConstValue (Full.ConstBoolean  x) = Full.Boolean x
 fromConstValue Full.ConstNull = Full.Null
 fromConstValue (Full.ConstString string) = Full.String string
 fromConstValue (Full.ConstEnum x) = Full.Enum x
-fromConstValue (Full.ConstList x) = Full.List $ fromConstValue <$> x
+fromConstValue (Full.ConstList x) = Full.List $ fmap fromConstValue <$> x
 fromConstValue (Full.ConstObject x) = Full.Object $ fromConstObjectField <$> x
   where
     fromConstObjectField Full.ObjectField{value = value', ..} =
@@ -266,8 +266,8 @@ stringValue (Pretty indentation) string =
             = Builder.fromLazyText (indent (indentation + 1))
             <> line' <> newline <> acc
 
-listValue :: Formatter -> [Full.Value] -> Lazy.Text
-listValue formatter = bracketsCommas formatter $ value formatter
+listValue :: Formatter -> [Full.Node Full.Value] -> Lazy.Text
+listValue formatter = bracketsCommas formatter $ value formatter . Full.node
 
 objectValue :: Formatter -> [Full.ObjectField Full.Value] -> Lazy.Text
 objectValue formatter = intercalate $ objectField formatter

@@ -1550,7 +1550,7 @@ valuesOfCorrectTypeRule = ValueRule go constGo
     toConst Full.Null = Just Full.ConstNull
     toConst (Full.Enum enum) = Just $ Full.ConstEnum enum
     toConst (Full.List values) =
-        Just $ Full.ConstList $ catMaybes $ toConst <$> values
+        Just $ Full.ConstList $ catMaybes $ toConstNode <$> values
     toConst (Full.Object fields) = Just $ Full.ConstObject
         $ catMaybes $ constObjectField <$> fields
     constObjectField Full.ObjectField{..}
@@ -1587,7 +1587,7 @@ valuesOfCorrectTypeRule = ValueRule go constGo
             foldMap (checkObjectField typeFields) valueFields
     check (In.ListBaseType listType) constValue@Full.Node{ .. }
         | Full.ConstList listValues <- node =
-            foldMap (check listType) $ flip Full.Node location <$> listValues
+            foldMap (check listType) listValues
         | otherwise = check listType constValue
     check inputType Full.Node{ .. } = pure $ Error
         { message = concat

@@ -315,8 +315,8 @@ constValue (Validation.ValueRule _ rule) valueType = go valueType
     go inputObjectType value'@(Full.Node (Full.ConstObject fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.Node (Full.ConstList values) location')
-        = embedListLocation go listType values location'
+    go listType value'@(Full.Node (Full.ConstList values) _location)
+        = embedListLocation go listType values
         |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
     forEach inputObjectType Full.ObjectField{value = value', ..} =
@@ -421,16 +421,15 @@ argument rule argumentType (Full.Argument _ value' _) =
   where
     valueType (In.Argument _ valueType' _) = valueType'
 
--- valueTypeFromList :: Maybe In.Type -> Maybe In.Type
+-- Applies a validation rule to each list value and merges returned errors.
 embedListLocation :: forall a m
     . (Maybe In.Type -> Full.Node a -> Seq m)
     -> Maybe In.Type
-    -> [a]
-    -> Full.Location
+    -> [Full.Node a]
     -> Seq m
-embedListLocation go listType values location'
+embedListLocation go listType
     = foldMap (go $ valueTypeFromList listType) 
-    $ flip Full.Node location' <$> Seq.fromList values
+    . Seq.fromList
   where
     valueTypeFromList (Just (In.ListBaseType baseType)) = Just baseType
     valueTypeFromList _ = Nothing
@@ -445,8 +444,8 @@ value (Validation.ValueRule rule _) valueType = go valueType
     go inputObjectType value'@(Full.Node (Full.Object fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.Node (Full.List values) location')
-        = embedListLocation go listType values location'
+    go listType value'@(Full.Node (Full.List values) _location)
+        = embedListLocation go listType values
         |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
     forEach inputObjectType Full.ObjectField{value = value', ..} =

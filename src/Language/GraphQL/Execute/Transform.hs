@@ -173,7 +173,7 @@ constValue (Full.ConstString x) = Type.String x
 constValue (Full.ConstBoolean b) = Type.Boolean b
 constValue Full.ConstNull = Type.Null
 constValue (Full.ConstEnum e) = Type.Enum e
-constValue (Full.ConstList l) = Type.List $ constValue <$> l
+constValue (Full.ConstList list) = Type.List $ constValue . Full.node <$> list
 constValue (Full.ConstObject o) =
     Type.Object $ HashMap.fromList $ constObjectField <$> o
   where
@@ -380,7 +380,7 @@ value (Full.String string) = pure $ Type.String string
 value (Full.Boolean boolean) = pure $ Type.Boolean boolean
 value Full.Null = pure Type.Null
 value (Full.Enum enum) = pure $ Type.Enum enum
-value (Full.List list) = Type.List <$> traverse value list
+value (Full.List list) = Type.List <$> traverse (value . Full.node) list
 value (Full.Object object) =
     Type.Object . HashMap.fromList <$> traverse objectField object
   where
@@ -396,7 +396,7 @@ input (Full.String string) = pure $ pure $ String string
 input (Full.Boolean boolean) = pure $ pure $ Boolean boolean
 input Full.Null = pure $ pure Null
 input (Full.Enum enum) = pure $ pure $ Enum enum
-input (Full.List list) = pure . List <$> traverse value list
+input (Full.List list) = pure . List <$> traverse (value . Full.node) list
 input (Full.Object object) = do
     objectFields <- foldM objectField HashMap.empty object
     pure $ pure $ Object objectFields
