@@ -1540,7 +1540,7 @@ valuesOfCorrectTypeRule = ValueRule go constGo
     go (Just inputType) value
         | Just constValue <- toConstNode value =
             lift $ check inputType constValue
-    go _ _ = lift mempty
+    go _ _ = lift mempty -- This rule checks only literals.
     toConstNode Full.Node{..} = flip Full.Node location <$> toConst node
     toConst (Full.Variable _) = Nothing
     toConst (Full.Int integer) = Just $ Full.ConstInt integer
@@ -1586,8 +1586,8 @@ valuesOfCorrectTypeRule = ValueRule go constGo
         , Full.ConstObject valueFields <- node =
             foldMap (checkObjectField typeFields) valueFields
     check (In.ListBaseType listType) constValue@Full.Node{ .. }
-        | Full.ConstList listValues <- node =
-            foldMap (check listType) listValues
+        -- Skip, lists are checked recursively by the validation traverser.
+        | Full.ConstList _ <- node = mempty
         | otherwise = check listType constValue
     check inputType Full.Node{ .. } = pure $ Error
         { message = concat

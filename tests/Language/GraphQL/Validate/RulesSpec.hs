@@ -49,16 +49,18 @@ catType :: ObjectType IO
 catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
     [ ("name", nameResolver)
     , ("nickname", nicknameResolver)
-    , ("doesKnowCommand", doesKnowCommandResolver)
+    , ("doesKnowCommands", doesKnowCommandsResolver)
     , ("meowVolume", meowVolumeResolver)
     ]
   where
     meowVolumeField = Field Nothing (Out.NamedScalarType int) mempty
     meowVolumeResolver = ValueResolver meowVolumeField $ pure $ Int 3
-    doesKnowCommandField = Field Nothing (Out.NonNullScalarType boolean)
-        $ HashMap.singleton "catCommand"
-        $ In.Argument Nothing (In.NonNullEnumType catCommandType) Nothing
-    doesKnowCommandResolver = ValueResolver doesKnowCommandField
+    doesKnowCommandsType = In.NonNullListType
+        $ In.NonNullEnumType catCommandType
+    doesKnowCommandsField = Field Nothing (Out.NonNullScalarType boolean)
+        $ HashMap.singleton "catCommands"
+        $ In.Argument Nothing doesKnowCommandsType Nothing
+    doesKnowCommandsResolver = ValueResolver doesKnowCommandsField
         $ pure $ Boolean True
 
 nameResolver :: Resolver IO
@@ -866,17 +868,17 @@ spec =
         context "variablesInAllowedPositionRule" $ do
             it "rejects wrongly typed variable arguments" $
                 let queryString = [r|
-                  query catCommandArgQuery($catCommandArg: CatCommand) {
-                    cat {
-                      doesKnowCommand(catCommand: $catCommandArg)
+                  query dogCommandArgQuery($dogCommandArg: DogCommand) {
+                    dog {
+                      doesKnowCommand(dogCommand: $dogCommandArg)
                     }
                   }
                 |]
                     expected = Error
                         { message =
-                            "Variable \"$catCommandArg\" of type \
-                            \\"CatCommand\" used in position expecting type \
-                            \\"!CatCommand\"."
+                            "Variable \"$dogCommandArg\" of type \
+                            \\"DogCommand\" used in position expecting type \
+                            \\"!DogCommand\"."
                         , locations = [AST.Location 2 44]
                         }
                  in validate queryString `shouldBe` [expected]
@@ -897,7 +899,7 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
-        context "valuesOfCorrectTypeRule" $
+        context "valuesOfCorrectTypeRule" $ do
             it "rejects values of incorrect types" $
                 let queryString = [r|
                   {
@@ -910,5 +912,20 @@ spec =
                         { message =
                             "Value 3 cannot be coerced to type \"Boolean\"."
                         , locations = [AST.Location 4 52]
+                        }
+                 in validate queryString `shouldBe` [expected]
+
+            it "uses the location of a single list value" $
+                let queryString = [r|
+                  {
+                    cat {
+                      doesKnowCommands(catCommands: [3])
+                    }
+                  }
+                |]
+                    expected = Error
+                        { message =
+                            "Value 3 cannot be coerced to type \"!CatCommand\"."
+                        , locations = [AST.Location 4 54]
                         }
                  in validate queryString `shouldBe` [expected]
