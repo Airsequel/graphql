@@ -88,9 +88,6 @@ test-suite graphql-test
       Test.DirectiveSpec
       Test.FragmentSpec
       Test.RootOperationSpec
-      Paths_graphql
-  autogen-modules:
-      Paths_graphql
   hs-source-dirs:
       tests
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall

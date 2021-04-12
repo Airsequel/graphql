@@ -1582,24 +1582,20 @@ valuesOfCorrectTypeRule = ValueRule go constGo
         , Full.ConstEnum memberValue <- node
         , HashMap.member memberValue members = mempty
     check (In.InputObjectBaseType objectType) Full.Node{ node }
-        | In.InputObjectType _ _ typeFields <- objectType
-        , Full.ConstObject valueFields <- node =
-            foldMap (checkObjectField typeFields) valueFields
+        -- Skip, objects are checked recursively by the validation traverser.
+        | In.InputObjectType{}  <- objectType
+        , Full.ConstObject{} <- node = mempty
     check (In.ListBaseType listType) constValue@Full.Node{ .. }
         -- Skip, lists are checked recursively by the validation traverser.
-        | Full.ConstList _ <- node = mempty
+        | Full.ConstList{} <- node = mempty
         | otherwise = check listType constValue
     check inputType Full.Node{ .. } = pure $ Error
         { message = concat
             [ "Value "
-            , show node, " cannot be coerced to type \""
+            , show node
+            , " cannot be coerced to type \""
             , show inputType
             , "\"."
             ]
         , locations = [location]
         }
-    checkObjectField typeFields Full.ObjectField{..}
-        | Just typeField <- HashMap.lookup name typeFields
-        , In.InputField _ fieldType _ <- typeField =
-            check fieldType value
-    checkObjectField _ _ = mempty

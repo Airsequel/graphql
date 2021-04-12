@@ -929,3 +929,18 @@ spec =
                         , locations = [AST.Location 4 54]
                         }
                  in validate queryString `shouldBe` [expected]
+
+            it "validates input object properties once" $
+                let queryString = [r|
+                  {
+                    findDog(complex: { name: 3 }) {
+                      name
+                    }
+                  }
+                |]
+                    expected = Error
+                        { message =
+                            "Value 3 cannot be coerced to type \"!String\"."
+                        , locations = [AST.Location 3 46]
+                        }
+                 in validate queryString `shouldBe` [expected]

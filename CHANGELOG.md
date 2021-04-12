@@ -14,8 +14,10 @@ and this project adheres to
 ### Fixed
 - Parser now accepts empty lists and objects.
 - Parser now accepts all directive locations.
-- `valuesOfCorrectTypeRule` doesn't check list items recursively since the
+- `valuesOfCorrectTypeRule` doesn't check lists recursively since the
   validation traverser calls it on all list items.
+- `valuesOfCorrectTypeRule` doesn't check objects recursively since the
+  validation traverser calls it on all object properties.
 
 ### Changed
 - `AST.Document.Value.List` and `AST.Document.ConstValue.ConstList` contain
