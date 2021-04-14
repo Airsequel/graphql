@@ -4,7 +4,6 @@
 
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | GraphQL validator.

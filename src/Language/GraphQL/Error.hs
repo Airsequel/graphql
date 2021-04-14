@@ -1,6 +1,5 @@
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
 -- | Error handling.

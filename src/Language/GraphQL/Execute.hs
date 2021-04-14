@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 -- | This module provides functions to execute a @GraphQL@ request.
 module Language.GraphQL.Execute
     ( execute
