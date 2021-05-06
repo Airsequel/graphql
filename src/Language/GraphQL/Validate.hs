@@ -314,9 +314,6 @@ constValue (Validation.ValueRule _ rule) valueType = go valueType
     go inputObjectType value'@(Full.Node (Full.ConstObject fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.Node (Full.ConstList values) _location)
-        = embedListLocation go listType values
-        |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
     forEach inputObjectType Full.ObjectField{value = value', ..} =
         go (valueTypeByName name inputObjectType) value'
@@ -420,19 +417,6 @@ argument rule argumentType (Full.Argument _ value' _) =
   where
     valueType (In.Argument _ valueType' _) = valueType'
 
--- Applies a validation rule to each list value and merges returned errors.
-embedListLocation :: forall a m
-    . (Maybe In.Type -> Full.Node a -> Seq m)
-    -> Maybe In.Type
-    -> [Full.Node a]
-    -> Seq m
-embedListLocation go listType
-    = foldMap (go $ valueTypeFromList listType) 
-    . Seq.fromList
-  where
-    valueTypeFromList (Just (In.ListBaseType baseType)) = Just baseType
-    valueTypeFromList _ = Nothing
-
 value :: forall m
     . Validation.Rule m
     -> Maybe In.Type
@@ -443,9 +427,6 @@ value (Validation.ValueRule rule _) valueType = go valueType
     go inputObjectType value'@(Full.Node (Full.Object fields) _)
         = foldMap (forEach inputObjectType) (Seq.fromList fields)
         |> rule inputObjectType value'
-    go listType value'@(Full.Node (Full.List values) _location)
-        = embedListLocation go listType values
-        |> rule listType value'
     go anotherValue value' = pure $ rule anotherValue value'
     forEach inputObjectType Full.ObjectField{value = value', ..} =
         go (valueTypeByName name inputObjectType) value'

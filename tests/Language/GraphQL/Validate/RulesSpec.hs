@@ -847,7 +847,7 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
-        context "providedRequiredArgumentsRule" $
+        context "providedRequiredArgumentsRule" $ do
             it "checks for (non-)nullable arguments" $
                 let queryString = [r|
                   {
@@ -942,5 +942,21 @@ spec =
                         { message =
                             "Value 3 cannot be coerced to type \"!String\"."
                         , locations = [AST.Location 3 46]
+                        }
+                 in validate queryString `shouldBe` [expected]
+
+            it "checks for required list members" $
+                let queryString = [r|
+                  {
+                    cat {
+                      doesKnowCommands(catCommands: [null])
+                    }
+                  }
+                |]
+                    expected = Error
+                        { message =
+                            "List of non-null values of type \"CatCommand\" \
+                            \cannot contain null values."
+                        , locations = [AST.Location 4 54]
                         }
                  in validate queryString `shouldBe` [expected]

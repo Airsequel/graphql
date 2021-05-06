@@ -18,6 +18,7 @@ and this project adheres to
   validation traverser calls it on all list items.
 - `valuesOfCorrectTypeRule` doesn't check objects recursively since the
   validation traverser calls it on all object properties.
+- Validation of non-nullable values inside lists.
 
 ### Changed
 - `AST.Document.Value.List` and `AST.Document.ConstValue.ConstList` contain
