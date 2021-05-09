@@ -47,6 +47,7 @@ library
       Test.Hspec.GraphQL
   other-modules:
       Language.GraphQL.Execute.Execution
+      Language.GraphQL.Execute.Internal
       Language.GraphQL.Execute.Subscribe
       Language.GraphQL.Execute.Transform
       Language.GraphQL.Type.Definition

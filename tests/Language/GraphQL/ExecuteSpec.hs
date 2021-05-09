@@ -30,7 +30,7 @@ philosopherSchema = schema queryType Nothing (Just subscriptionType) mempty
 
 queryType :: Out.ObjectType (Either SomeException)
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.singleton "philosopher" 
+    $ HashMap.singleton "philosopher"
     $ ValueResolver philosopherField
     $ pure $ Type.Object mempty
   where
@@ -44,6 +44,7 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
     resolvers =
         [ ("firstName", ValueResolver firstNameField firstNameResolver)
         , ("lastName", ValueResolver lastNameField lastNameResolver)
+        , ("school", ValueResolver schoolField schoolResolver)
         ]
     firstNameField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
@@ -51,6 +52,9 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
     lastNameField
         = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     lastNameResolver = pure $ Type.String "Nietzsche"
+    schoolField
+       = Out.Field Nothing (Out.NonNullEnumType schoolType) HashMap.empty
+    schoolResolver = pure $ Type.Enum "EXISTENTIALISM"
 
 subscriptionType :: Out.ObjectType (Either SomeException)
 subscriptionType = Out.ObjectType "Subscription" Nothing []
@@ -69,6 +73,13 @@ quoteType = Out.ObjectType "Quote" Nothing []
   where
     quoteField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+
+schoolType :: EnumType
+schoolType = EnumType "School" Nothing $ HashMap.fromList
+    [ ("NOMINALISM", EnumValue Nothing)
+    , ("REALISM", EnumValue Nothing)
+    , ("IDEALISM", EnumValue Nothing)
+    ]
 
 type EitherStreamOrValue = Either
     (ResponseEventStream (Either SomeException) Aeson.Value)
@@ -118,6 +129,23 @@ spec =
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
                 in actual `shouldBe` expected
+
+            it "errors on invalid output enum values" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.object
+                            [ "school" .= Aeson.Null
+                            ]
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Enum value completion failed."
+                        , locations = []
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher { school } }"
+                in actual `shouldBe` expected
+
         context "Subscription" $
             it "subscribes" $
                 let data'' = Aeson.object

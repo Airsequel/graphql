@@ -21,6 +21,7 @@ import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
+import Language.GraphQL.Execute.Internal
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Execute.Transform as Transform
@@ -123,7 +124,7 @@ completeValue outputType@(Out.EnumBaseType enumType) _ (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
      in if HashMap.member enum enumMembers
         then coerceResult outputType $ Enum enum
-        else addErrMsg "Enum value completion failed."
+        else addError $ Error "Enum value completion failed." [] []
 completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
