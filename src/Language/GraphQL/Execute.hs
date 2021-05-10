@@ -11,9 +11,10 @@ import Data.Text (Text)
 import Language.GraphQL.AST.Document (Document, Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
+import Language.GraphQL.Execute.Internal
 import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Execute.Subscribe as Subscribe
-import Language.GraphQL.Error
+import Language.GraphQL.Error (ResponseEventStream, Response, runCollectErrs)
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
@@ -32,10 +33,7 @@ execute :: (MonadCatch m, VariableValue a, Serialize b)
     -> m (Either (ResponseEventStream m b) (Response b))
 execute schema' operationName subs document =
     case Transform.document schema' operationName subs document of
-        Left queryError -> pure
-            $ Right
-            $ singleError
-            $ Transform.queryError queryError
+        Left queryError -> pure $ singleError $ Transform.queryError queryError
         Right transformed -> executeRequest transformed
 
 executeRequest :: (MonadCatch m, Serialize a)
@@ -47,7 +45,7 @@ executeRequest (Transform.Document types' rootObjectType operation)
     | (Transform.Mutation _ fields) <- operation =
         Right <$> executeOperation types' rootObjectType fields
     | (Transform.Subscription _ fields) <- operation
-        = either (Right . singleError) Left
+        = either singleError Left
         <$> Subscribe.subscribe types' rootObjectType fields
 
 -- This is actually executeMutation, but we don't distinguish between queries

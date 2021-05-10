@@ -23,6 +23,8 @@ and this project adheres to
 ### Changed
 - `AST.Document.Value.List` and `AST.Document.ConstValue.ConstList` contain
   location information for each list item.
+- `Error`: `singleError`, `addErr` and `addErrMsg` are deprecated. They are
+  internal functions used by the executor for error handling.
 
 ## [0.11.1.0] - 2021-02-07
 ### Added

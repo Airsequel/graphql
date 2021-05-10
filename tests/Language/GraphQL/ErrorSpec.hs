@@ -8,17 +8,29 @@ module Language.GraphQL.ErrorSpec
     ) where
 
 import qualified Data.Aeson as Aeson
-import qualified Data.Sequence as Seq
+import Data.List.NonEmpty (NonEmpty (..))
 import Language.GraphQL.Error
-import Test.Hspec ( Spec
-                  , describe
-                  , it
-                  , shouldBe
-                  )
+import Test.Hspec
+    ( Spec
+    , describe
+    , it
+    , shouldBe
+    )
+import Text.Megaparsec (PosState(..))
+import Text.Megaparsec.Error (ParseError(..), ParseErrorBundle(..))
+import Text.Megaparsec.Pos (SourcePos(..), mkPos)
 
 spec :: Spec
-spec = describe "singleError" $
-    it "constructs an error with the given message" $
-        let errors'' = Seq.singleton $ Error "Message." [] []
-            expected = Response Aeson.Null errors''
-         in singleError "Message." `shouldBe` expected
+spec = describe "parseError" $
+    it "generates response with a single error" $ do
+        let parseErrors = TrivialError 0 Nothing mempty :| []
+            posState = PosState
+                { pstateInput = ""
+                , pstateOffset = 0
+                , pstateSourcePos = SourcePos "" (mkPos 1) (mkPos 1)
+                , pstateTabWidth = mkPos 1
+                , pstateLinePrefix = ""
+                }
+        Response Aeson.Null actual <-
+            parseError (ParseErrorBundle parseErrors posState)
+        length actual `shouldBe` 1

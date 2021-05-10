@@ -69,21 +69,25 @@ parseError ParseErrorBundle{..}  =
 type CollectErrsT m = StateT (Resolution m) m
 
 -- | Adds an error to the list of errors.
+{-# DEPRECATED #-}
 addErr :: Monad m => Error -> CollectErrsT m ()
 addErr v = modify appender
   where
     appender :: Monad m => Resolution m -> Resolution m
     appender resolution@Resolution{..} = resolution{ errors = errors |> v }
 
+{-# DEPRECATED #-}
 makeErrorMessage :: Text -> Error
 makeErrorMessage s = Error s [] []
 
 -- | Constructs a response object containing only the error with the given
 -- message.
+{-# DEPRECATED #-}
 singleError :: Serialize a => Text -> Response a
-singleError message = Response null $ Seq.singleton $ makeErrorMessage message
+singleError message = Response null $ Seq.singleton $ Error message [] []
 
 -- | Convenience function for just wrapping an error message.
+{-# DEPRECATED #-}
 addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
 addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null
 

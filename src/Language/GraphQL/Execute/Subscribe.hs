@@ -28,8 +28,6 @@ import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
--- This is actually executeMutation, but we don't distinguish between queries
--- and mutations yet.
 subscribe :: (MonadCatch m, Serialize a)
     => HashMap Name (Type m)
     -> Out.ObjectType m
