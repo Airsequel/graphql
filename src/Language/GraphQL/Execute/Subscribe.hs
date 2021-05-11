@@ -15,8 +15,6 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq(..))
-import Data.Text (Text)
-import qualified Data.Text as Text
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
@@ -32,7 +30,7 @@ subscribe :: (MonadCatch m, Serialize a)
     => HashMap Name (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)
-    -> m (Either Text (ResponseEventStream m a))
+    -> m (Either String (ResponseEventStream m a))
 subscribe types' objectType fields = do
     sourceStream <- createSourceEventStream types' objectType fields
     traverse (mapSourceToResponseEvent types' objectType fields) sourceStream
@@ -51,7 +49,7 @@ createSourceEventStream :: MonadCatch m
     => HashMap Name (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)
-    -> m (Either Text (Out.SourceEventStream m))
+    -> m (Either String (Out.SourceEventStream m))
 createSourceEventStream _types subscriptionType@(Out.ObjectType _ _ _ fieldTypes) fields
     | [fieldGroup] <- OrderedMap.elems groupedFieldSet
     , Transform.Field _ fieldName arguments' _ <- NonEmpty.head fieldGroup
@@ -70,21 +68,19 @@ resolveFieldEventStream :: MonadCatch m
     => Type.Value
     -> Type.Subs
     -> Out.Subscribe m
-    -> m (Either Text (Out.SourceEventStream m))
+    -> m (Either String (Out.SourceEventStream m))
 resolveFieldEventStream result args resolver =
     catch (Right <$> runReaderT resolver context) handleEventStreamError
   where
     handleEventStreamError :: MonadCatch m
         => ResolverException
-        -> m (Either Text (Out.SourceEventStream m))
-    handleEventStreamError = pure . Left . Text.pack . displayException
+        -> m (Either String (Out.SourceEventStream m))
+    handleEventStreamError = pure . Left . displayException
     context = Type.Context
         { Type.arguments = Type.Arguments args
         , Type.values = result
         }
 
--- This is actually executeMutation, but we don't distinguish between queries
--- and mutations yet.
 executeSubscriptionEvent :: (MonadCatch m, Serialize a)
     => HashMap Name (Type m)
     -> Out.ObjectType m

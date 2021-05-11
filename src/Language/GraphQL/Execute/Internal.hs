@@ -14,7 +14,7 @@ module Language.GraphQL.Execute.Internal
 import Control.Monad.Trans.State (modify)
 import Control.Monad.Catch (MonadCatch)
 import Data.Sequence ((|>))
-import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Error
     ( CollectErrsT
@@ -32,5 +32,6 @@ addError returnValue error' = modify appender >> pure returnValue
        { errors = errors |> error'
        }
 
-singleError :: Serialize b => forall a. Text -> Either a (Response b)
-singleError message = Right $ Response null $ pure $ Error message [] []
+singleError :: Serialize b => forall a. String -> Either a (Response b)
+singleError message =
+    Right $ Response null $ pure $ Error (Text.pack message) [] []

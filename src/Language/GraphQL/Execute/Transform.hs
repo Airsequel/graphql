@@ -25,7 +25,6 @@ module Language.GraphQL.Execute.Transform
     , QueryError(..)
     , Selection(..)
     , document
-    , queryError
     ) where
 
 import Control.Monad (foldM, unless)
@@ -71,8 +70,6 @@ data Selection m
     | SelectionField (Field m)
 
 -- | GraphQL has 3 operation types: queries, mutations and subscribtions.
---
--- Currently only queries and mutations are supported.
 data Operation m
     = Query (Maybe Text) (Seq (Selection m))
     | Mutation (Maybe Text) (Seq (Selection m))
@@ -98,9 +95,18 @@ data QueryError
     = OperationNotFound Text
     | OperationNameRequired
     | CoercionError
-    | TransformationError
     | EmptyDocument
     | UnsupportedRootOperation
+
+instance Show QueryError where
+    show (OperationNotFound operationName) = unwords
+        ["Operation", Text.unpack operationName, "couldn't be found in the document."]
+    show OperationNameRequired = "Missing operation name."
+    show CoercionError = "Coercion error."
+    show EmptyDocument =
+        "The document doesn't contain any executable operations."
+    show UnsupportedRootOperation =
+        "Root operation type couldn't be found in the schema."
 
 data Input
     = Int Int32
@@ -113,17 +119,6 @@ data Input
     | Object (HashMap Name Input)
     | Variable Type.Value
     deriving (Eq, Show)
-
-queryError :: QueryError -> Text
-queryError (OperationNotFound operationName) = Text.unwords
-    ["Operation", operationName, "couldn't be found in the document."]
-queryError OperationNameRequired = "Missing operation name."
-queryError CoercionError = "Coercion error."
-queryError TransformationError = "Schema transformation error."
-queryError EmptyDocument =
-    "The document doesn't contain any executable operations."
-queryError UnsupportedRootOperation =
-    "Root operation type couldn't be found in the schema."
 
 getOperation
     :: Maybe Full.Name

@@ -33,7 +33,7 @@ execute :: (MonadCatch m, VariableValue a, Serialize b)
     -> m (Either (ResponseEventStream m b) (Response b))
 execute schema' operationName subs document =
     case Transform.document schema' operationName subs document of
-        Left queryError -> pure $ singleError $ Transform.queryError queryError
+        Left queryError -> pure $ singleError $ show queryError
         Right transformed -> executeRequest transformed
 
 executeRequest :: (MonadCatch m, Serialize a)
