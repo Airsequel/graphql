@@ -1,3 +1,7 @@
+{- This Source Code Form is subject to the terms of the Mozilla Public License,
+   v. 2.0. If a copy of the MPL was not distributed with this file, You can
+   obtain one at https://mozilla.org/MPL/2.0/. -}
+
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -77,7 +81,11 @@ data Operation m
 
 -- | Single GraphQL field.
 data Field m = Field
-    (Maybe Full.Name) Full.Name (HashMap Full.Name Input) (Seq (Selection m))
+    (Maybe Full.Name)
+    Full.Name
+    (HashMap Full.Name Input)
+    (Seq (Selection m))
+    Full.Location
 
 -- | Contains the operation to be executed along with its root type.
 data Document m = Document
@@ -263,11 +271,11 @@ selection (Full.InlineFragmentSelection fragmentSelection) =
     inlineFragment fragmentSelection
 
 field :: Full.Field ->  State (Replacement m) (Maybe (Field m))
-field (Full.Field alias name arguments' directives' selections _) = do
+field (Full.Field alias name arguments' directives' selections location) = do
     fieldArguments <- foldM go HashMap.empty arguments'
     fieldSelections <- appendSelection selections
     fieldDirectives <- Definition.selection <$> directives directives'
-    let field' = Field alias name fieldArguments fieldSelections
+    let field' = Field alias name fieldArguments fieldSelections location
     pure $ field' <$ fieldDirectives
   where
     go arguments (Full.Argument name' (Full.Node value' _) _) =

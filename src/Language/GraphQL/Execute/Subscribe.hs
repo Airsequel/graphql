@@ -52,7 +52,7 @@ createSourceEventStream :: MonadCatch m
     -> m (Either String (Out.SourceEventStream m))
 createSourceEventStream _types subscriptionType@(Out.ObjectType _ _ _ fieldTypes) fields
     | [fieldGroup] <- OrderedMap.elems groupedFieldSet
-    , Transform.Field _ fieldName arguments' _ <- NonEmpty.head fieldGroup
+    , Transform.Field _ fieldName arguments' _ _ <- NonEmpty.head fieldGroup
     , resolverT <- fieldTypes HashMap.! fieldName
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT
     , Out.Field _ _fieldType argumentDefinitions <- fieldDefinition =

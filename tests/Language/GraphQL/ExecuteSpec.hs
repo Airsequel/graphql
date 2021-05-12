@@ -15,7 +15,7 @@ import Data.Aeson.Types (emptyObject)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Language.GraphQL.AST (Document, Name)
+import Language.GraphQL.AST (Document, Location(..), Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute
@@ -37,6 +37,29 @@ queryType = Out.ObjectType "Query" Nothing []
     philosopherField =
         Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
 
+musicType :: Out.ObjectType (Either SomeException)
+musicType = Out.ObjectType "Music" Nothing []
+    $ HashMap.fromList resolvers
+  where
+    resolvers =
+        [ ("instrument", ValueResolver instrumentField instrumentResolver)
+        ]
+    instrumentResolver = pure $ Type.String "piano"
+    instrumentField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+
+poetryType :: Out.ObjectType (Either SomeException)
+poetryType = Out.ObjectType "Poetry" Nothing []
+    $ HashMap.fromList resolvers
+  where
+    resolvers =
+        [ ("genre", ValueResolver genreField genreResolver)
+        ]
+    genreResolver = pure $ Type.String "Futurism"
+    genreField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+
+interestType :: Out.UnionType (Either SomeException)
+interestType = Out.UnionType "Interest" Nothing [musicType, poetryType]
+
 philosopherType :: Out.ObjectType (Either SomeException)
 philosopherType = Out.ObjectType "Philosopher" Nothing []
     $ HashMap.fromList resolvers
@@ -45,6 +68,7 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         [ ("firstName", ValueResolver firstNameField firstNameResolver)
         , ("lastName", ValueResolver lastNameField lastNameResolver)
         , ("school", ValueResolver schoolField schoolResolver)
+        , ("interest", ValueResolver interestField interestResolver)
         ]
     firstNameField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
@@ -55,6 +79,11 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
     schoolField
        = Out.Field Nothing (Out.NonNullEnumType schoolType) HashMap.empty
     schoolResolver = pure $ Type.Enum "EXISTENTIALISM"
+    interestField
+        = Out.Field Nothing (Out.NonNullUnionType interestType) HashMap.empty
+    interestResolver = pure
+        $ Type.Object
+        $ HashMap.fromList [("instrument", "piano")]
 
 subscriptionType :: Out.ObjectType (Either SomeException)
 subscriptionType = Out.ObjectType "Subscription" Nothing []
@@ -138,12 +167,28 @@ spec =
                         ]
                     executionErrors = pure $ Error
                         { message = "Enum value completion failed."
-                        , locations = []
+                        , locations = [Location 1 17]
                         , path = []
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { school } }"
+                in actual `shouldBe` expected
+
+            it "gives location information for invalid interfaces" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.object
+                            [ "interest" .= Aeson.Null
+                            ]
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Union value completion failed."
+                        , locations = [Location 1 17]
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher { interest } }"
                 in actual `shouldBe` expected
 
         context "Subscription" $

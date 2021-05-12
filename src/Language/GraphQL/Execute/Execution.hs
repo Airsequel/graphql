@@ -13,6 +13,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Reader (runReaderT)
 import Control.Monad.Trans.State (gets)
 import Data.List.NonEmpty (NonEmpty(..))
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
@@ -66,7 +67,7 @@ collectFields objectType = foldl forEach OrderedMap.empty
         | otherwise = groupedFields
 
 aliasOrName :: forall m. Transform.Field m -> Name
-aliasOrName (Transform.Field alias name _ _) = fromMaybe name alias
+aliasOrName (Transform.Field alias name _ _ _) = fromMaybe name alias
 
 resolveAbstractType :: Monad m
     => Internal.AbstractType m
@@ -96,7 +97,7 @@ executeField fieldResolver prev fields
   where
     executeField' fieldDefinition resolver = do
         let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-        let (Transform.Field _ _ arguments' _ :| []) = fields
+        let (Transform.Field _ _ arguments' _ _ :| []) = fields
         case coerceArgumentValues argumentDefinitions arguments' of
             Nothing -> addError null $ Error "Argument coercing failed." [] []
             Just argumentValues -> do
@@ -120,11 +121,12 @@ completeValue outputType@(Out.ScalarBaseType _) _ (Type.Float float) =
     coerceResult outputType $ Float float
 completeValue outputType@(Out.ScalarBaseType _) _ (Type.String string) =
     coerceResult outputType $ String string
-completeValue outputType@(Out.EnumBaseType enumType) _ (Type.Enum enum) =
+completeValue outputType@(Out.EnumBaseType enumType) fields (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
+        Transform.Field _ _ _ _ location = NonEmpty.head fields
      in if HashMap.member enum enumMembers
         then coerceResult outputType $ Enum enum
-        else addError null $ Error "Enum value completion failed." [] []
+        else addError null $ Error "Enum value completion failed." [location] []
 completeValue (Out.ObjectBaseType objectType) fields result =
     executeSelectionSet result objectType $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
@@ -139,12 +141,13 @@ completeValue (Out.InterfaceBaseType interfaceType) fields result
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = Internal.AbstractUnionType unionType
+        let Transform.Field _ _ _ _ location = NonEmpty.head fields
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
             Nothing -> addError null
-                $ Error "Union value completion failed." [] []
+                $ Error "Union value completion failed." [location] []
 completeValue _ _ _ = addError null $ Error "Value completion failed." [] []
 
 mergeSelectionSets :: MonadCatch m
@@ -152,7 +155,7 @@ mergeSelectionSets :: MonadCatch m
     -> Seq (Transform.Selection m)
 mergeSelectionSets = foldr forEach mempty
   where
-    forEach (Transform.Field _ _ _ fieldSelectionSet) selectionSet =
+    forEach (Transform.Field _ _ _ fieldSelectionSet _) selectionSet =
         selectionSet <> fieldSelectionSet
 
 coerceResult :: (MonadCatch m, Serialize a)
@@ -177,7 +180,7 @@ executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selection
     coerceResult (Out.NonNullObjectType objectType) $ Object resolvedValues
   where
     forEach fields@(field :| _) =
-        let Transform.Field _ name _ _ = field
+        let Transform.Field _ name _ _ _ = field
          in traverse (tryResolver fields) $ lookupResolver name
     lookupResolver = flip HashMap.lookup resolvers
     tryResolver fields resolver =
