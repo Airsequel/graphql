@@ -9,11 +9,13 @@
 -- functions for defining and manipulating schemas.
 module Language.GraphQL.Type.Schema
     ( schema
+    , schemaWithTypes
     , module Language.GraphQL.Type.Internal
     ) where
 
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Text (Text)
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import qualified Language.GraphQL.AST.DirectiveLocation as DirectiveLocation
 import qualified Language.GraphQL.AST as Full
@@ -22,6 +24,7 @@ import Language.GraphQL.Type.Internal
     , Directives
     , Schema
     , Type(..)
+    , description
     , directives
     , implementations
     , mutation
@@ -35,17 +38,47 @@ import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 
 -- | Schema constructor.
+--
+-- __Note:__ When the schema is constructed, by default only the types that
+-- are reachable by traversing the root types are included, other types must
+-- be explicitly referenced using 'schemaWithTypes' instead.
 schema :: forall m
     . Out.ObjectType m -- ^ Query type.
     -> Maybe (Out.ObjectType m) -- ^ Mutation type.
     -> Maybe (Out.ObjectType m) -- ^ Subscription type.
     -> Directives -- ^ Directive definitions.
     -> Schema m -- ^ Schema.
-schema queryRoot mutationRoot subscriptionRoot directiveDefinitions =
-    Internal.Schema queryRoot mutationRoot subscriptionRoot
+schema queryRoot mutationRoot subscriptionRoot =
+    schemaWithTypes Nothing queryRoot mutationRoot subscriptionRoot mempty
+
+-- | Constructs a complete schema, including user-defined types not referenced
+-- in the schema directly (for example interface implementations).
+schemaWithTypes :: forall m
+    . Maybe Text -- ^ Schema description
+    -> Out.ObjectType m -- ^ Query type.
+    -> Maybe (Out.ObjectType m) -- ^ Mutation type.
+    -> Maybe (Out.ObjectType m) -- ^ Subscription type.
+    -> [Type m] -- ^ Additional types.
+    -> Directives -- ^ Directive definitions.
+    -> Schema m -- ^ Schema.
+schemaWithTypes description' queryRoot mutationRoot subscriptionRoot types' directiveDefinitions =
+    Internal.Schema description' queryRoot mutationRoot subscriptionRoot
         allDirectives collectedTypes collectedImplementations
   where
-    collectedTypes = collectReferencedTypes queryRoot mutationRoot subscriptionRoot
+    allTypes = foldr addTypeDefinition HashMap.empty types'
+    addTypeDefinition type'@(ScalarType (Definition.ScalarType typeName _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    addTypeDefinition type'@(EnumType (Definition.EnumType typeName _ _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    addTypeDefinition type'@(ObjectType (Out.ObjectType typeName _ _ _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    addTypeDefinition type'@(InputObjectType (In.InputObjectType typeName _ _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    addTypeDefinition type'@(InterfaceType (Out.InterfaceType typeName _ _ _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    addTypeDefinition type'@(UnionType (Out.UnionType typeName _ _)) accumulator =
+        HashMap.insert typeName type' accumulator
+    collectedTypes = collectReferencedTypes queryRoot mutationRoot subscriptionRoot allTypes
     collectedImplementations = collectImplementations collectedTypes
     allDirectives = HashMap.union directiveDefinitions defaultDirectives
     defaultDirectives = HashMap.fromList
@@ -98,11 +131,12 @@ collectReferencedTypes :: forall m
     -> Maybe (Out.ObjectType m)
     -> Maybe (Out.ObjectType m)
     -> HashMap Full.Name (Type m)
-collectReferencedTypes queryRoot mutationRoot subscriptionRoot =
-    let queryTypes = traverseObjectType queryRoot HashMap.empty
+    -> HashMap Full.Name (Type m)
+collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
+    let queryTypes = traverseObjectType queryRoot extraTypes
         mutationTypes = maybe queryTypes (`traverseObjectType` queryTypes)
             mutationRoot
-     in maybe mutationTypes (`traverseObjectType` queryTypes) subscriptionRoot
+     in maybe mutationTypes (`traverseObjectType` mutationTypes) subscriptionRoot
   where
     collect traverser typeName element foundTypes
         | HashMap.member typeName foundTypes = foundTypes

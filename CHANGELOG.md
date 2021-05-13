@@ -10,6 +10,10 @@ and this project adheres to
 ### Added
 - `Language.GraphQL.Execute.OrderedMap` is a map data structure, that preserves
   insertion order.
+- `Language.GraphQL.Schema.schemaWithTypes` constructs a complete schema,
+  including an optional schema description and user-defined types not referenced
+  in the schema directly (for example interface implementations).
+- `Language.GraphQL.Schema.description` returns the optional schema description.
 
 ### Fixed
 - Parser now accepts empty lists and objects.

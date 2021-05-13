@@ -18,21 +18,29 @@ import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL.AST (Document, Location(..), Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
-import Language.GraphQL.Execute
-import Language.GraphQL.Type as Type
-import Language.GraphQL.Type.Out as Out
+import Language.GraphQL.Execute (execute)
+import qualified Language.GraphQL.Type.Schema as Schema
+import Language.GraphQL.Type
+import qualified Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
 philosopherSchema :: Schema (Either SomeException)
-philosopherSchema = schema queryType Nothing (Just subscriptionType) mempty
+philosopherSchema =
+    schemaWithTypes Nothing queryType Nothing subscriptionRoot extraTypes mempty
+  where
+    subscriptionRoot = Just subscriptionType
+    extraTypes =
+        [ Schema.ObjectType bookType
+        , Schema.ObjectType bookCollectionType
+        ]
 
 queryType :: Out.ObjectType (Either SomeException)
 queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.singleton "philosopher"
     $ ValueResolver philosopherField
-    $ pure $ Type.Object mempty
+    $ pure $ Object mempty
   where
     philosopherField =
         Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
@@ -44,7 +52,7 @@ musicType = Out.ObjectType "Music" Nothing []
     resolvers =
         [ ("instrument", ValueResolver instrumentField instrumentResolver)
         ]
-    instrumentResolver = pure $ Type.String "piano"
+    instrumentResolver = pure $ String "piano"
     instrumentField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
 poetryType :: Out.ObjectType (Either SomeException)
@@ -54,7 +62,7 @@ poetryType = Out.ObjectType "Poetry" Nothing []
     resolvers =
         [ ("genre", ValueResolver genreField genreResolver)
         ]
-    genreResolver = pure $ Type.String "Futurism"
+    genreResolver = pure $ String "Futurism"
     genreField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
 interestType :: Out.UnionType (Either SomeException)
@@ -69,27 +77,62 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         , ("lastName", ValueResolver lastNameField lastNameResolver)
         , ("school", ValueResolver schoolField schoolResolver)
         , ("interest", ValueResolver interestField interestResolver)
+        , ("majorWork", ValueResolver majorWorkField majorWorkResolver)
         ]
     firstNameField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
-    firstNameResolver = pure $ Type.String "Friedrich"
+    firstNameResolver = pure $ String "Friedrich"
     lastNameField
         = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
-    lastNameResolver = pure $ Type.String "Nietzsche"
+    lastNameResolver = pure $ String "Nietzsche"
     schoolField
        = Out.Field Nothing (Out.NonNullEnumType schoolType) HashMap.empty
-    schoolResolver = pure $ Type.Enum "EXISTENTIALISM"
+    schoolResolver = pure $ Enum "EXISTENTIALISM"
     interestField
         = Out.Field Nothing (Out.NonNullUnionType interestType) HashMap.empty
     interestResolver = pure
-        $ Type.Object
+        $ Object
         $ HashMap.fromList [("instrument", "piano")]
+    majorWorkField
+        = Out.Field Nothing (Out.NonNullInterfaceType workType) HashMap.empty
+    majorWorkResolver = pure
+        $ Object
+        $ HashMap.fromList
+            [ ("title", "Also sprach Zarathustra: Ein Buch für Alle und Keinen")
+            ]
+
+workType :: Out.InterfaceType (Either SomeException)
+workType = Out.InterfaceType "Work" Nothing []
+    $ HashMap.fromList fields
+  where
+    fields = [("title", titleField)]
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+
+bookType :: Out.ObjectType (Either SomeException)
+bookType = Out.ObjectType "Book" Nothing [workType]
+    $ HashMap.fromList resolvers
+  where
+    resolvers =
+        [ ("title", ValueResolver titleField titleResolver)
+        ]
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    titleResolver = pure "Also sprach Zarathustra: Ein Buch für Alle und Keinen"
+
+bookCollectionType :: Out.ObjectType (Either SomeException)
+bookCollectionType = Out.ObjectType "Book" Nothing [workType]
+    $ HashMap.fromList resolvers
+  where
+    resolvers =
+        [ ("title", ValueResolver titleField titleResolver)
+        ]
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    titleResolver = pure "The Three Critiques"
 
 subscriptionType :: Out.ObjectType (Either SomeException)
 subscriptionType = Out.ObjectType "Subscription" Nothing []
     $ HashMap.singleton "newQuote"
-    $ EventStreamResolver quoteField (pure $ Type.Object mempty)
-    $ pure $ yield $ Type.Object mempty
+    $ EventStreamResolver quoteField (pure $ Object mempty)
+    $ pure $ yield $ Object mempty
   where
     quoteField =
         Out.Field Nothing (Out.NonNullObjectType quoteType) HashMap.empty

@@ -12,6 +12,7 @@ module Language.GraphQL.Type.Internal
     , Directives
     , Schema(..)
     , Type(..)
+    , description
     , directives
     , doesFragmentTypeApply
     , implementations
@@ -55,41 +56,43 @@ type Directives = HashMap Full.Name Directive
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the
 --   validator and executor.
---
---   __Note:__ When the schema is constructed, by default only the types that
---   are reachable by traversing the root types are included, other types must
---   be explicitly referenced.
 data Schema m = Schema
-    (Out.ObjectType m)
-    (Maybe (Out.ObjectType m))
-    (Maybe (Out.ObjectType m))
-    Directives
-    (HashMap Full.Name (Type m))
+    (Maybe Text) -- ^ Description.
+    (Out.ObjectType m) -- ^ Query.
+    (Maybe (Out.ObjectType m)) -- ^ Mutation.
+    (Maybe (Out.ObjectType m)) -- ^ Subscription.
+    Directives -- ^ Directives
+    (HashMap Full.Name (Type m)) -- ^ Types.
+    -- Interface implementations (used only for faster access).
     (HashMap Full.Name [Type m])
+
+-- | Schema description.
+description :: forall m. Schema m -> Maybe Text
+description (Schema description' _ _ _ _ _ _) = description'
 
 -- | Schema query type.
 query :: forall m. Schema m -> Out.ObjectType m
-query (Schema query' _ _ _ _ _) = query'
+query (Schema _ query' _ _ _ _ _) = query'
 
 -- | Schema mutation type.
 mutation :: forall m. Schema m -> Maybe (Out.ObjectType m)
-mutation (Schema _ mutation' _ _ _ _) = mutation'
+mutation (Schema _ _ mutation' _ _ _ _) = mutation'
 
 -- | Schema subscription type.
 subscription :: forall m. Schema m -> Maybe (Out.ObjectType m)
-subscription (Schema _ _ subscription' _ _ _) = subscription'
+subscription (Schema _ _ _ subscription' _ _ _) = subscription'
 
 -- | Schema directive definitions.
 directives :: forall m. Schema m -> Directives
-directives (Schema _ _ _ directives' _ _) = directives'
+directives (Schema _ _ _ _ directives' _ _) = directives'
 
 -- | Types referenced by the schema.
 types :: forall m. Schema m -> HashMap Full.Name (Type m)
-types (Schema _ _ _ _ types' _) = types'
+types (Schema _ _ _ _ _ types' _) = types'
 
 -- | Interface implementations.
 implementations :: forall m. Schema m -> HashMap Full.Name [Type m]
-implementations (Schema _ _ _ _ _ implementations') = implementations'
+implementations (Schema _ _ _ _ _ _ implementations') = implementations'
 
 -- | These types may describe the parent context of a selection set.
 data CompositeType m
