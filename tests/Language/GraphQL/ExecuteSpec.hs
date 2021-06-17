@@ -218,7 +218,7 @@ spec =
                         $ parse document "" "{ philosopher { school } }"
                 in actual `shouldBe` expected
 
-            it "gives location information for invalid interfaces" $
+            it "gives location information for non-null unions" $
                 let data'' = Aeson.object
                         [ "philosopher" .= Aeson.object
                             [ "interest" .= Aeson.Null
@@ -232,6 +232,22 @@ spec =
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { interest } }"
+                in actual `shouldBe` expected
+
+            it "gives location information for invalid interfaces" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.object
+                            [ "majorWork" .= Aeson.Null
+                            ]
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Interface value completion failed."
+                        , locations = [Location 1 17]
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher { majorWork { title } } }"
                 in actual `shouldBe` expected
 
         context "Subscription" $

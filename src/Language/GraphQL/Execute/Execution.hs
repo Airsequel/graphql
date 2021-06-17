@@ -132,12 +132,13 @@ completeValue (Out.ObjectBaseType objectType) fields result =
 completeValue (Out.InterfaceBaseType interfaceType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = Internal.AbstractInterfaceType interfaceType
+        let Transform.Field _ _ _ _ location = NonEmpty.head fields
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
                 $ mergeSelectionSets fields
             Nothing -> addError null
-                $ Error "Interface value completion failed." [] []
+                $ Error "Interface value completion failed." [location] []
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = Internal.AbstractUnionType unionType
@@ -148,7 +149,8 @@ completeValue (Out.UnionBaseType unionType) fields result
                 $ mergeSelectionSets fields
             Nothing -> addError null
                 $ Error "Union value completion failed." [location] []
-completeValue _ _ _ = addError null $ Error "Value completion failed." [] []
+completeValue _ (Transform.Field _ _ _ _ location :| _) _ =
+    addError null $ Error "Value completion failed." [location] []
 
 mergeSelectionSets :: MonadCatch m
     => NonEmpty (Transform.Field m)
