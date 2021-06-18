@@ -23,6 +23,10 @@ and this project adheres to
 - `valuesOfCorrectTypeRule` doesn't check objects recursively since the
   validation traverser calls it on all object properties.
 - Validation of non-nullable values inside lists.
+- `executeField` shouldn't assume that a selection has only one field with a
+  given name, but it should take the first field. The underlying cause is a
+  wrong pattern, which (because of the laziness) is executed only if the field
+  has arguments.
 
 ### Changed
 - `AST.Document.Value.List` and `AST.Document.ConstValue.ConstList` contain

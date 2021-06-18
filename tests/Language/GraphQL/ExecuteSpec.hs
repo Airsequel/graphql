@@ -21,7 +21,9 @@ import Language.GraphQL.Error
 import Language.GraphQL.Execute (execute)
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Type
+import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
+import Prelude hiding (id)
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
@@ -43,7 +45,9 @@ queryType = Out.ObjectType "Query" Nothing []
     $ pure $ Object mempty
   where
     philosopherField =
-        Out.Field Nothing (Out.NonNullObjectType philosopherType) HashMap.empty
+        Out.Field Nothing (Out.NonNullObjectType philosopherType)
+        $ HashMap.singleton "id"
+        $ In.Argument Nothing (In.NamedScalarType id) Nothing
 
 musicType :: Out.ObjectType (Either SomeException)
 musicType = Out.ObjectType "Music" Nothing []

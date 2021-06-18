@@ -97,7 +97,7 @@ executeField fieldResolver prev fields
   where
     executeField' fieldDefinition resolver = do
         let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-        let (Transform.Field _ _ arguments' _ _ :| []) = fields
+        let Transform.Field _ _ arguments' _ _ = NonEmpty.head fields
         case coerceArgumentValues argumentDefinitions arguments' of
             Nothing -> addError null $ Error "Argument coercing failed." [] []
             Just argumentValues -> do
