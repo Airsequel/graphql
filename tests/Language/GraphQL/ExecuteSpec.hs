@@ -254,6 +254,20 @@ spec =
                         $ parse document "" "{ philosopher { majorWork { title } } }"
                 in actual `shouldBe` expected
 
+            it "gives location information for invalid scalar arguments" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.Null
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Argument coercing failed."
+                        , locations = [Location 1 15]
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher(id: true) { lastName } }"
+                in actual `shouldBe` expected
+
         context "Subscription" $
             it "subscribes" $
                 let data'' = Aeson.object

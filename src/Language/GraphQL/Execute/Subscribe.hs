@@ -57,8 +57,8 @@ createSourceEventStream _types subscriptionType@(Out.ObjectType _ _ _ fieldTypes
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT
     , Out.Field _ _fieldType argumentDefinitions <- fieldDefinition =
         case coerceArgumentValues argumentDefinitions arguments' of
-            Nothing -> pure $ Left "Argument coercion failed."
-            Just argumentValues ->
+            Left _ -> pure $ Left "Argument coercion failed."
+            Right  argumentValues ->
                 resolveFieldEventStream Type.Null argumentValues resolver
     | otherwise = pure $ Left "Subscription contains more than one field."
   where

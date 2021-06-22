@@ -1,4 +1,5 @@
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -19,7 +20,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq(..))
 import qualified Data.Text as Text
-import Language.GraphQL.AST (Name)
+import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.Error
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Internal
@@ -66,7 +67,7 @@ collectFields objectType = foldl forEach OrderedMap.empty
              in groupedFields <> fragmentGroupedFieldSet
         | otherwise = groupedFields
 
-aliasOrName :: forall m. Transform.Field m -> Name
+aliasOrName :: forall m. Transform.Field m -> Full.Name
 aliasOrName (Transform.Field alias name _ _ _) = fromMaybe name alias
 
 resolveAbstractType :: Monad m
@@ -97,10 +98,14 @@ executeField fieldResolver prev fields
   where
     executeField' fieldDefinition resolver = do
         let Out.Field _ fieldType argumentDefinitions = fieldDefinition
-        let Transform.Field _ _ arguments' _ _ = NonEmpty.head fields
+        let Transform.Field _ _ arguments' _ location' = NonEmpty.head fields
         case coerceArgumentValues argumentDefinitions arguments' of
-            Nothing -> addError null $ Error "Argument coercing failed." [] []
-            Just argumentValues -> do
+            Left [] ->
+                let errorMessage = "Not all required arguments are specified."
+                 in addError null $ Error errorMessage [location'] []
+            Left errorLocations -> addError null
+                $ Error "Argument coercing failed." errorLocations []
+            Right argumentValues -> do
                 answer <- resolveFieldValue prev argumentValues resolver
                 completeValue fieldType fields answer
 
@@ -189,14 +194,28 @@ executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selection
         executeField resolver result fields >>= lift . pure
 
 coerceArgumentValues
-    :: HashMap Name In.Argument
-    -> HashMap Name Transform.Input
-    -> Maybe Type.Subs
-coerceArgumentValues argumentDefinitions argumentValues =
+    :: HashMap Full.Name In.Argument
+    -> HashMap Full.Name (Full.Node Transform.Input)
+    -> Either [Full.Location] Type.Subs
+coerceArgumentValues argumentDefinitions argumentNodes =
     HashMap.foldrWithKey forEach (pure mempty) argumentDefinitions
   where
-    forEach variableName (In.Argument _ variableType defaultValue) =
-        matchFieldValues coerceArgumentValue argumentValues variableName variableType defaultValue
+    forEach argumentName (In.Argument _ variableType defaultValue) = \case
+        Right resultMap
+            | Just matchedValues
+                <- matchFieldValues' argumentName variableType defaultValue $ Just resultMap
+                -> Right matchedValues
+            | otherwise -> Left $ generateError argumentName []
+        Left errorLocations
+            | Just _
+                <- matchFieldValues' argumentName variableType defaultValue $ pure mempty
+                -> Left errorLocations
+            | otherwise -> Left $ generateError argumentName errorLocations
+    generateError argumentName errorLocations =
+        case HashMap.lookup argumentName argumentNodes of
+            Just (Full.Node _ errorLocation) -> [errorLocation]
+            Nothing -> errorLocations
+    matchFieldValues' = matchFieldValues coerceArgumentValue (Full.node <$> argumentNodes)
     coerceArgumentValue inputType (Transform.Int integer) =
         coerceInputLiteral inputType (Type.Int integer)
     coerceArgumentValue inputType (Transform.Boolean boolean) =

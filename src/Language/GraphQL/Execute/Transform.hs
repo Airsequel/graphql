@@ -83,7 +83,7 @@ data Operation m
 data Field m = Field
     (Maybe Full.Name)
     Full.Name
-    (HashMap Full.Name Input)
+    (HashMap Full.Name (Full.Node Input))
     (Seq (Selection m))
     Full.Location
 
@@ -278,8 +278,13 @@ field (Full.Field alias name arguments' directives' selections location) = do
     let field' = Field alias name fieldArguments fieldSelections location
     pure $ field' <$ fieldDirectives
   where
-    go arguments (Full.Argument name' (Full.Node value' _) _) =
-        inputField arguments name' value'
+    go arguments (Full.Argument name' (Full.Node value' _) location') = do
+        objectFieldValue <-  input value'
+        case objectFieldValue of
+            Just fieldValue ->
+                let argumentNode = Full.Node fieldValue location'
+                 in pure $ HashMap.insert name' argumentNode arguments
+            Nothing -> pure arguments
 
 fragmentSpread
     :: Full.FragmentSpread
