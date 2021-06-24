@@ -15,7 +15,7 @@ import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Sequence (Seq(..))
-import Language.GraphQL.AST (Name)
+import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
@@ -27,26 +27,31 @@ import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
 
 subscribe :: (MonadCatch m, Serialize a)
-    => HashMap Name (Type m)
+    => HashMap Full.Name (Type m)
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
     -> m (Either String (ResponseEventStream m a))
-subscribe types' objectType fields = do
+subscribe types' objectType objectLocation fields = do
     sourceStream <- createSourceEventStream types' objectType fields
-    traverse (mapSourceToResponseEvent types' objectType fields) sourceStream
+    let traverser =
+            mapSourceToResponseEvent types' objectType objectLocation fields
+    traverse traverser sourceStream
 
 mapSourceToResponseEvent :: (MonadCatch m, Serialize a)
-    => HashMap Name (Type m)
+    => HashMap Full.Name (Type m)
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
     -> Out.SourceEventStream m
     -> m (ResponseEventStream m a)
-mapSourceToResponseEvent types' subscriptionType fields sourceStream = pure
+mapSourceToResponseEvent types' subscriptionType objectLocation fields sourceStream
+    = pure
     $ sourceStream
-    .| mapMC (executeSubscriptionEvent types' subscriptionType fields)
+    .| mapMC (executeSubscriptionEvent types' subscriptionType objectLocation fields)
 
 createSourceEventStream :: MonadCatch m
-    => HashMap Name (Type m)
+    => HashMap Full.Name (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)
     -> m (Either String (Out.SourceEventStream m))
@@ -82,10 +87,12 @@ resolveFieldEventStream result args resolver =
         }
 
 executeSubscriptionEvent :: (MonadCatch m, Serialize a)
-    => HashMap Name (Type m)
+    => HashMap Full.Name (Type m)
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
     -> Definition.Value
     -> m (Response a)
-executeSubscriptionEvent types' objectType fields initialValue =
-    runCollectErrs types' $ executeSelectionSet initialValue objectType fields
+executeSubscriptionEvent types' objectType objectLocation fields initialValue
+    = runCollectErrs types'
+    $ executeSelectionSet initialValue objectType objectLocation fields

@@ -82,6 +82,7 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         , ("school", ValueResolver schoolField schoolResolver)
         , ("interest", ValueResolver interestField interestResolver)
         , ("majorWork", ValueResolver majorWorkField majorWorkResolver)
+        , ("century", ValueResolver centuryField centuryResolver)
         ]
     firstNameField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
@@ -104,6 +105,9 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         $ HashMap.fromList
             [ ("title", "Also sprach Zarathustra: Ein Buch für Alle und Keinen")
             ]
+    centuryField =
+        Out.Field Nothing (Out.NonNullScalarType int) HashMap.empty
+    centuryResolver = pure $ Float 18.5
 
 workType :: Out.InterfaceType (Either SomeException)
 workType = Out.InterfaceType "Work" Nothing []
@@ -266,6 +270,22 @@ spec =
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher(id: true) { lastName } }"
+                in actual `shouldBe` expected
+
+            it "gives location information for failed result coercion" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.object
+                            [ "century" .= Aeson.Null
+                            ]
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Result coercion failed."
+                        , locations = [Location 1 26]
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher(id: \"1\") { century } }"
                 in actual `shouldBe` expected
 
         context "Subscription" $

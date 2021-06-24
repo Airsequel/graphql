@@ -75,9 +75,9 @@ data Selection m
 
 -- | GraphQL has 3 operation types: queries, mutations and subscribtions.
 data Operation m
-    = Query (Maybe Text) (Seq (Selection m))
-    | Mutation (Maybe Text) (Seq (Selection m))
-    | Subscription (Maybe Text) (Seq (Selection m))
+    = Query (Maybe Text) (Seq (Selection m)) Full.Location
+    | Mutation (Maybe Text) (Seq (Selection m)) Full.Location
+    | Subscription (Maybe Text) (Seq (Selection m)) Full.Location
 
 -- | Single GraphQL field.
 data Field m = Field
@@ -97,6 +97,7 @@ data OperationDefinition = OperationDefinition
     [Full.VariableDefinition]
     [Full.Directive]
     Full.SelectionSet
+    Full.Location
 
 -- | Query error types.
 data QueryError
@@ -138,7 +139,7 @@ getOperation (Just operationName) operations
     | Just operation' <- find matchingName operations = pure operation'
     | otherwise = Left $ OperationNotFound operationName
   where
-    matchingName (OperationDefinition _ name _ _ _) =
+    matchingName (OperationDefinition _ name _ _ _ _) =
         name == Just operationName
 
 coerceVariableValues :: Coerce.VariableValue a
@@ -148,7 +149,7 @@ coerceVariableValues :: Coerce.VariableValue a
     -> HashMap.HashMap Full.Name a
     -> Either QueryError Type.Subs
 coerceVariableValues types operationDefinition variableValues =
-    let OperationDefinition _ _ variableDefinitions _ _ = operationDefinition
+    let OperationDefinition _ _ variableDefinitions _ _ _ = operationDefinition
      in maybe (Left CoercionError) Right
         $ foldr forEach (Just HashMap.empty) variableDefinitions
   where
@@ -206,14 +207,14 @@ document schema operationName subs ast = do
             , types = referencedTypes
             }
     case chosenOperation of
-        OperationDefinition Full.Query _ _ _ _ ->
+        OperationDefinition Full.Query _ _ _ _ _ ->
             pure $ Document referencedTypes (Schema.query schema)
                 $ operation chosenOperation replacement
-        OperationDefinition Full.Mutation _ _ _ _
+        OperationDefinition Full.Mutation _ _ _ _ _
             | Just mutationType <- Schema.mutation schema ->
                 pure $ Document referencedTypes mutationType
                     $ operation chosenOperation replacement
-        OperationDefinition Full.Subscription _ _ _ _
+        OperationDefinition Full.Subscription _ _ _ _ _
             | Just subscriptionType <- Schema.subscription schema ->
                 pure $ Document referencedTypes subscriptionType
                     $ operation chosenOperation replacement
@@ -238,10 +239,10 @@ defragment ast =
             (operations, HashMap.insert name fragment fragments')
     defragment' _ acc = acc
     transform = \case
-        Full.OperationDefinition type' name variables directives' selections _ ->
-            OperationDefinition type' name variables directives' selections
-        Full.SelectionSet selectionSet _ ->
-            OperationDefinition Full.Query Nothing mempty mempty selectionSet
+        Full.OperationDefinition type' name variables directives' selections location ->
+            OperationDefinition type' name variables directives' selections location
+        Full.SelectionSet selectionSet location ->
+            OperationDefinition Full.Query Nothing mempty mempty selectionSet location
 
 -- * Operation
 
@@ -250,12 +251,12 @@ operation operationDefinition replacement
     = runIdentity
     $ evalStateT (collectFragments >> transform operationDefinition) replacement
   where
-    transform (OperationDefinition Full.Query name _ _ sels) =
-        Query name <$> appendSelection sels
-    transform (OperationDefinition Full.Mutation name _ _ sels) =
-        Mutation name <$> appendSelection sels
-    transform (OperationDefinition Full.Subscription name _ _ sels) =
-        Subscription name <$> appendSelection sels
+    transform (OperationDefinition Full.Query name _ _ sels location) =
+        flip (Query name) location <$> appendSelection sels
+    transform (OperationDefinition Full.Mutation name _ _ sels location) =
+        flip (Mutation name) location <$> appendSelection sels
+    transform (OperationDefinition Full.Subscription name _ _ sels location) =
+        flip (Subscription name) location <$> appendSelection sels
 
 -- * Selection
 

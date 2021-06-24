@@ -117,41 +117,42 @@ completeValue :: (MonadCatch m, Serialize a)
 completeValue (Out.isNonNullType -> False) _ Type.Null = pure null
 completeValue outputType@(Out.ListBaseType listType) fields (Type.List list)
     = traverse (completeValue listType fields) list
-    >>= coerceResult outputType . List
-completeValue outputType@(Out.ScalarBaseType _) _ (Type.Int int) =
-    coerceResult outputType $ Int int
-completeValue outputType@(Out.ScalarBaseType _) _ (Type.Boolean boolean) =
-    coerceResult outputType $ Boolean boolean
-completeValue outputType@(Out.ScalarBaseType _) _ (Type.Float float) =
-    coerceResult outputType $ Float float
-completeValue outputType@(Out.ScalarBaseType _) _ (Type.String string) =
-    coerceResult outputType $ String string
+    >>= coerceResult outputType (firstFieldLocation fields) . List
+completeValue outputType@(Out.ScalarBaseType _) fields (Type.Int int) =
+    coerceResult outputType (firstFieldLocation fields) $ Int int
+completeValue outputType@(Out.ScalarBaseType _) fields (Type.Boolean boolean) =
+    coerceResult outputType (firstFieldLocation fields) $ Boolean boolean
+completeValue outputType@(Out.ScalarBaseType _) fields (Type.Float float) =
+    coerceResult outputType (firstFieldLocation fields) $ Float float
+completeValue outputType@(Out.ScalarBaseType _) fields (Type.String string) =
+    coerceResult outputType (firstFieldLocation fields) $ String string
 completeValue outputType@(Out.EnumBaseType enumType) fields (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
-        Transform.Field _ _ _ _ location = NonEmpty.head fields
+        location = firstFieldLocation fields
      in if HashMap.member enum enumMembers
-        then coerceResult outputType $ Enum enum
+        then coerceResult outputType location $ Enum enum
         else addError null $ Error "Enum value completion failed." [location] []
-completeValue (Out.ObjectBaseType objectType) fields result =
-    executeSelectionSet result objectType $ mergeSelectionSets fields
+completeValue (Out.ObjectBaseType objectType) fields result
+    = executeSelectionSet result objectType (firstFieldLocation fields)
+    $ mergeSelectionSets fields
 completeValue (Out.InterfaceBaseType interfaceType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = Internal.AbstractInterfaceType interfaceType
-        let Transform.Field _ _ _ _ location = NonEmpty.head fields
+        let location = firstFieldLocation fields
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
-            Just objectType -> executeSelectionSet result objectType
+            Just objectType -> executeSelectionSet result objectType location
                 $ mergeSelectionSets fields
             Nothing -> addError null
                 $ Error "Interface value completion failed." [location] []
 completeValue (Out.UnionBaseType unionType) fields result
     | Type.Object objectMap <- result = do
         let abstractType = Internal.AbstractUnionType unionType
-        let Transform.Field _ _ _ _ location = NonEmpty.head fields
+        let  location = firstFieldLocation fields
         concreteType <- resolveAbstractType abstractType objectMap
         case concreteType of
             Just objectType -> executeSelectionSet result objectType
-                $ mergeSelectionSets fields
+                location $ mergeSelectionSets fields
             Nothing -> addError null
                 $ Error "Union value completion failed." [location] []
 completeValue _ (Transform.Field _ _ _ _ location :| _) _ =
@@ -165,13 +166,18 @@ mergeSelectionSets = foldr forEach mempty
     forEach (Transform.Field _ _ _ fieldSelectionSet _) selectionSet =
         selectionSet <> fieldSelectionSet
 
+firstFieldLocation :: MonadCatch m => NonEmpty (Transform.Field m) -> Full.Location
+firstFieldLocation (Transform.Field _ _ _ _ fieldLocation :| _) = fieldLocation
+
 coerceResult :: (MonadCatch m, Serialize a)
     => Out.Type m
+    -> Full.Location
     -> Output a
     -> CollectErrsT m a
-coerceResult outputType result
+coerceResult outputType parentLocation result
     | Just serialized <- serialize outputType result = pure serialized
-    | otherwise = addError null $ Error "Result coercion failed." [] []
+    | otherwise = addError null
+        $ Error "Result coercion failed." [parentLocation] []
 
 -- | Takes an 'Out.ObjectType' and a list of 'Transform.Selection's and applies
 -- each field to each 'Transform.Selection'. Resolves into a value containing
@@ -179,12 +185,14 @@ coerceResult outputType result
 executeSelectionSet :: (MonadCatch m, Serialize a)
     => Type.Value
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
     -> CollectErrsT m a
-executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) selectionSet = do
+executeSelectionSet result objectType@(Out.ObjectType _ _ _ resolvers) objectLocation selectionSet = do
     let fields = collectFields objectType selectionSet
     resolvedValues <- OrderedMap.traverseMaybe forEach fields
-    coerceResult (Out.NonNullObjectType objectType) $ Object resolvedValues
+    coerceResult (Out.NonNullObjectType objectType) objectLocation
+        $ Object resolvedValues
   where
     forEach fields@(field :| _) =
         let Transform.Field _ name _ _ _ = field

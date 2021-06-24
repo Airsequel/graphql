@@ -8,7 +8,7 @@ import Control.Monad.Catch (MonadCatch)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..))
 import Data.Text (Text)
-import Language.GraphQL.AST.Document (Document, Name)
+import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
 import Language.GraphQL.Execute.Internal
@@ -28,8 +28,8 @@ import Language.GraphQL.Type.Schema
 execute :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
-    -> HashMap Name a -- ^ Variable substitution function.
-    -> Document -- @GraphQL@ document.
+    -> HashMap Full.Name a -- ^ Variable substitution function.
+    -> Full.Document -- @GraphQL@ document.
     -> m (Either (ResponseEventStream m b) (Response b))
 execute schema' operationName subs document =
     case Transform.document schema' operationName subs document of
@@ -40,20 +40,22 @@ executeRequest :: (MonadCatch m, Serialize a)
     => Transform.Document m
     -> m (Either (ResponseEventStream m a) (Response a))
 executeRequest (Transform.Document types' rootObjectType operation)
-    | (Transform.Query _ fields) <- operation =
-        Right <$> executeOperation types' rootObjectType fields
-    | (Transform.Mutation _ fields) <- operation =
-        Right <$> executeOperation types' rootObjectType fields
-    | (Transform.Subscription _ fields) <- operation
+    | (Transform.Query _ fields objectLocation) <- operation =
+        Right <$> executeOperation types' rootObjectType objectLocation fields
+    | (Transform.Mutation _ fields objectLocation) <- operation =
+        Right <$> executeOperation types' rootObjectType objectLocation fields
+    | (Transform.Subscription _ fields objectLocation) <- operation
         = either singleError Left
-        <$> Subscribe.subscribe types' rootObjectType fields
+        <$> Subscribe.subscribe types' rootObjectType objectLocation fields
 
 -- This is actually executeMutation, but we don't distinguish between queries
 -- and mutations yet.
 executeOperation :: (MonadCatch m, Serialize a)
-    => HashMap Name (Type m)
+    => HashMap Full.Name (Type m)
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
     -> m (Response a)
-executeOperation types' objectType fields =
-    runCollectErrs types' $ executeSelectionSet Definition.Null objectType fields
+executeOperation types' objectType objectLocation fields
+    = runCollectErrs types'
+    $ executeSelectionSet Definition.Null objectType objectLocation fields
