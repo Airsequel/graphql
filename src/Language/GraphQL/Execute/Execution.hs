@@ -37,15 +37,17 @@ resolveFieldValue :: MonadCatch m
     => Type.Value
     -> Type.Subs
     -> Type.Resolve m
+    -> Full.Location
     -> CollectErrsT m Type.Value
-resolveFieldValue result args resolver =
+resolveFieldValue result args resolver location' =
     catch (lift $ runReaderT resolver context) handleFieldError
   where
     handleFieldError :: MonadCatch m
         => ResolverException
         -> CollectErrsT m Type.Value
-    handleFieldError e =
-        addError Type.Null $ Error (Text.pack $ displayException e) [] []
+    handleFieldError e
+        = addError Type.Null
+        $ Error (Text.pack $ displayException e) [location'] []
     context = Type.Context
         { Type.arguments = Type.Arguments args
         , Type.values = result
@@ -106,7 +108,7 @@ executeField fieldResolver prev fields
             Left errorLocations -> addError null
                 $ Error "Argument coercing failed." errorLocations []
             Right argumentValues -> do
-                answer <- resolveFieldValue prev argumentValues resolver
+                answer <- resolveFieldValue prev argumentValues resolver location'
                 completeValue fieldType fields answer
 
 completeValue :: (MonadCatch m, Serialize a)

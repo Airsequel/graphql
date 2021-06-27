@@ -8,13 +8,15 @@ module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
 
-import Control.Exception (SomeException)
+import Control.Exception (Exception(..), SomeException)
+import Control.Monad.Catch (throwM)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Types (emptyObject)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Typeable (cast)
 import Language.GraphQL.AST (Document, Location(..), Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
@@ -28,6 +30,15 @@ import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
 import Text.RawString.QQ (r)
 
+data PhilosopherException = PhilosopherException
+    deriving Show
+
+instance Exception PhilosopherException where
+    toException = toException. ResolverException
+    fromException e = do
+        ResolverException resolverException <- fromException e
+        cast resolverException
+
 philosopherSchema :: Schema (Either SomeException)
 philosopherSchema =
     schemaWithTypes Nothing queryType Nothing subscriptionRoot extraTypes mempty
@@ -40,14 +51,21 @@ philosopherSchema =
 
 queryType :: Out.ObjectType (Either SomeException)
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.singleton "philosopher"
-    $ ValueResolver philosopherField
-    $ pure $ Object mempty
+    $ HashMap.fromList
+    [ ("philosopher", ValueResolver philosopherField philosopherResolver)
+    , ("genres", ValueResolver genresField genresResolver)
+    ]
   where
     philosopherField =
         Out.Field Nothing (Out.NonNullObjectType philosopherType)
         $ HashMap.singleton "id"
         $ In.Argument Nothing (In.NamedScalarType id) Nothing
+    philosopherResolver = pure $ Object mempty
+    genresField =
+      let fieldType = Out.ListType $ Out.NonNullScalarType string
+       in Out.Field Nothing fieldType HashMap.empty
+    genresResolver :: Resolve (Either SomeException)
+    genresResolver = throwM PhilosopherException
 
 musicType :: Out.ObjectType (Either SomeException)
 musicType = Out.ObjectType "Music" Nothing []
@@ -286,6 +304,20 @@ spec =
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher(id: \"1\") { century } }"
+                in actual `shouldBe` expected
+
+            it "gives location information for failed result coercion" $
+                let data'' = Aeson.object
+                        [ "genres" .= Aeson.Null
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "PhilosopherException"
+                        , locations = [Location 1 3]
+                        , path = []
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ genres }"
                 in actual `shouldBe` expected
 
         context "Subscription" $

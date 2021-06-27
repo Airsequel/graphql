@@ -98,6 +98,7 @@ test-suite graphql-test
     , aeson
     , base >= 4.7 && < 5
     , conduit
+    , exceptions
     , graphql
     , hspec >= 2.8.2 && < 2.9
     , hspec-megaparsec >= 2.2.0 && < 2.3
