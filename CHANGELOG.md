@@ -14,6 +14,8 @@ and this project adheres to
   including an optional schema description and user-defined types not referenced
   in the schema directly (for example interface implementations).
 - `Language.GraphQL.Schema.description` returns the optional schema description.
+- All errors that can be associated with a location in the query contain
+  location information.
 
 ### Fixed
 - Parser now accepts empty lists and objects.

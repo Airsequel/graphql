@@ -1,3 +1,5 @@
+{-# LANGUAGE ExplicitForAll #-}
+
 -- | This module provides functions to execute a @GraphQL@ request.
 module Language.GraphQL.Execute
     ( execute
@@ -14,10 +16,16 @@ import Language.GraphQL.Execute.Execution
 import Language.GraphQL.Execute.Internal
 import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Execute.Subscribe as Subscribe
-import Language.GraphQL.Error (ResponseEventStream, Response, runCollectErrs)
+import Language.GraphQL.Error
+    ( Error
+    , ResponseEventStream
+    , Response(..)
+    , runCollectErrs
+    )
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Type.Schema
+import Prelude hiding (null)
 
 -- | The substitution is applied to the document, and the resolvers are applied
 -- to the resulting fields. The operation name can be used if the document
@@ -31,10 +39,9 @@ execute :: (MonadCatch m, VariableValue a, Serialize b)
     -> HashMap Full.Name a -- ^ Variable substitution function.
     -> Full.Document -- @GraphQL@ document.
     -> m (Either (ResponseEventStream m b) (Response b))
-execute schema' operationName subs document =
-    case Transform.document schema' operationName subs document of
-        Left queryError -> pure $ singleError $ show queryError
-        Right transformed -> executeRequest transformed
+execute schema' operationName subs document
+    = either (pure . rightErrorResponse . singleError [] . show) executeRequest
+    $ Transform.document schema' operationName subs document
 
 executeRequest :: (MonadCatch m, Serialize a)
     => Transform.Document m
@@ -45,7 +52,7 @@ executeRequest (Transform.Document types' rootObjectType operation)
     | (Transform.Mutation _ fields objectLocation) <- operation =
         Right <$> executeOperation types' rootObjectType objectLocation fields
     | (Transform.Subscription _ fields objectLocation) <- operation
-        = either singleError Left
+        = either rightErrorResponse Left
         <$> Subscribe.subscribe types' rootObjectType objectLocation fields
 
 -- This is actually executeMutation, but we don't distinguish between queries
@@ -59,3 +66,6 @@ executeOperation :: (MonadCatch m, Serialize a)
 executeOperation types' objectType objectLocation fields
     = runCollectErrs types'
     $ executeSelectionSet Definition.Null objectType objectLocation fields
+
+rightErrorResponse :: Serialize b => forall a. Error -> Either a (Response b)
+rightErrorResponse = Right . Response null . pure

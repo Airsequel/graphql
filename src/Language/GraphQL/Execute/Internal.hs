@@ -15,13 +15,8 @@ import Control.Monad.Trans.State (modify)
 import Control.Monad.Catch (MonadCatch)
 import Data.Sequence ((|>))
 import qualified Data.Text as Text
-import Language.GraphQL.Execute.Coerce
-import Language.GraphQL.Error
-    ( CollectErrsT
-    , Error(..)
-    , Resolution(..)
-    , Response(..)
-    )
+import qualified Language.GraphQL.AST as Full
+import Language.GraphQL.Error (CollectErrsT, Error(..), Resolution(..))
 import Prelude hiding (null)
 
 addError :: MonadCatch m => forall a. a -> Error -> CollectErrsT m a
@@ -32,6 +27,5 @@ addError returnValue error' = modify appender >> pure returnValue
        { errors = errors |> error'
        }
 
-singleError :: Serialize b => forall a. String -> Either a (Response b)
-singleError message =
-    Right $ Response null $ pure $ Error (Text.pack message) [] []
+singleError :: [Full.Location] -> String -> Error
+singleError errorLocations message = Error (Text.pack message) errorLocations []

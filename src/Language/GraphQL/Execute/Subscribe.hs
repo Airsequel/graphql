@@ -9,6 +9,7 @@ module Language.GraphQL.Execute.Subscribe
     ) where
 
 import Conduit
+import Control.Arrow (left)
 import Control.Monad.Catch (Exception(..), MonadCatch(..))
 import Control.Monad.Trans.Reader (ReaderT(..), runReaderT)
 import Data.HashMap.Strict (HashMap)
@@ -18,9 +19,16 @@ import Data.Sequence (Seq(..))
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.Execution
+import Language.GraphQL.Execute.Internal
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Execute.Transform as Transform
 import Language.GraphQL.Error
+    ( Error(..)
+    , ResolverException
+    , Response
+    , ResponseEventStream
+    , runCollectErrs
+    )
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Out as Out
@@ -31,9 +39,10 @@ subscribe :: (MonadCatch m, Serialize a)
     -> Out.ObjectType m
     -> Full.Location
     -> Seq (Transform.Selection m)
-    -> m (Either String (ResponseEventStream m a))
+    -> m (Either Error (ResponseEventStream m a))
 subscribe types' objectType objectLocation fields = do
-    sourceStream <- createSourceEventStream types' objectType fields
+    sourceStream <-
+        createSourceEventStream types' objectType objectLocation fields
     let traverser =
             mapSourceToResponseEvent types' objectType objectLocation fields
     traverse traverser sourceStream
@@ -53,19 +62,25 @@ mapSourceToResponseEvent types' subscriptionType objectLocation fields sourceStr
 createSourceEventStream :: MonadCatch m
     => HashMap Full.Name (Type m)
     -> Out.ObjectType m
+    -> Full.Location
     -> Seq (Transform.Selection m)
-    -> m (Either String (Out.SourceEventStream m))
-createSourceEventStream _types subscriptionType@(Out.ObjectType _ _ _ fieldTypes) fields
+    -> m (Either Error (Out.SourceEventStream m))
+createSourceEventStream _types subscriptionType objectLocation fields
     | [fieldGroup] <- OrderedMap.elems groupedFieldSet
-    , Transform.Field _ fieldName arguments' _ _ <- NonEmpty.head fieldGroup
+    , Transform.Field _ fieldName arguments' _ errorLocation <- NonEmpty.head fieldGroup
+    , Out.ObjectType _ _ _ fieldTypes <- subscriptionType
     , resolverT <- fieldTypes HashMap.! fieldName
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT
     , Out.Field _ _fieldType argumentDefinitions <- fieldDefinition =
         case coerceArgumentValues argumentDefinitions arguments' of
-            Left _ -> pure $ Left "Argument coercion failed."
-            Right  argumentValues ->
-                resolveFieldEventStream Type.Null argumentValues resolver
-    | otherwise = pure $ Left "Subscription contains more than one field."
+            Left _ -> pure
+                $ Left
+                $ Error "Argument coercion failed." [errorLocation] []
+            Right  argumentValues -> left (singleError [errorLocation])
+                <$> resolveFieldEventStream Type.Null argumentValues resolver
+    | otherwise = pure
+        $ Left
+        $ Error "Subscription contains more than one field." [objectLocation] []
   where
     groupedFieldSet = collectFields subscriptionType fields
 
