@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [Unreleased]
+## [1.0.0.0]
 ### Added
 - `Language.GraphQL.Execute.OrderedMap` is a map data structure, that preserves
   insertion order.
@@ -443,7 +443,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v0.11.1.0
+[1.0.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.0.0&rev_to=v0.11.1.0
 [0.11.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.1.0&rev_to=v0.11.0.0
 [0.11.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.0.0&rev_to=v0.10.0.0
 [0.10.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.10.0.0&rev_to=v0.9.0.0
