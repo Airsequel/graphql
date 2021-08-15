@@ -38,6 +38,7 @@ library
       Language.GraphQL.Error
       Language.GraphQL.Execute
       Language.GraphQL.Execute.Coerce
+      Language.GraphQL.Executor
       Language.GraphQL.Execute.OrderedMap
       Language.GraphQL.Type
       Language.GraphQL.Type.In
