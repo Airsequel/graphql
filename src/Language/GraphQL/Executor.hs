@@ -34,7 +34,18 @@ data Response = Response
 
 data QueryError
    = OperationNameRequired
-   | OperationNotFound
+   | OperationNotFound String
+
+instance Show QueryError where
+    show OperationNameRequired = "Operation name is required."
+    show (OperationNotFound operationName) =
+        concat ["Operation \"",  operationName, "\" not found."]
+
+respondWithQueryError :: QueryError -> Response
+respondWithQueryError queryError
+    = Response mempty
+    $ pure
+    $ Error{ message = show queryError, locations = [], path = [] }
 
 -- operationName selectionSet location
 data Operation = Operation
@@ -68,13 +79,16 @@ executeRequest :: Type.Internal.Schema IO
     -> IO Response
 executeRequest _schema sourceDocument operationName _variableValues _initialValue =
    let transformedDocument = document sourceDocument
-       _operation = getOperation transformedDocument operationName
-    in pure $ Response mempty mempty
+       operation = getOperation transformedDocument operationName
+    in case operation of
+        Left queryError -> pure $ respondWithQueryError queryError
+        Right _ -> pure $ Response mempty mempty
 
 getOperation :: [Operation] -> Maybe String -> Either QueryError Operation
 getOperation [operation] Nothing = Right operation
-getOperation operations (Just givenOperationName) =
-    maybe (Left OperationNotFound) Right $ find findOperationByName operations
+getOperation operations (Just givenOperationName)
+    = maybe (Left $ OperationNotFound givenOperationName) Right
+    $ find findOperationByName operations
   where
     findOperationByName (Operation _ (Just operationName) _ _ _) =
         givenOperationName == operationName
