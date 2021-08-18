@@ -43,19 +43,40 @@ data Response = Response
 data QueryError
    = OperationNameRequired
    | OperationNotFound String
-   | CoercionError
+   | CoercionError Full.VariableDefinition
+   | UnknownInputType Full.VariableDefinition
 
-instance Show QueryError where
-    show OperationNameRequired = "Operation name is required."
-    show (OperationNotFound operationName) =
-        concat ["Operation \"",  operationName, "\" not found."]
-    show CoercionError = "Coercion error."
+queryError :: QueryError -> Error
+queryError OperationNameRequired =
+    Error{ message = "Operation name is required.", locations = [], path = [] }
+queryError (OperationNotFound operationName) =
+    let queryErrorMessage = concat
+            [ "Operation \""
+            ,  operationName
+            , "\" not found."
+            ]
+     in Error{ message = queryErrorMessage, locations = [], path = [] }
+queryError (CoercionError variableDefinition) =
+    let Full.VariableDefinition variableName _ _ location = variableDefinition
+        queryErrorMessage = concat
+            [ "Failed to coerce the variable \""
+            , Text.unpack variableName
+            , "\"."
+            ]
+     in Error{ message = queryErrorMessage, locations = [location], path = [] }
+queryError (UnknownInputType variableDefinition) =
+    let Full.VariableDefinition variableName variableTypeName _ location = variableDefinition
+        queryErrorMessage = concat
+            [ "Variable \""
+            , Text.unpack variableName
+            , "\" has unknown type \""
+            , show variableTypeName
+            , "\"."
+            ]
+     in Error{ message = queryErrorMessage, locations = [location], path = [] }
 
 respondWithQueryError :: QueryError -> Response
-respondWithQueryError queryError
-    = Response mempty
-    $ pure
-    $ Error{ message = show queryError, locations = [], path = [] }
+respondWithQueryError = Response mempty . pure . queryError
 
 -- operationName selectionSet location
 data Operation = Operation
@@ -91,7 +112,7 @@ executeRequest _schema sourceDocument operationName _variableValues _initialValu
    let transformedDocument = document sourceDocument
        operation = getOperation transformedDocument operationName
     in case operation of
-        Left queryError -> pure $ respondWithQueryError queryError
+        Left queryError' -> pure $ respondWithQueryError queryError'
         Right (Operation Full.Query _ _ _ _) -> executeQuery
         Right (Operation Full.Mutation _ _ _ _) -> executeMutation
         Right (Operation Full.Subscription _ _ _ _) -> subscribe
@@ -124,22 +145,24 @@ coerceVariableValues :: Coerce.VariableValue a
     -> Either QueryError Type.Subs
 coerceVariableValues types operationDefinition' variableValues =
     let Operation _ _ variableDefinitions _ _ = operationDefinition'
-     in maybe (Left CoercionError) Right
-        $ foldr forEach (Just HashMap.empty) variableDefinitions
+     in foldr forEach (Right HashMap.empty) variableDefinitions
   where
-    forEach variableDefinition coercedValues = do
+    forEach variableDefinition (Right coercedValues) =
         let Full.VariableDefinition variableName variableTypeName defaultValue _ =
                 variableDefinition
-        let defaultValue' = constValue . Full.node <$> defaultValue
-        variableType <- Type.Internal.lookupInputType variableTypeName types
-
-        Coerce.matchFieldValues
-            coerceVariableValue'
-            variableValues
-            variableName
-            variableType
-            defaultValue'
-            coercedValues
+            defaultValue' = constValue . Full.node <$> defaultValue
+         in case Type.Internal.lookupInputType variableTypeName types of
+            Just variableType ->
+                maybe (Left $ CoercionError variableDefinition) Right
+                    $ Coerce.matchFieldValues
+                        coerceVariableValue'
+                        variableValues
+                        variableName
+                        variableType
+                        defaultValue'
+                    $ Just coercedValues
+            Nothing -> Left $ UnknownInputType variableDefinition
+    forEach _ coercedValuesOrError = coercedValuesOrError
     coerceVariableValue' variableType value'
         = Coerce.coerceVariableValue variableType value'
         >>= Coerce.coerceInputLiteral variableType
