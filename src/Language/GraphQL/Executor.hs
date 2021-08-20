@@ -12,7 +12,6 @@ module Language.GraphQL.Executor
    , QueryError(..)
    , Response(..)
    , Segment(..)
-   , coerceVariableValues
    , executeRequest
    ) where
 
@@ -21,10 +20,14 @@ import qualified Data.Aeson as Aeson
 import Data.Foldable (find)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Int (Int32)
+import Data.List.NonEmpty (NonEmpty)
+import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Internal as Type.Internal
+import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
 
 data Segment = Segment String | Index Int
@@ -83,59 +86,198 @@ data Operation = Operation
     Full.OperationType
     (Maybe String)
     [Full.VariableDefinition]
-    Full.SelectionSet
+    SelectionSet
     Full.Location
 
-document :: Full.Document -> [Operation]
+type SelectionSet = NonEmpty Selection
+
+data Selection
+    = FieldSelection Field
+    | FragmentSpreadSelection FragmentSpread
+    | InlineFragmentSelection InlineFragment
+
+type SelectionSetOpt = [Selection]
+
+data Argument = Argument Full.Name (Full.Node Value) Full.Location
+
+data Field =
+    Field (Maybe Full.Name) Full.Name [Argument] [Directive] SelectionSetOpt Full.Location
+
+data InlineFragment = InlineFragment
+    (Maybe Full.TypeCondition) [Directive] SelectionSet Full.Location
+
+data FragmentSpread = FragmentSpread Full.Name [Directive] Full.Location
+
+data Value
+    = Variable Full.Name
+    | Int Int32
+    | Float Double
+    | String Text
+    | Boolean Bool
+    | Null
+    | Enum Full.Name
+    | List [Full.Node Value]
+    | Object [ObjectField]
+
+data ObjectField = ObjectField
+    { name :: Full.Name
+    , value :: Full.Node Value
+    , location :: Full.Location
+    }
+
+data Directive = Directive Full.Name [Argument] Full.Location
+
+document :: Full.Document -> [Full.OperationDefinition]
 document = foldr filterOperation []
   where
     filterOperation (Full.ExecutableDefinition executableDefinition) accumulator
         | Full.DefinitionOperation operationDefinition' <- executableDefinition =
-           operationDefinition operationDefinition' : accumulator
+           operationDefinition' : accumulator
     filterOperation _ accumulator = accumulator -- Fragment.
 
 operationDefinition :: Full.OperationDefinition -> Operation
 operationDefinition = \case
-    Full.OperationDefinition operationType operationName variables _ selectionSet operationLocation ->
+    Full.OperationDefinition operationType operationName variables _ selectionSet' operationLocation ->
         let maybeOperationName = Text.unpack <$> operationName
-         in Operation operationType maybeOperationName variables selectionSet operationLocation
-    Full.SelectionSet selectionSet operationLocation ->
-        Operation Full.Query Nothing [] selectionSet operationLocation
+         in Operation
+            operationType
+            maybeOperationName
+            variables
+            (selectionSet selectionSet')
+            operationLocation
+    Full.SelectionSet selectionSet' operationLocation ->
+        Operation Full.Query Nothing [] (selectionSet selectionSet') operationLocation
 
-executeRequest :: Type.Internal.Schema IO
+selectionSet :: Full.SelectionSet -> SelectionSet
+selectionSet = fmap selection
+
+selectionSetOpt :: Full.SelectionSetOpt -> SelectionSetOpt
+selectionSetOpt = fmap selection
+
+selection :: Full.Selection -> Selection
+selection (Full.FieldSelection field') = FieldSelection $ field field'
+selection (Full.FragmentSpreadSelection fragmentSpread') =
+    FragmentSpreadSelection $ fragmentSpread fragmentSpread'
+selection (Full.InlineFragmentSelection inlineFragment') =
+    InlineFragmentSelection $ inlineFragment inlineFragment'
+
+inlineFragment :: Full.InlineFragment -> InlineFragment
+inlineFragment (Full.InlineFragment typeCondition directives selectionSet' location) =
+    InlineFragment
+        typeCondition
+        (directive <$> directives)
+        (selectionSet selectionSet')
+        location
+
+fragmentSpread :: Full.FragmentSpread -> FragmentSpread
+fragmentSpread (Full.FragmentSpread name' directives location) =
+    FragmentSpread name' (directive <$> directives) location
+
+field :: Full.Field -> Field
+field (Full.Field alias' name' arguments' directives' selectionSet' location') =
+    Field
+        alias'
+        name'
+        (argument <$> arguments')
+        (directive <$> directives')
+        (selectionSetOpt selectionSet')
+        location'
+
+argument :: Full.Argument -> Argument
+argument (Full.Argument name' valueNode location') =
+    Argument name' (node valueNode) location'
+
+directive :: Full.Directive -> Directive
+directive (Full.Directive name' arguments location') =
+    Directive name' (argument <$> arguments) location'
+
+variableValue :: Full.Value -> Value
+variableValue (Full.Variable name') = Variable name'
+variableValue (Full.Int integer) = Int integer
+variableValue (Full.Float double) = Float double
+variableValue (Full.String string) = String string
+variableValue (Full.Boolean boolean) = Boolean boolean
+variableValue Full.Null = Null
+variableValue (Full.Enum enum) = Enum enum
+variableValue (Full.List list) = List $ node <$> list
+variableValue (Full.Object objectFields) = Object $ objectField <$> objectFields
+
+node :: Full.Node Full.Value -> Full.Node Value
+node Full.Node{node = node', ..} = Full.Node (variableValue node') location
+
+objectField :: Full.ObjectField Full.Value -> ObjectField
+objectField Full.ObjectField{..} = ObjectField
+    { name = name
+    , value = node value
+    , location = location
+    }
+
+executeRequest :: Schema IO
     -> Full.Document
     -> Maybe String
     -> Aeson.Object
     -> Aeson.Object
     -> IO Response
-executeRequest _schema sourceDocument operationName _variableValues _initialValue =
-   let transformedDocument = document sourceDocument
-       operation = getOperation transformedDocument operationName
-    in case operation of
+executeRequest schema sourceDocument operationName variableValues initialValue =
+    case operationAndVariables of
         Left queryError' -> pure $ respondWithQueryError queryError'
-        Right (Operation Full.Query _ _ _ _) -> executeQuery
-        Right (Operation Full.Mutation _ _ _ _) -> executeMutation
-        Right (Operation Full.Subscription _ _ _ _) -> subscribe
+        Right (operation, coercedVariableValues')
+            | Operation Full.Query _ _ _ _ <- operation ->
+                executeQuery operation schema coercedVariableValues' initialValue
+            | Operation Full.Mutation _ _ _ _ <- operation ->
+                executeMutation operation schema coercedVariableValues' initialValue
+            | Operation Full.Subscription _ _ _ _ <- operation ->
+                subscribe operation schema coercedVariableValues' initialValue
+  where
+    schemaTypes = Schema.types schema
+    transformedDocument = document sourceDocument
+    operationAndVariables = do
+        operation <- operationDefinition
+            <$> getOperation transformedDocument operationName
+        coercedVariableValues <- coerceVariableValues
+            schemaTypes
+            operation
+            variableValues
+        pure (operation, coercedVariableValues)
 
-getOperation :: [Operation] -> Maybe String -> Either QueryError Operation
+getOperation :: [Full.OperationDefinition] -> Maybe String -> Either QueryError Full.OperationDefinition
 getOperation [operation] Nothing = Right operation
 getOperation operations (Just givenOperationName)
     = maybe (Left $ OperationNotFound givenOperationName) Right
     $ find findOperationByName operations
   where
-    findOperationByName (Operation _ (Just operationName) _ _ _) =
-        givenOperationName == operationName
+    findOperationByName (Full.OperationDefinition _ (Just operationName) _ _ _ _) =
+        givenOperationName == Text.unpack operationName
     findOperationByName _ = False
 getOperation _ _ = Left OperationNameRequired
 
-executeQuery :: IO Response
-executeQuery = pure $ Response mempty mempty
+executeQuery :: forall m
+    . Operation
+    -> Schema m
+    -> Type.Subs
+    -> Aeson.Object
+    -> IO Response
+executeQuery _operation schema _coercedVariableValues _initialValue =
+    let _queryType = Schema.query schema
+     in pure $ Response mempty mempty
 
-executeMutation :: IO Response
-executeMutation = pure $ Response mempty mempty
+executeMutation :: forall m
+    . Operation
+    -> Schema m
+    -> Type.Subs
+    -> Aeson.Object
+    -> IO Response
+executeMutation _operation _schema _coercedVariableValues _initialValue =
+    pure $ Response mempty mempty
 
-subscribe :: IO Response
-subscribe = pure $ Response mempty mempty
+subscribe :: forall m
+    . Operation
+    -> Schema m
+    -> Type.Subs
+    -> Aeson.Object
+    -> IO Response
+subscribe _operation _schema _coercedVariableValues _initialValue =
+    pure $ Response mempty mempty
 
 coerceVariableValues :: Coerce.VariableValue a
     => forall m
