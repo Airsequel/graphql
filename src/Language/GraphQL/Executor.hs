@@ -21,10 +21,12 @@ import Data.Foldable (find)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Int (Int32)
-import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.Execute.Coerce as Coerce
+import Language.GraphQL.Execute.OrderedMap (OrderedMap)
+import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Internal as Type.Internal
 import Language.GraphQL.Type.Schema (Schema)
@@ -84,24 +86,20 @@ respondWithQueryError = Response mempty . pure . queryError
 -- operationName selectionSet location
 data Operation = Operation
     Full.OperationType
-    (Maybe String)
-    [Full.VariableDefinition]
+    Type.Subs
     SelectionSet
-    Full.Location
 
-type SelectionSet = NonEmpty Selection
+type SelectionSet = [Selection]
 
 data Selection
     = FieldSelection Field
     | FragmentSpreadSelection FragmentSpread
     | InlineFragmentSelection InlineFragment
 
-type SelectionSetOpt = [Selection]
-
 data Argument = Argument Full.Name (Full.Node Value) Full.Location
 
 data Field =
-    Field (Maybe Full.Name) Full.Name [Argument] [Directive] SelectionSetOpt Full.Location
+    Field (Maybe Full.Name) Full.Name [Argument] [Directive] SelectionSet Full.Location
 
 data InlineFragment = InlineFragment
     (Maybe Full.TypeCondition) [Directive] SelectionSet Full.Location
@@ -132,27 +130,19 @@ document = foldr filterOperation []
   where
     filterOperation (Full.ExecutableDefinition executableDefinition) accumulator
         | Full.DefinitionOperation operationDefinition' <- executableDefinition =
-           operationDefinition' : accumulator
+            operationDefinition' : accumulator
     filterOperation _ accumulator = accumulator -- Fragment.
 
-operationDefinition :: Full.OperationDefinition -> Operation
-operationDefinition = \case
-    Full.OperationDefinition operationType operationName variables _ selectionSet' operationLocation ->
-        let maybeOperationName = Text.unpack <$> operationName
-         in Operation
-            operationType
-            maybeOperationName
-            variables
-            (selectionSet selectionSet')
-            operationLocation
-    Full.SelectionSet selectionSet' operationLocation ->
-        Operation Full.Query Nothing [] (selectionSet selectionSet') operationLocation
+operationDefinition :: Type.Subs -> Full.OperationDefinition -> Operation
+operationDefinition coercedVariableValues = \case
+    Full.OperationDefinition operationType _ _ _ selectionSet' _ ->
+        Operation operationType coercedVariableValues
+        $ selectionSet selectionSet'
+    Full.SelectionSet selectionSet' _ ->
+        Operation Full.Query coercedVariableValues (selectionSet selectionSet')
 
 selectionSet :: Full.SelectionSet -> SelectionSet
-selectionSet = fmap selection
-
-selectionSetOpt :: Full.SelectionSetOpt -> SelectionSetOpt
-selectionSetOpt = fmap selection
+selectionSet = NonEmpty.toList . fmap selection
 
 selection :: Full.Selection -> Selection
 selection (Full.FieldSelection field') = FieldSelection $ field field'
@@ -180,7 +170,7 @@ field (Full.Field alias' name' arguments' directives' selectionSet' location') =
         name'
         (argument <$> arguments')
         (directive <$> directives')
-        (selectionSetOpt selectionSet')
+        (selection <$> selectionSet')
         location'
 
 argument :: Full.Argument -> Argument
@@ -221,24 +211,23 @@ executeRequest :: Schema IO
 executeRequest schema sourceDocument operationName variableValues initialValue =
     case operationAndVariables of
         Left queryError' -> pure $ respondWithQueryError queryError'
-        Right (operation, coercedVariableValues')
-            | Operation Full.Query _ _ _ _ <- operation ->
-                executeQuery operation schema coercedVariableValues' initialValue
-            | Operation Full.Mutation _ _ _ _ <- operation ->
-                executeMutation operation schema coercedVariableValues' initialValue
-            | Operation Full.Subscription _ _ _ _ <- operation ->
-                subscribe operation schema coercedVariableValues' initialValue
+        Right operation
+            | Operation Full.Query coercedVariables topSelections <- operation ->
+                executeQuery topSelections schema coercedVariables initialValue
+            | Operation Full.Mutation corecedVariables topSelections <- operation ->
+                executeMutation topSelections schema corecedVariables initialValue
+            | Operation Full.Subscription coercedVariables topSelections <- operation ->
+                subscribe topSelections schema coercedVariables initialValue
   where
     schemaTypes = Schema.types schema
     transformedDocument = document sourceDocument
     operationAndVariables = do
-        operation <- operationDefinition
-            <$> getOperation transformedDocument operationName
+        operationDefinition' <- getOperation transformedDocument operationName
         coercedVariableValues <- coerceVariableValues
             schemaTypes
-            operation
+            operationDefinition'
             variableValues
-        pure (operation, coercedVariableValues)
+        pure $ operationDefinition coercedVariableValues operationDefinition'
 
 getOperation :: [Full.OperationDefinition] -> Maybe String -> Either QueryError Full.OperationDefinition
 getOperation [operation] Nothing = Right operation
@@ -251,18 +240,18 @@ getOperation operations (Just givenOperationName)
     findOperationByName _ = False
 getOperation _ _ = Left OperationNameRequired
 
-executeQuery :: forall m
-    . Operation
-    -> Schema m
+executeQuery :: SelectionSet
+    -> Schema IO
     -> Type.Subs
     -> Aeson.Object
     -> IO Response
-executeQuery _operation schema _coercedVariableValues _initialValue =
-    let _queryType = Schema.query schema
+executeQuery topSelections schema coercedVariables initialValue =
+    let queryType = Schema.query schema
+        _data = executeSelectionSet topSelections queryType initialValue coercedVariables
      in pure $ Response mempty mempty
 
 executeMutation :: forall m
-    . Operation
+    . SelectionSet
     -> Schema m
     -> Type.Subs
     -> Aeson.Object
@@ -271,7 +260,7 @@ executeMutation _operation _schema _coercedVariableValues _initialValue =
     pure $ Response mempty mempty
 
 subscribe :: forall m
-    . Operation
+    . SelectionSet
     -> Schema m
     -> Type.Subs
     -> Aeson.Object
@@ -279,15 +268,30 @@ subscribe :: forall m
 subscribe _operation _schema _coercedVariableValues _initialValue =
     pure $ Response mempty mempty
 
+executeSelectionSet
+    :: SelectionSet
+    -> Out.ObjectType IO
+    -> Aeson.Object
+    -> Type.Subs
+    -> Aeson.Object
+executeSelectionSet selections objectType _objectValue variableValues =
+    let _groupedFieldSet = collectFields objectType selections variableValues
+     in mempty
+
+collectFields :: Out.ObjectType IO -> SelectionSet -> Type.Subs -> OrderedMap [Selection]
+collectFields = mempty
+
 coerceVariableValues :: Coerce.VariableValue a
     => forall m
     . HashMap Full.Name (Schema.Type m)
-    -> Operation
+    -> Full.OperationDefinition
     -> HashMap Full.Name a
     -> Either QueryError Type.Subs
-coerceVariableValues types operationDefinition' variableValues =
-    let Operation _ _ variableDefinitions _ _ = operationDefinition'
-     in foldr forEach (Right HashMap.empty) variableDefinitions
+coerceVariableValues types operationDefinition' variableValues
+    | Full.OperationDefinition _ _ variableDefinitions _ _ _ <-
+        operationDefinition'
+    = foldr forEach (Right HashMap.empty) variableDefinitions
+    | otherwise = pure mempty
   where
     forEach variableDefinition (Right coercedValues) =
         let Full.VariableDefinition variableName variableTypeName defaultValue _ =
