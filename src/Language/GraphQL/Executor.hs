@@ -3,7 +3,6 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Language.GraphQL.Executor
@@ -15,12 +14,16 @@ module Language.GraphQL.Executor
    , executeRequest
    ) where
 
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Trans.Reader (ReaderT(..), ask, runReader)
 import qualified Language.GraphQL.AST.Document as Full
 import qualified Data.Aeson as Aeson
 import Data.Foldable (find)
+import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Int (Int32)
+import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -31,6 +34,25 @@ import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Internal as Type.Internal
 import Language.GraphQL.Type.Schema (Schema)
 import qualified Language.GraphQL.Type.Schema as Schema
+
+newtype TransformT m a = TransformT
+    { runTransformT :: ReaderT Type.Subs m a
+    }
+
+instance Functor m => Functor (TransformT m) where
+    fmap f = TransformT . fmap f . runTransformT
+
+instance Applicative m => Applicative (TransformT m) where
+    pure = TransformT . pure
+    TransformT f <*> TransformT x = TransformT $ f <*> x
+
+instance Monad m => Monad (TransformT m) where
+    TransformT x >>= f = TransformT $ x >>= runTransformT . f
+
+instance MonadTrans TransformT where
+    lift = TransformT . lift
+
+type Transform = TransformT Identity
 
 data Segment = Segment String | Index Int
 
@@ -133,44 +155,48 @@ document = foldr filterOperation []
             operationDefinition' : accumulator
     filterOperation _ accumulator = accumulator -- Fragment.
 
-operationDefinition :: Type.Subs -> Full.OperationDefinition -> Operation
-operationDefinition coercedVariableValues = \case
-    Full.OperationDefinition operationType _ _ _ selectionSet' _ ->
-        Operation operationType coercedVariableValues
-        $ selectionSet selectionSet'
-    Full.SelectionSet selectionSet' _ ->
-        Operation Full.Query coercedVariableValues (selectionSet selectionSet')
+transform :: Full.OperationDefinition -> Transform Operation
+transform (Full.OperationDefinition operationType _ _ _ selectionSet' _) = do
+    coercedVariableValues <- TransformT ask
+    transformedSelections <- selectionSet selectionSet'
+    pure $ Operation operationType coercedVariableValues transformedSelections
+transform (Full.SelectionSet selectionSet' _) = do
+    coercedVariableValues <- TransformT ask
+    transformedSelections <- selectionSet selectionSet'
+    pure $ Operation Full.Query coercedVariableValues transformedSelections
 
-selectionSet :: Full.SelectionSet -> SelectionSet
-selectionSet = NonEmpty.toList . fmap selection
+selectionSet :: Full.SelectionSet -> Transform SelectionSet
+selectionSet = traverse selection . NonEmpty.toList
 
-selection :: Full.Selection -> Selection
-selection (Full.FieldSelection field') = FieldSelection $ field field'
+selection :: Full.Selection -> Transform Selection
+selection (Full.FieldSelection field') = FieldSelection <$> field field'
 selection (Full.FragmentSpreadSelection fragmentSpread') =
-    FragmentSpreadSelection $ fragmentSpread fragmentSpread'
+    FragmentSpreadSelection <$> fragmentSpread fragmentSpread'
 selection (Full.InlineFragmentSelection inlineFragment') =
-    InlineFragmentSelection $ inlineFragment inlineFragment'
+    InlineFragmentSelection <$> inlineFragment inlineFragment'
 
-inlineFragment :: Full.InlineFragment -> InlineFragment
-inlineFragment (Full.InlineFragment typeCondition directives selectionSet' location) =
-    InlineFragment
+inlineFragment :: Full.InlineFragment -> Transform InlineFragment
+inlineFragment (Full.InlineFragment typeCondition directives selectionSet' location) = do
+    transformedSelections <- selectionSet selectionSet'
+    pure $ InlineFragment
         typeCondition
         (directive <$> directives)
-        (selectionSet selectionSet')
+        transformedSelections
         location
 
-fragmentSpread :: Full.FragmentSpread -> FragmentSpread
+fragmentSpread :: Full.FragmentSpread -> Transform FragmentSpread
 fragmentSpread (Full.FragmentSpread name' directives location) =
-    FragmentSpread name' (directive <$> directives) location
+    pure $ FragmentSpread name' (directive <$> directives) location
 
-field :: Full.Field -> Field
-field (Full.Field alias' name' arguments' directives' selectionSet' location') =
-    Field
+field :: Full.Field -> Transform Field
+field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
+    transformedSelections <- traverse selection selectionSet'
+    pure $ Field
         alias'
         name'
         (argument <$> arguments')
         (directive <$> directives')
-        (selection <$> selectionSet')
+        transformedSelections
         location'
 
 argument :: Full.Argument -> Argument
@@ -220,14 +246,17 @@ executeRequest schema sourceDocument operationName variableValues initialValue =
                 subscribe topSelections schema coercedVariables initialValue
   where
     schemaTypes = Schema.types schema
-    transformedDocument = document sourceDocument
+    operationDefinitions = document sourceDocument
     operationAndVariables = do
-        operationDefinition' <- getOperation transformedDocument operationName
+        operationDefinition <- getOperation operationDefinitions operationName
         coercedVariableValues <- coerceVariableValues
             schemaTypes
-            operationDefinition'
+            operationDefinition
             variableValues
-        pure $ operationDefinition coercedVariableValues operationDefinition'
+        pure
+            $ flip runReader coercedVariableValues
+            $ runTransformT
+            $ transform operationDefinition
 
 getOperation :: [Full.OperationDefinition] -> Maybe String -> Either QueryError Full.OperationDefinition
 getOperation [operation] Nothing = Right operation
@@ -278,7 +307,7 @@ executeSelectionSet selections objectType _objectValue variableValues =
     let _groupedFieldSet = collectFields objectType selections variableValues
      in mempty
 
-collectFields :: Out.ObjectType IO -> SelectionSet -> Type.Subs -> OrderedMap [Selection]
+collectFields :: Out.ObjectType IO -> SelectionSet -> Type.Subs -> OrderedMap (NonEmpty Selection)
 collectFields = mempty
 
 coerceVariableValues :: Coerce.VariableValue a
