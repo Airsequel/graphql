@@ -3,6 +3,8 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE RecordWildCards #-}
 
 module Language.GraphQL.Executor
@@ -15,7 +17,8 @@ module Language.GraphQL.Executor
    ) where
 
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Reader (ReaderT(..), ask, runReader)
+import Control.Monad.Trans.Reader (ReaderT(..), ask, asks, runReader)
+import Control.Monad (foldM)
 import qualified Language.GraphQL.AST.Document as Full
 import qualified Data.Aeson as Aeson
 import Data.Foldable (find)
@@ -120,13 +123,18 @@ data Selection
 
 data Argument = Argument Full.Name (Full.Node Value) Full.Location
 
-data Field =
-    Field (Maybe Full.Name) Full.Name [Argument] [Directive] SelectionSet Full.Location
+data Field = Field
+    (Maybe Full.Name)
+    Full.Name
+    [Argument]
+    [Type.Directive]
+    SelectionSet
+    Full.Location
 
 data InlineFragment = InlineFragment
-    (Maybe Full.TypeCondition) [Directive] SelectionSet Full.Location
+    (Maybe Full.TypeCondition) [Type.Directive] SelectionSet Full.Location
 
-data FragmentSpread = FragmentSpread Full.Name [Directive] Full.Location
+data FragmentSpread = FragmentSpread Full.Name [Type.Directive] Full.Location
 
 data Value
     = Variable Full.Name
@@ -144,8 +152,6 @@ data ObjectField = ObjectField
     , value :: Full.Node Value
     , location :: Full.Location
     }
-
-data Directive = Directive Full.Name [Argument] Full.Location
 
 document :: Full.Document -> [Full.OperationDefinition]
 document = foldr filterOperation []
@@ -178,24 +184,27 @@ selection (Full.InlineFragmentSelection inlineFragment') =
 inlineFragment :: Full.InlineFragment -> Transform InlineFragment
 inlineFragment (Full.InlineFragment typeCondition directives selectionSet' location) = do
     transformedSelections <- selectionSet selectionSet'
+    transformedDirectives <- traverse directive directives
     pure $ InlineFragment
         typeCondition
-        (directive <$> directives)
+        transformedDirectives
         transformedSelections
         location
 
 fragmentSpread :: Full.FragmentSpread -> Transform FragmentSpread
-fragmentSpread (Full.FragmentSpread name' directives location) =
-    pure $ FragmentSpread name' (directive <$> directives) location
+fragmentSpread (Full.FragmentSpread name' directives location) = do
+    transformedDirectives <- traverse directive directives
+    pure $ FragmentSpread name' transformedDirectives location
 
 field :: Full.Field -> Transform Field
-field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
+field (Full.Field alias' name' arguments' directives selectionSet' location') = do
     transformedSelections <- traverse selection selectionSet'
+    transformedDirectives <- traverse directive directives
     pure $ Field
         alias'
         name'
         (argument <$> arguments')
-        (directive <$> directives')
+        transformedDirectives
         transformedSelections
         location'
 
@@ -203,9 +212,34 @@ argument :: Full.Argument -> Argument
 argument (Full.Argument name' valueNode location') =
     Argument name' (node valueNode) location'
 
-directive :: Full.Directive -> Directive
-directive (Full.Directive name' arguments location') =
-    Directive name' (argument <$> arguments) location'
+directive :: Full.Directive -> Transform Type.Directive
+directive (Full.Directive name' arguments _)
+    = Type.Directive name'
+    . Type.Arguments
+    <$> foldM go HashMap.empty arguments
+  where
+    go accumulator (Full.Argument argumentName Full.Node{ node = node' } _) = do
+        transformedValue <- directiveValue node'
+        pure $ HashMap.insert argumentName transformedValue accumulator
+
+directiveValue :: Full.Value -> Transform Type.Value
+directiveValue = \case
+    (Full.Variable name') ->
+        TransformT $ asks (HashMap.lookupDefault Type.Null name')
+    (Full.Int integer) -> pure $ Type.Int integer
+    (Full.Float double) -> pure $ Type.Float double
+    (Full.String string) -> pure $ Type.String string
+    (Full.Boolean boolean) -> pure $ Type.Boolean boolean
+    Full.Null -> pure Type.Null
+    (Full.Enum enum) -> pure $ Type.Enum enum
+    (Full.List list) -> Type.List <$> traverse directiveNode list
+    (Full.Object objectFields) ->
+        Type.Object <$> foldM objectField HashMap.empty objectFields
+  where
+    directiveNode Full.Node{ node = node'} = directiveValue node'
+    objectField accumulator Full.ObjectField{ name, value } = do
+        transformedValue <- directiveNode value
+        pure $ HashMap.insert name transformedValue accumulator
 
 variableValue :: Full.Value -> Value
 variableValue (Full.Variable name') = Variable name'
@@ -217,16 +251,16 @@ variableValue Full.Null = Null
 variableValue (Full.Enum enum) = Enum enum
 variableValue (Full.List list) = List $ node <$> list
 variableValue (Full.Object objectFields) = Object $ objectField <$> objectFields
+  where
+    objectField :: Full.ObjectField Full.Value -> ObjectField
+    objectField Full.ObjectField{..} = ObjectField
+        { name = name
+        , value = node value
+        , location = location
+        }
 
 node :: Full.Node Full.Value -> Full.Node Value
 node Full.Node{node = node', ..} = Full.Node (variableValue node') location
-
-objectField :: Full.ObjectField Full.Value -> ObjectField
-objectField Full.ObjectField{..} = ObjectField
-    { name = name
-    , value = node value
-    , location = location
-    }
 
 executeRequest :: Schema IO
     -> Full.Document
