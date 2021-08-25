@@ -17,7 +17,8 @@ module Language.GraphQL.Executor
    ) where
 
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Reader (ReaderT(..), asks, runReader)
+import Control.Monad.Trans.Reader (ReaderT(..), local, runReader)
+import qualified Control.Monad.Trans.Reader as Reader
 import Control.Monad (foldM)
 import qualified Language.GraphQL.AST.Document as Full
 import qualified Data.Aeson as Aeson
@@ -26,6 +27,8 @@ import Data.Foldable (find)
 import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -43,6 +46,7 @@ import qualified Language.GraphQL.Type.Schema as Schema
 data Replacement = Replacement
     { variableValues :: Type.Subs
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
+    , visitedFragments :: HashSet Full.Name
     }
 
 newtype TransformT m a = TransformT
@@ -82,6 +86,9 @@ data QueryError
    | OperationNotFound String
    | CoercionError Full.VariableDefinition
    | UnknownInputType Full.VariableDefinition
+
+asks :: forall a. (Replacement -> a) -> Transform a
+asks = TransformT . Reader.asks
 
 queryError :: QueryError -> Error
 queryError OperationNameRequired =
@@ -133,12 +140,11 @@ data Field = Field
     (Maybe Full.Name)
     Full.Name
     [Argument]
-    [Type.Directive]
     SelectionSet
     Full.Location
 
 data Fragment = Fragment
-    (Maybe Full.TypeCondition) [Type.Directive] SelectionSet Full.Location
+    (Maybe Full.TypeCondition) SelectionSet Full.Location
 
 data Value
     = Variable Full.Name
@@ -171,11 +177,11 @@ document = foldr filterOperation ([], HashMap.empty)
 
 transform :: Full.OperationDefinition -> Transform Operation
 transform (Full.OperationDefinition operationType _ _ _ selectionSet' _) = do
-    coercedVariableValues <- TransformT $ asks variableValues
+    coercedVariableValues <- asks variableValues
     transformedSelections <- selectionSet selectionSet'
     pure $ Operation operationType coercedVariableValues transformedSelections
 transform (Full.SelectionSet selectionSet' _) = do
-    coercedVariableValues <- TransformT $ asks variableValues
+    coercedVariableValues <- asks variableValues
     transformedSelections <- selectionSet selectionSet'
     pure $ Operation Full.Query coercedVariableValues transformedSelections
 
@@ -183,52 +189,61 @@ selectionSet :: Full.SelectionSet -> Transform SelectionSet
 selectionSet = fmap catMaybes . traverse selection . NonEmpty.toList
 
 selection :: Full.Selection -> Transform (Maybe Selection)
-selection (Full.FieldSelection field') = Just . FieldSelection <$> field field'
+selection (Full.FieldSelection field') = fmap FieldSelection <$> field field'
 selection (Full.FragmentSpreadSelection fragmentSpread') =
     fmap FragmentSelection <$> fragmentSpread fragmentSpread'
 selection (Full.InlineFragmentSelection inlineFragment') =
-    Just . FragmentSelection <$> inlineFragment inlineFragment'
+   fmap FragmentSelection <$> inlineFragment inlineFragment'
 
-inlineFragment :: Full.InlineFragment -> Transform Fragment
-inlineFragment (Full.InlineFragment typeCondition directives selectionSet' location) = do
+directives :: [Full.Directive] -> Transform (Maybe [Type.Directive])
+directives = fmap Type.selection . traverse directive
+
+inlineFragment :: Full.InlineFragment -> Transform (Maybe Fragment)
+inlineFragment (Full.InlineFragment typeCondition directives' selectionSet' location) = do
     transformedSelections <- selectionSet selectionSet'
-    transformedDirectives <- traverse directive directives
-    pure $ Fragment
-        typeCondition
-        transformedDirectives
-        transformedSelections
-        location
+    transformedDirectives <- directives directives'
+    pure $ transformedDirectives
+        >> pure (Fragment typeCondition transformedSelections location)
 
 fragmentSpread :: Full.FragmentSpread -> Transform (Maybe Fragment)
-fragmentSpread (Full.FragmentSpread spreadName directives location) = do
-    transformedDirectives <- traverse directive directives
-    possibleFragmentDefinition <- TransformT
-        $ asks
+fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
+    transformedDirectives <- directives directives'
+    visitedFragment <- asks $ HashSet.member spreadName . visitedFragments
+    possibleFragmentDefinition <- asks
         $ HashMap.lookup spreadName
         . fragmentDefinitions
-    case possibleFragmentDefinition of
-        Just (Full.FragmentDefinition _ typeCondition _ selections _) -> do
-            transformedSelections <- selectionSet selections
-            pure $ Just $ Fragment
-                (Just typeCondition)
-                transformedDirectives
-                transformedSelections
-                location
+    case transformedDirectives >> possibleFragmentDefinition of
+        Just (Full.FragmentDefinition _ typeCondition _ selections _)
+            | visitedFragment -> pure Nothing
+            | otherwise -> do
+                transformedSelections <- TransformT
+                    $ local fragmentInserter
+                    $ runTransformT
+                    $ selectionSet selections
+                pure $ Just $ Fragment
+                    (Just typeCondition)
+                    transformedSelections
+                    location
         Nothing ->
             pure Nothing
+  where
+    fragmentInserter replacement@Replacement{ visitedFragments } = replacement
+        { visitedFragments = HashSet.insert spreadName visitedFragments }
 
 
-field :: Full.Field -> Transform Field
-field (Full.Field alias' name' arguments' directives selectionSet' location') = do
+field :: Full.Field -> Transform (Maybe Field)
+field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
     transformedSelections <- catMaybes <$> traverse selection selectionSet'
-    transformedDirectives <- traverse directive directives
-    pure $ Field
-        alias'
-        name'
-        (argument <$> arguments')
-        transformedDirectives
-        transformedSelections
-        location'
+    transformedDirectives <- directives directives'
+    let transformedField = Field
+            alias'
+            name'
+            transformedArguments
+            transformedSelections
+            location'
+    pure $ transformedDirectives >> pure transformedField
+  where
+    transformedArguments = argument <$> arguments'
 
 argument :: Full.Argument -> Argument
 argument (Full.Argument name' valueNode location') =
@@ -246,8 +261,7 @@ directive (Full.Directive name' arguments _)
 
 directiveValue :: Full.Value -> Transform Type.Value
 directiveValue = \case
-    (Full.Variable name') -> TransformT
-        $ asks
+    (Full.Variable name') -> asks
         $ HashMap.lookupDefault Type.Null name'
         . variableValues
     (Full.Int integer) -> pure $ Type.Int integer
@@ -314,6 +328,7 @@ executeRequest schema sourceDocument operationName variableValues initialValue =
         let replacement = Replacement
                 { variableValues = coercedVariableValues
                 , fragmentDefinitions = fragmentDefinitions'
+                , visitedFragments = mempty
                 }
         pure
             $ flip runReader replacement
