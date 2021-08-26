@@ -24,29 +24,32 @@ import qualified Language.GraphQL.AST.Document as Full
 import qualified Data.Aeson as Aeson
 import Data.Bifunctor (first)
 import Data.Foldable (find)
+import Data.Functor ((<&>))
 import Data.Functor.Identity (Identity)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Int (Int32)
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (catMaybes)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
+import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
 import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Internal as Type.Internal
-import Language.GraphQL.Type.Schema (Schema)
+import Language.GraphQL.Type.Schema (Schema, Type)
 import qualified Language.GraphQL.Type.Schema as Schema
 
 data Replacement = Replacement
     { variableValues :: Type.Subs
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
     , visitedFragments :: HashSet Full.Name
+    , types :: HashMap Full.Name (Type IO)
     }
 
 newtype TransformT m a = TransformT
@@ -144,7 +147,7 @@ data Field = Field
     Full.Location
 
 data Fragment = Fragment
-    (Maybe Full.TypeCondition) SelectionSet Full.Location
+    (Type.Internal.CompositeType IO) SelectionSet Full.Location
 
 data Value
     = Variable Full.Name
@@ -186,24 +189,50 @@ transform (Full.SelectionSet selectionSet' _) = do
     pure $ Operation Full.Query coercedVariableValues transformedSelections
 
 selectionSet :: Full.SelectionSet -> Transform SelectionSet
-selectionSet = fmap catMaybes . traverse selection . NonEmpty.toList
+selectionSet = selectionSetOpt . NonEmpty.toList
 
-selection :: Full.Selection -> Transform (Maybe Selection)
-selection (Full.FieldSelection field') = fmap FieldSelection <$> field field'
+selectionSetOpt :: Full.SelectionSetOpt -> Transform SelectionSet
+selectionSetOpt = foldM go []
+  where
+    go accumulatedSelections currentSelection =
+        selection currentSelection <&> (accumulatedSelections ++)
+
+selection :: Full.Selection -> Transform SelectionSet
+selection (Full.FieldSelection field') =
+    maybeToSelectionSet FieldSelection $ field field'
 selection (Full.FragmentSpreadSelection fragmentSpread') =
-    fmap FragmentSelection <$> fragmentSpread fragmentSpread'
+    maybeToSelectionSet FragmentSelection $ fragmentSpread fragmentSpread'
 selection (Full.InlineFragmentSelection inlineFragment') =
-   fmap FragmentSelection <$> inlineFragment inlineFragment'
+   either id (pure . FragmentSelection) <$> inlineFragment inlineFragment'
+
+maybeToSelectionSet :: forall a
+    . (a -> Selection)
+    -> Transform (Maybe a)
+    -> Transform SelectionSet
+maybeToSelectionSet selectionType = fmap (maybe [] $ pure . selectionType)
 
 directives :: [Full.Directive] -> Transform (Maybe [Type.Directive])
 directives = fmap Type.selection . traverse directive
 
-inlineFragment :: Full.InlineFragment -> Transform (Maybe Fragment)
-inlineFragment (Full.InlineFragment typeCondition directives' selectionSet' location) = do
-    transformedSelections <- selectionSet selectionSet'
-    transformedDirectives <- directives directives'
-    pure $ transformedDirectives
-        >> pure (Fragment typeCondition transformedSelections location)
+inlineFragment :: Full.InlineFragment
+    -> Transform (Either SelectionSet Fragment)
+inlineFragment (Full.InlineFragment maybeCondition directives' selectionSet' location)
+    | Just typeCondition <- maybeCondition = do
+        transformedSelections <- selectionSet selectionSet'
+        transformedDirectives <- directives directives'
+        maybeFragmentType <- asks
+            $ Type.Internal.lookupTypeCondition typeCondition
+            . types
+        pure $ case transformedDirectives >> maybeFragmentType of
+            Just fragmentType -> Right
+                $ Fragment fragmentType transformedSelections location
+            Nothing -> Left []
+    | otherwise = do
+        transformedSelections <- selectionSet selectionSet'
+        transformedDirectives <- directives directives'
+        pure $ if isJust transformedDirectives
+            then Left transformedSelections
+            else Left [] 
 
 fragmentSpread :: Full.FragmentSpread -> Transform (Maybe Fragment)
 fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
@@ -216,24 +245,25 @@ fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
         Just (Full.FragmentDefinition _ typeCondition _ selections _)
             | visitedFragment -> pure Nothing
             | otherwise -> do
-                transformedSelections <- TransformT
-                    $ local fragmentInserter
-                    $ runTransformT
-                    $ selectionSet selections
-                pure $ Just $ Fragment
-                    (Just typeCondition)
-                    transformedSelections
-                    location
-        Nothing ->
-            pure Nothing
+                fragmentType <- asks
+                    $ Type.Internal.lookupTypeCondition typeCondition
+                    . types
+                traverse (traverseSelections selections) fragmentType
+        Nothing -> pure Nothing
   where
+    traverseSelections selections typeCondition = do
+        transformedSelections <- TransformT
+            $ local fragmentInserter
+            $ runTransformT
+            $ selectionSet selections
+        pure $ Fragment typeCondition transformedSelections location
     fragmentInserter replacement@Replacement{ visitedFragments } = replacement
         { visitedFragments = HashSet.insert spreadName visitedFragments }
 
 
 field :: Full.Field -> Transform (Maybe Field)
 field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
-    transformedSelections <- catMaybes <$> traverse selection selectionSet'
+    transformedSelections <- selectionSetOpt selectionSet'
     transformedDirectives <- directives directives'
     let transformedField = Field
             alias'
@@ -329,6 +359,7 @@ executeRequest schema sourceDocument operationName variableValues initialValue =
                 { variableValues = coercedVariableValues
                 , fragmentDefinitions = fragmentDefinitions'
                 , visitedFragments = mempty
+                , types = schemaTypes
                 }
         pure
             $ flip runReader replacement
@@ -380,12 +411,26 @@ executeSelectionSet
     -> Aeson.Object
     -> Type.Subs
     -> Aeson.Object
-executeSelectionSet selections objectType _objectValue variableValues =
-    let _groupedFieldSet = collectFields objectType selections variableValues
+executeSelectionSet selections objectType _objectValue _variableValues =
+    let _groupedFieldSet = collectFields objectType selections
      in mempty
 
-collectFields :: Out.ObjectType IO -> SelectionSet -> Type.Subs -> OrderedMap (NonEmpty Selection)
-collectFields = mempty
+collectFields :: Out.ObjectType IO
+    -> SelectionSet
+    -> OrderedMap (NonEmpty Field)
+collectFields objectType = foldl forEach OrderedMap.empty
+  where
+    forEach groupedFields (FieldSelection fieldSelection) =
+        let Field maybeAlias fieldName _ _ _ = fieldSelection
+            responseKey = fromMaybe fieldName maybeAlias
+         in OrderedMap.insert responseKey (fieldSelection :| []) groupedFields
+    forEach groupedFields (FragmentSelection selectionFragment)
+        | Fragment fragmentType fragmentSelectionSet _ <- selectionFragment
+        , Type.Internal.doesFragmentTypeApply fragmentType objectType =
+            let fragmentGroupedFieldSet =
+                    collectFields objectType fragmentSelectionSet
+             in groupedFields <> fragmentGroupedFieldSet
+        | otherwise = groupedFields
 
 coerceVariableValues :: Coerce.VariableValue a
     => forall m
