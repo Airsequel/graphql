@@ -34,11 +34,14 @@ import Data.Int (Int32)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (fromMaybe, isJust)
+import Data.Sequence (Seq, (><))
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
+import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type as Type
 import qualified Language.GraphQL.Type.Internal as Type.Internal
@@ -131,13 +134,13 @@ data Operation = Operation
     Type.Subs
     SelectionSet
 
-type SelectionSet = [Selection]
+type SelectionSet = Seq Selection
 
 data Selection
     = FieldSelection Field
     | FragmentSelection Fragment
 
-data Argument = Argument Full.Name (Full.Node Value) Full.Location
+data Argument = Argument Full.Name (Full.Node Input) Full.Location
 
 data Field = Field
     (Maybe Full.Name)
@@ -149,7 +152,7 @@ data Field = Field
 data Fragment = Fragment
     (Type.Internal.CompositeType IO) SelectionSet Full.Location
 
-data Value
+data Input
     = Variable Full.Name
     | Int Int32
     | Float Double
@@ -157,12 +160,12 @@ data Value
     | Boolean Bool
     | Null
     | Enum Full.Name
-    | List [Full.Node Value]
+    | List [Full.Node Input]
     | Object [ObjectField]
 
 data ObjectField = ObjectField
     { name :: Full.Name
-    , value :: Full.Node Value
+    , value :: Full.Node Input
     , location :: Full.Location
     }
 
@@ -192,10 +195,10 @@ selectionSet :: Full.SelectionSet -> Transform SelectionSet
 selectionSet = selectionSetOpt . NonEmpty.toList
 
 selectionSetOpt :: Full.SelectionSetOpt -> Transform SelectionSet
-selectionSetOpt = foldM go []
+selectionSetOpt = foldM go Seq.empty
   where
     go accumulatedSelections currentSelection =
-        selection currentSelection <&> (accumulatedSelections ++)
+        selection currentSelection <&> (accumulatedSelections ><)
 
 selection :: Full.Selection -> Transform SelectionSet
 selection (Full.FieldSelection field') =
@@ -209,7 +212,7 @@ maybeToSelectionSet :: forall a
     . (a -> Selection)
     -> Transform (Maybe a)
     -> Transform SelectionSet
-maybeToSelectionSet selectionType = fmap (maybe [] $ pure . selectionType)
+maybeToSelectionSet selectionType = fmap (maybe Seq.empty $ pure . selectionType)
 
 directives :: [Full.Directive] -> Transform (Maybe [Type.Directive])
 directives = fmap Type.selection . traverse directive
@@ -226,13 +229,13 @@ inlineFragment (Full.InlineFragment maybeCondition directives' selectionSet' loc
         pure $ case transformedDirectives >> maybeFragmentType of
             Just fragmentType -> Right
                 $ Fragment fragmentType transformedSelections location
-            Nothing -> Left []
+            Nothing -> Left Seq.empty
     | otherwise = do
         transformedSelections <- selectionSet selectionSet'
         transformedDirectives <- directives directives'
         pure $ if isJust transformedDirectives
             then Left transformedSelections
-            else Left [] 
+            else Left Seq.empty
 
 fragmentSpread :: Full.FragmentSpread -> Transform (Maybe Fragment)
 fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
@@ -259,7 +262,6 @@ fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
         pure $ Fragment typeCondition transformedSelections location
     fragmentInserter replacement@Replacement{ visitedFragments } = replacement
         { visitedFragments = HashSet.insert spreadName visitedFragments }
-
 
 field :: Full.Field -> Transform (Maybe Field)
 field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
@@ -309,7 +311,7 @@ directiveValue = \case
         transformedValue <- directiveNode value
         pure $ HashMap.insert name transformedValue accumulator
 
-variableValue :: Full.Value -> Value
+variableValue :: Full.Value -> Input
 variableValue (Full.Variable name') = Variable name'
 variableValue (Full.Int integer) = Int integer
 variableValue (Full.Float double) = Float double
@@ -327,7 +329,7 @@ variableValue (Full.Object objectFields) = Object $ objectField <$> objectFields
         , location = location
         }
 
-node :: Full.Node Full.Value -> Full.Node Value
+node :: Full.Node Full.Value -> Full.Node Input
 node Full.Node{node = node', ..} = Full.Node (variableValue node') location
 
 executeRequest :: Schema IO
@@ -411,9 +413,39 @@ executeSelectionSet
     -> Aeson.Object
     -> Type.Subs
     -> Aeson.Object
-executeSelectionSet selections objectType _objectValue _variableValues =
-    let _groupedFieldSet = collectFields objectType selections
-     in mempty
+executeSelectionSet selections objectType objectValue variableValues =
+    let groupedFieldSet = collectFields objectType selections
+     in OrderedMap.foldlWithKey' go mempty groupedFieldSet
+  where
+    Out.ObjectType _ _ _ resolvers = objectType
+    executeField' fields resolver =
+        executeField objectType objectValue fields resolver variableValues
+    go resultMap responseKey fields@(Field _ fieldName _ _ _ :| _) =
+        case HashMap.lookup fieldName resolvers of
+            Just resolver ->
+                let responseValue = executeField' fields resolver
+                 in HashMap.insert responseKey responseValue resultMap
+            Nothing -> resultMap
+
+executeField :: Out.ObjectType IO
+    -> Aeson.Object
+    -> NonEmpty Field
+    -> Out.Resolver IO
+    -> Type.Subs
+    -> Aeson.Value
+executeField _objectType _objectValue fields fieldType _variableValues =
+    let _field'@(Field _ _fieldName inputArguments _ _) :| _ = fields
+        Out.Field _ _ argumentTypes = resolverField fieldType
+        _argumentValues = coerceArgumentValues argumentTypes inputArguments
+     in Aeson.Null
+  where
+    resolverField (Out.ValueResolver resolverField' _) = resolverField'
+    resolverField (Out.EventStreamResolver resolverField' _ _) = resolverField'
+
+coerceArgumentValues :: HashMap Full.Name In.Argument
+    -> [Argument]
+    -> Either [Full.Location] Type.Subs
+coerceArgumentValues _argumentDefinitions _argumentNodes = pure mempty
 
 collectFields :: Out.ObjectType IO
     -> SelectionSet
