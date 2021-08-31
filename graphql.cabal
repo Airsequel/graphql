@@ -38,7 +38,6 @@ library
       Language.GraphQL.Error
       Language.GraphQL.Execute
       Language.GraphQL.Execute.Coerce
-      Language.GraphQL.Executor
       Language.GraphQL.Execute.OrderedMap
       Language.GraphQL.Type
       Language.GraphQL.Type.In
@@ -52,6 +51,7 @@ library
       Language.GraphQL.Execute.Internal
       Language.GraphQL.Execute.Subscribe
       Language.GraphQL.Execute.Transform
+      Language.GraphQL.Executor
       Language.GraphQL.Type.Definition
       Language.GraphQL.Type.Internal
       Language.GraphQL.Validate.Rules
