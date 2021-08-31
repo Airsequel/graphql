@@ -20,10 +20,12 @@ module Language.GraphQL.Type.Definition
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.List (intercalate)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Language.GraphQL.AST (Name)
+import Language.GraphQL.AST (Name, escape)
+import Numeric (showFloat)
 import Prelude hiding (id)
 
 -- | Represents accordingly typed GraphQL values.
@@ -36,7 +38,27 @@ data Value
     | Enum Name
     | List [Value] -- ^ Arbitrary nested list.
     | Object (HashMap Name Value)
-    deriving (Eq, Show)
+    deriving Eq
+
+instance Show Value where
+    showList = mappend . showList'
+      where
+        showList' list = "[" ++ intercalate ", " (show <$> list) ++ "]"
+    show (Int integer) = show integer
+    show (Float float') = showFloat float' mempty
+    show (String text) = "\"" <> Text.foldr (mappend . escape) "\"" text
+    show (Boolean boolean') = show boolean'
+    show Null = "null"
+    show (Enum name) = Text.unpack name
+    show (List list) = show list
+    show (Object fields) = unwords
+        [ "{"
+        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
+        , "}"
+        ]
+      where
+        showObject key value accumulator =
+            concat [Text.unpack key, ": ", show value] : accumulator
 
 instance IsString Value where
     fromString = String . fromString
