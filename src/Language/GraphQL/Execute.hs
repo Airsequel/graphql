@@ -142,14 +142,10 @@ instance Exception ResolverException where
     fromException = graphQLExceptionFromException
 
 data FieldError
-    = ArgumentTypeError
-    | MissingArgumentError
-    | ResultCoercionError
+    = ResultCoercionError
     | NullResultError
 
 instance Show FieldError where
-    show ArgumentTypeError = "Invalid argument type."
-    show MissingArgumentError = "Required argument not specified."
     show ResultCoercionError = "Result coercion failed."
     show NullResultError = "Non-Nullable field resolver returned Null."
 
@@ -172,6 +168,30 @@ instance Show ValueCompletionException where
         ]
 
 instance Exception ValueCompletionException where
+    toException = graphQLExceptionToException
+    fromException = graphQLExceptionFromException
+
+data InputCoercionException = InputCoercionException String In.Type (Maybe (Full.Node Input))
+
+instance Show InputCoercionException where
+    show (InputCoercionException argumentName argumentType Nothing) = concat
+        [ "Required argument \""
+        , argumentName
+        , "\" of type "
+        , show argumentType
+        , " not specified."
+        ]
+    show (InputCoercionException argumentName argumentType (Just givenValue)) = concat
+        [ "Argument \""
+        , argumentName
+        , "\" has invalid type. Expected type "
+        , show argumentType
+        , ", found: "
+        , show givenValue
+        , "."
+        ]
+
+instance Exception InputCoercionException where
     toException = graphQLExceptionToException
     fromException = graphQLExceptionFromException
 
@@ -240,6 +260,7 @@ data Input
     | Enum Full.Name
     | List [Input]
     | Object (HashMap Full.Name Input)
+    deriving Show
 
 document :: Full.Document
     -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
@@ -541,7 +562,9 @@ executeField objectValue fields resolver errorPath =
         -> GraphQLException
         -> ExecutorT m a
     exceptionHandler fieldLocation e =
-        let newError = Error (Text.pack $ displayException e) [fieldLocation] errorPath
+        let newError = Error (Text.pack $ displayException e) [fieldLocation]
+                $ reverse
+                $ fieldsSegment fields : errorPath
          in ExecutorT (lift $ tell $ Seq.singleton newError) >> pure Coerce.null
     go fieldName inputArguments = do
         let (Out.Field _ fieldType argumentTypes, resolveFunction) =
@@ -681,9 +704,12 @@ coerceArgumentValues argumentDefinitions argumentValues =
          in case matchedMap of
             Just matchedValues -> pure matchedValues
             Nothing
-                | Just _ <- HashMap.lookup argumentName argumentValues ->
-                    throwFieldError ArgumentTypeError
-                | otherwise -> throwFieldError MissingArgumentError
+                | Just inputValue <- HashMap.lookup argumentName argumentValues
+                    -> throwM
+                    $ InputCoercionException (Text.unpack argumentName) variableType
+                    $ Just inputValue
+                | otherwise -> throwM
+                    $ InputCoercionException (Text.unpack argumentName) variableType Nothing
     matchFieldValues' = Coerce.matchFieldValues coerceArgumentValue
         $ Full.node <$> argumentValues
     coerceArgumentValue inputType (Int integer) =

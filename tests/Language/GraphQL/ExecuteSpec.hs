@@ -235,9 +235,10 @@ spec =
                             ]
                         ]
                     executionErrors = pure $ Error
-                        { message = "Enum value completion failed."
+                        { message =
+                            "Value completion error. Expected type !School, found: EXISTENTIALISM."
                         , locations = [Location 1 17]
-                        , path = []
+                        , path = [Segment "philosopher", Segment "school"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
@@ -251,9 +252,10 @@ spec =
                             ]
                         ]
                     executionErrors = pure $ Error
-                        { message = "Union value completion failed."
+                        { message =
+                            "Value completion error. Expected type !Interest, found: { instrument: \"piano\" }."
                         , locations = [Location 1 17]
-                        , path = []
+                        , path = [Segment "philosopher", Segment "interest"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
@@ -267,9 +269,11 @@ spec =
                             ]
                         ]
                     executionErrors = pure $ Error
-                        { message = "Interface value completion failed."
+                        { message
+                            = "Value completion error. Expected type !Work, found:\
+                            \ { title: \"Also sprach Zarathustra: Ein Buch f\252r Alle und Keinen\" }."
                         , locations = [Location 1 17]
-                        , path = []
+                        , path = [Segment "philosopher", Segment "majorWork"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
