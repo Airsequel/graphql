@@ -285,9 +285,10 @@ spec =
                         [ "philosopher" .= Aeson.Null
                         ]
                     executionErrors = pure $ Error
-                        { message = "Argument coercing failed."
+                        { message =
+                            "Argument \"id\" has invalid type. Expected type ID, found: True."
                         , locations = [Location 1 15]
-                        , path = []
+                        , path = [Segment "philosopher"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'

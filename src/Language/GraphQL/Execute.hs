@@ -2,11 +2,13 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Language.GraphQL.Execute
    ( Error(..)
@@ -20,9 +22,11 @@ import Conduit (mapMC, (.|))
 import Control.Arrow (left)
 import Control.Monad.Catch
      ( Exception(..)
+     , Handler(..)
      , MonadCatch(..)
      , MonadThrow(..)
      , SomeException(..)
+     , catches
      )
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (ReaderT(..), ask, local, runReaderT)
@@ -38,6 +42,7 @@ import qualified Data.HashMap.Strict as HashMap
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Int (Int32)
+import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (fromMaybe, isJust)
@@ -46,6 +51,7 @@ import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (cast)
+import GHC.Records (HasField(..))
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
@@ -61,6 +67,7 @@ import Language.GraphQL.Error
    , Path(..)
    , ResponseEventStream
    )
+import Numeric (showFloat)
 
 data Replacement m = Replacement
     { variableValues :: Type.Subs
@@ -171,7 +178,8 @@ instance Exception ValueCompletionException where
     toException = graphQLExceptionToException
     fromException = graphQLExceptionFromException
 
-data InputCoercionException = InputCoercionException String In.Type (Maybe (Full.Node Input))
+data InputCoercionException =
+    InputCoercionException String In.Type (Maybe (Full.Node Input))
 
 instance Show InputCoercionException where
     show (InputCoercionException argumentName argumentType Nothing) = concat
@@ -260,7 +268,28 @@ data Input
     | Enum Full.Name
     | List [Input]
     | Object (HashMap Full.Name Input)
-    deriving Show
+    deriving Eq
+
+instance Show Input where
+    showList = mappend . showList'
+      where
+        showList' list = "[" ++ intercalate ", " (show <$> list) ++ "]"
+    show (Int integer) = show integer
+    show (Float float') = showFloat float' mempty
+    show (String text) = "\"" <> Text.foldr (mappend . Full.escape) "\"" text
+    show (Boolean boolean') = show boolean'
+    show Null = "null"
+    show (Enum name) = Text.unpack name
+    show (List list) = show list
+    show (Object fields) = unwords
+        [ "{"
+        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
+        , "}"
+        ]
+      where
+        showObject key value accumulator =
+            concat [Text.unpack key, ": ", show value] : accumulator
+    show variableValue = show variableValue
 
 document :: Full.Document
     -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
@@ -372,8 +401,9 @@ field (Full.Field alias' name' arguments' directives' selectionSet' location') =
 arguments :: Monad m => [Full.Argument] -> TransformT m (HashMap Full.Name (Full.Node Input))
 arguments = foldM go HashMap.empty
   where
-    go accumulator (Full.Argument name' valueNode _) = do
-        argumentValue <- node valueNode
+    go accumulator (Full.Argument name' valueNode argumentLocation) = do
+        let replaceLocation = flip Full.Node argumentLocation . Full.node
+        argumentValue <- fmap replaceLocation <$> node valueNode
         pure $ insertIfGiven name' argumentValue accumulator
 
 directive :: Monad m => Full.Directive -> TransformT m Type.Directive
@@ -555,14 +585,28 @@ executeField :: (MonadCatch m, Coerce.Serialize a)
     -> ExecutorT m a
 executeField objectValue fields resolver errorPath =
     let Field _ fieldName inputArguments _ fieldLocation :| _ = fields
-     in catch (go fieldName inputArguments) $ exceptionHandler fieldLocation
+     in catches (go fieldName inputArguments)
+        [ Handler (inputCoercionHandler fieldLocation)
+        , Handler (graphqlExceptionHandler fieldLocation)
+        ]
   where
-    exceptionHandler :: (MonadCatch m, Coerce.Serialize a)
+    inputCoercionHandler :: (MonadCatch m, Coerce.Serialize a)
+        => Full.Location
+        -> InputCoercionException
+        -> ExecutorT m a
+    inputCoercionHandler _ e@(InputCoercionException _ _ (Just valueNode)) =
+        let argumentLocation = getField @"location" valueNode
+         in exceptionHandler argumentLocation $ displayException e
+    inputCoercionHandler fieldLocation e =
+        exceptionHandler fieldLocation $ displayException e
+    graphqlExceptionHandler :: (MonadCatch m, Coerce.Serialize a)
         => Full.Location
         -> GraphQLException
         -> ExecutorT m a
-    exceptionHandler fieldLocation e =
-        let newError = Error (Text.pack $ displayException e) [fieldLocation]
+    graphqlExceptionHandler fieldLocation e =
+        exceptionHandler fieldLocation $ displayException e
+    exceptionHandler errorLocation exceptionText =
+        let newError = Error (Text.pack exceptionText) [errorLocation]
                 $ reverse
                 $ fieldsSegment fields : errorPath
          in ExecutorT (lift $ tell $ Seq.singleton newError) >> pure Coerce.null
