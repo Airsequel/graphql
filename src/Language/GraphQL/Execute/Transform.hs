@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- | After the document is parsed, before getting executed, the AST is
 -- transformed into a similar, simpler AST. Performed transformations include:
@@ -21,65 +21,84 @@
 -- This module is also responsible for smaller rewrites that touch only parts of
 -- the original AST.
 module Language.GraphQL.Execute.Transform
-    ( Document(..)
-    , Field(..)
+    ( Field(..)
     , Fragment(..)
     , Input(..)
     , Operation(..)
-    , QueryError(..)
+    , Replacement(..)
     , Selection(..)
+    , TransformT(..)
     , document
+    , transform
     ) where
 
-import Control.Monad (foldM, unless)
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State (State, evalStateT, gets, modify)
-import Data.Foldable (find)
-import Data.Functor.Identity (Identity(..))
+import Control.Monad (foldM)
+import Control.Monad.Catch (MonadCatch(..), MonadThrow(..))
+import Control.Monad.Trans.Class (MonadTrans(..))
+import Control.Monad.Trans.Reader (ReaderT(..), local)
+import qualified Control.Monad.Trans.Reader as Reader
+import Data.Bifunctor (first)
+import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.HashSet (HashSet)
+import qualified Data.HashSet as HashSet
 import Data.Int (Int32)
-import Data.Maybe (fromMaybe)
-import Data.List.NonEmpty (NonEmpty(..))
+import Data.List (intercalate)
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Sequence (Seq, (<|), (><))
+import Data.Maybe (fromMaybe, isJust)
+import Data.Sequence (Seq, (><))
+import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
-import qualified Language.GraphQL.AST as Full
-import Language.GraphQL.AST (Name)
-import qualified Language.GraphQL.Execute.Coerce as Coerce
-import qualified Language.GraphQL.Type.Definition as Definition
+import qualified Language.GraphQL.AST.Document as Full
+import Language.GraphQL.Type.Schema (Type)
 import qualified Language.GraphQL.Type as Type
+import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Internal as Type
-import qualified Language.GraphQL.Type.Out as Out
-import qualified Language.GraphQL.Type.Schema as Schema
+import Numeric (showFloat)
 
--- | Associates a fragment name with a list of 'Field's.
 data Replacement m = Replacement
-    { fragments :: HashMap Full.Name (Fragment m)
-    , fragmentDefinitions :: FragmentDefinitions
-    , variableValues :: Type.Subs
-    , types :: HashMap Full.Name (Schema.Type m)
+    { variableValues :: Type.Subs
+    , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
+    , visitedFragments :: HashSet Full.Name
+    , types :: HashMap Full.Name (Type m)
     }
 
-type FragmentDefinitions = HashMap Full.Name Full.FragmentDefinition
+newtype TransformT m a = TransformT
+    { runTransformT :: ReaderT (Replacement m) m a
+    }
 
--- | Represents fragments and inline fragments.
-data Fragment m
-    = Fragment (Type.CompositeType m) (Seq (Selection m))
+instance Functor m => Functor (TransformT m) where
+    fmap f = TransformT . fmap f . runTransformT
 
--- | Single selection element.
-data Selection m
-    = SelectionFragment (Fragment m)
-    | SelectionField (Field m)
+instance Applicative m => Applicative (TransformT m) where
+    pure = TransformT . pure
+    TransformT f <*> TransformT x = TransformT $ f <*> x
 
--- | GraphQL has 3 operation types: queries, mutations and subscribtions.
+instance Monad m => Monad (TransformT m) where
+    TransformT x >>= f = TransformT $ x >>= runTransformT . f
+
+instance MonadTrans TransformT where
+    lift = TransformT . lift
+
+instance MonadThrow m => MonadThrow (TransformT m) where
+    throwM = lift . throwM
+
+instance MonadCatch m => MonadCatch (TransformT m) where
+  catch (TransformT stack) handler =
+      TransformT $ catch stack $ runTransformT . handler
+
+asks :: Monad m => forall a. (Replacement m -> a) -> TransformT m a
+asks = TransformT . Reader.asks
+
 data Operation m
-    = Query (Maybe Text) (Seq (Selection m)) Full.Location
-    | Mutation (Maybe Text) (Seq (Selection m)) Full.Location
-    | Subscription (Maybe Text) (Seq (Selection m)) Full.Location
+    = Operation Full.OperationType (Seq (Selection m)) Full.Location
 
--- | Single GraphQL field.
+data Selection m
+    = FieldSelection (Field m)
+    | FragmentSelection (Fragment m)
+
 data Field m = Field
     (Maybe Full.Name)
     Full.Name
@@ -87,339 +106,214 @@ data Field m = Field
     (Seq (Selection m))
     Full.Location
 
--- | Contains the operation to be executed along with its root type.
-data Document m = Document
-    (HashMap Full.Name (Schema.Type m)) (Out.ObjectType m) (Operation m)
-
-data OperationDefinition = OperationDefinition
-    Full.OperationType
-    (Maybe Full.Name)
-    [Full.VariableDefinition]
-    [Full.Directive]
-    Full.SelectionSet
-    Full.Location
-
--- | Query error types.
-data QueryError
-    = OperationNotFound Text
-    | OperationNameRequired
-    | CoercionError
-    | EmptyDocument
-    | UnsupportedRootOperation
-
-instance Show QueryError where
-    show (OperationNotFound operationName) = unwords
-        ["Operation", Text.unpack operationName, "couldn't be found in the document."]
-    show OperationNameRequired = "Missing operation name."
-    show CoercionError = "Coercion error."
-    show EmptyDocument =
-        "The document doesn't contain any executable operations."
-    show UnsupportedRootOperation =
-        "Root operation type couldn't be found in the schema."
+data Fragment m = Fragment
+    (Type.CompositeType m) (Seq (Selection m)) Full.Location
 
 data Input
-    = Int Int32
+    = Variable Type.Value
+    | Int Int32
     | Float Double
     | String Text
     | Boolean Bool
     | Null
-    | Enum Name
-    | List [Type.Value]
-    | Object (HashMap Name Input)
-    | Variable Type.Value
-    deriving (Eq, Show)
+    | Enum Full.Name
+    | List [Input]
+    | Object (HashMap Full.Name Input)
+    deriving Eq
 
-getOperation
-    :: Maybe Full.Name
-    -> NonEmpty OperationDefinition
-    -> Either QueryError OperationDefinition
-getOperation Nothing (operation' :| []) = pure operation'
-getOperation Nothing _ = Left OperationNameRequired
-getOperation (Just operationName) operations
-    | Just operation' <- find matchingName operations = pure operation'
-    | otherwise = Left $ OperationNotFound operationName
+instance Show Input where
+    showList = mappend . showList'
+      where
+        showList' list = "[" ++ intercalate ", " (show <$> list) ++ "]"
+    show (Int integer) = show integer
+    show (Float float') = showFloat float' mempty
+    show (String text) = "\"" <> Text.foldr (mappend . Full.escape) "\"" text
+    show (Boolean boolean') = show boolean'
+    show Null = "null"
+    show (Enum name) = Text.unpack name
+    show (List list) = show list
+    show (Object fields) = unwords
+        [ "{"
+        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
+        , "}"
+        ]
+      where
+        showObject key value accumulator =
+            concat [Text.unpack key, ": ", show value] : accumulator
+    show variableValue = show variableValue
+
+document :: Full.Document
+    -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
+document = foldr filterOperation ([], HashMap.empty)
   where
-    matchingName (OperationDefinition _ name _ _ _ _) =
-        name == Just operationName
+    filterOperation (Full.ExecutableDefinition executableDefinition) accumulator
+        | Full.DefinitionOperation operationDefinition' <- executableDefinition =
+            first (operationDefinition' :) accumulator
+        | Full.DefinitionFragment fragmentDefinition <- executableDefinition
+        , Full.FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition =
+            HashMap.insert fragmentName fragmentDefinition <$> accumulator
+    filterOperation _ accumulator = accumulator -- Type system definitions.
 
-coerceVariableValues :: Coerce.VariableValue a
-    => forall m
-    . HashMap Full.Name (Schema.Type m)
-    -> OperationDefinition
-    -> HashMap.HashMap Full.Name a
-    -> Either QueryError Type.Subs
-coerceVariableValues types operationDefinition variableValues =
-    let OperationDefinition _ _ variableDefinitions _ _ _ = operationDefinition
-     in maybe (Left CoercionError) Right
-        $ foldr forEach (Just HashMap.empty) variableDefinitions
+transform :: Monad m => Full.OperationDefinition -> TransformT m (Operation m)
+transform (Full.OperationDefinition operationType _ _ _ selectionSet' operationLocation) = do
+    transformedSelections <- selectionSet selectionSet'
+    pure $ Operation operationType transformedSelections operationLocation
+transform (Full.SelectionSet selectionSet' operationLocation) = do
+    transformedSelections <- selectionSet selectionSet'
+    pure $ Operation Full.Query transformedSelections operationLocation
+
+selectionSet :: Monad m => Full.SelectionSet -> TransformT m (Seq (Selection m))
+selectionSet = selectionSetOpt . NonEmpty.toList
+
+selectionSetOpt :: Monad m => Full.SelectionSetOpt -> TransformT m (Seq (Selection m))
+selectionSetOpt = foldM go Seq.empty
   where
-    forEach variableDefinition coercedValues = do
-        let Full.VariableDefinition variableName variableTypeName defaultValue _ =
-                variableDefinition
-        let defaultValue' = constValue . Full.node <$> defaultValue
-        variableType <- Type.lookupInputType variableTypeName types
+    go accumulatedSelections currentSelection =
+        selection currentSelection <&> (accumulatedSelections ><)
 
-        Coerce.matchFieldValues
-            coerceVariableValue'
-            variableValues
-            variableName
-            variableType
-            defaultValue'
-            coercedValues
-    coerceVariableValue' variableType value'
-        = Coerce.coerceVariableValue variableType value'
-        >>= Coerce.coerceInputLiteral variableType
+selection :: Monad m => Full.Selection -> TransformT m (Seq (Selection m))
+selection (Full.FieldSelection field') =
+    maybeToSelectionSet FieldSelection $ field field'
+selection (Full.FragmentSpreadSelection fragmentSpread') =
+    maybeToSelectionSet FragmentSelection $ fragmentSpread fragmentSpread'
+selection (Full.InlineFragmentSelection inlineFragment') =
+   either id (pure . FragmentSelection) <$> inlineFragment inlineFragment'
 
-constValue :: Full.ConstValue -> Type.Value
-constValue (Full.ConstInt i) = Type.Int i
-constValue (Full.ConstFloat f) = Type.Float f
-constValue (Full.ConstString x) = Type.String x
-constValue (Full.ConstBoolean b) = Type.Boolean b
-constValue Full.ConstNull = Type.Null
-constValue (Full.ConstEnum e) = Type.Enum e
-constValue (Full.ConstList list) = Type.List $ constValue . Full.node <$> list
-constValue (Full.ConstObject o) =
-    Type.Object $ HashMap.fromList $ constObjectField <$> o
+maybeToSelectionSet :: Monad m
+    => forall a
+    . (a -> Selection m)
+    -> TransformT m (Maybe a)
+    -> TransformT m (Seq (Selection m))
+maybeToSelectionSet selectionType = fmap (maybe Seq.empty $ pure . selectionType)
+
+directives :: Monad m => [Full.Directive] -> TransformT m (Maybe [Definition.Directive])
+directives = fmap Type.selection . traverse directive
+
+inlineFragment :: Monad m
+    => Full.InlineFragment
+    -> TransformT m (Either (Seq (Selection m)) (Fragment m))
+inlineFragment (Full.InlineFragment maybeCondition directives' selectionSet' location)
+    | Just typeCondition <- maybeCondition = do
+        transformedSelections <- selectionSet selectionSet'
+        transformedDirectives <- directives directives'
+        maybeFragmentType <- asks
+            $ Type.lookupTypeCondition typeCondition
+            . types
+        pure $ case transformedDirectives >> maybeFragmentType of
+            Just fragmentType -> Right
+                $ Fragment fragmentType transformedSelections location
+            Nothing -> Left Seq.empty
+    | otherwise = do
+        transformedSelections <- selectionSet selectionSet'
+        transformedDirectives <- directives directives'
+        pure $ if isJust transformedDirectives
+            then Left transformedSelections
+            else Left Seq.empty
+
+fragmentSpread :: Monad m => Full.FragmentSpread -> TransformT m (Maybe (Fragment m))
+fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
+    transformedDirectives <- directives directives'
+    visitedFragment <- asks $ HashSet.member spreadName . visitedFragments
+    possibleFragmentDefinition <- asks
+        $ HashMap.lookup spreadName
+        . fragmentDefinitions
+    case transformedDirectives >> possibleFragmentDefinition of
+        Just (Full.FragmentDefinition _ typeCondition _ selections _)
+            | visitedFragment -> pure Nothing
+            | otherwise -> do
+                fragmentType <- asks
+                    $ Type.lookupTypeCondition typeCondition
+                    . types
+                traverse (traverseSelections selections) fragmentType
+        Nothing -> pure Nothing
   where
-    constObjectField Full.ObjectField{value = value', ..} =
-        (name, constValue $ Full.node value')
+    traverseSelections selections typeCondition = do
+        transformedSelections <- TransformT
+            $ local fragmentInserter
+            $ runTransformT
+            $ selectionSet selections
+        pure $ Fragment typeCondition transformedSelections location
+    fragmentInserter replacement@Replacement{ visitedFragments } = replacement
+        { visitedFragments = HashSet.insert spreadName visitedFragments }
 
--- | Rewrites the original syntax tree into an intermediate representation used
--- for query execution.
-document :: Coerce.VariableValue a
-    => forall m
-    . Type.Schema m
-    -> Maybe Full.Name
+field :: Monad m => Full.Field -> TransformT m (Maybe (Field m))
+field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
+    transformedSelections <- selectionSetOpt selectionSet'
+    transformedDirectives <- directives directives'
+    transformedArguments <- arguments arguments'
+    let transformedField = Field
+            alias'
+            name'
+            transformedArguments
+            transformedSelections
+            location'
+    pure $ transformedDirectives >> pure transformedField
+
+arguments :: Monad m => [Full.Argument] -> TransformT m (HashMap Full.Name (Full.Node Input))
+arguments = foldM go HashMap.empty
+  where
+    go accumulator (Full.Argument name' valueNode argumentLocation) = do
+        let replaceLocation = flip Full.Node argumentLocation . Full.node
+        argumentValue <- fmap replaceLocation <$> node valueNode
+        pure $ insertIfGiven name' argumentValue accumulator
+
+directive :: Monad m => Full.Directive -> TransformT m Definition.Directive
+directive (Full.Directive name' arguments' _)
+    = Definition.Directive name'
+    . Type.Arguments
+    <$> foldM go HashMap.empty arguments'
+  where
+    go accumulator (Full.Argument argumentName Full.Node{ node = node' } _) = do
+        transformedValue <- directiveValue node'
+        pure $ HashMap.insert argumentName transformedValue accumulator
+
+directiveValue :: Monad m => Full.Value -> TransformT m Type.Value
+directiveValue = \case
+    (Full.Variable name') -> asks
+        $ HashMap.lookupDefault Type.Null name'
+        . variableValues
+    (Full.Int integer) -> pure $ Type.Int integer
+    (Full.Float double) -> pure $ Type.Float double
+    (Full.String string) -> pure $ Type.String string
+    (Full.Boolean boolean) -> pure $ Type.Boolean boolean
+    Full.Null -> pure Type.Null
+    (Full.Enum enum) -> pure $ Type.Enum enum
+    (Full.List list) -> Type.List <$> traverse directiveNode list
+    (Full.Object objectFields) ->
+        Type.Object <$> foldM objectField HashMap.empty objectFields
+  where
+    directiveNode Full.Node{ node = node'} = directiveValue node'
+    objectField accumulator Full.ObjectField{ name, value } = do
+        transformedValue <- directiveNode value
+        pure $ HashMap.insert name transformedValue accumulator
+
+input :: Monad m => Full.Value -> TransformT m (Maybe Input)
+input (Full.Variable name') =
+    asks (HashMap.lookup name' . variableValues) <&> fmap Variable
+input (Full.Int integer) = pure $ Just $ Int integer
+input (Full.Float double) = pure $ Just $ Float double
+input (Full.String string) = pure $ Just $ String string
+input (Full.Boolean boolean) = pure $ Just $ Boolean boolean
+input Full.Null = pure $ Just Null
+input (Full.Enum enum) = pure $ Just $ Enum enum
+input (Full.List list) = Just . List
+    <$> traverse (fmap (fromMaybe Null) . input . Full.node) list
+input (Full.Object objectFields) = Just . Object
+    <$> foldM objectField HashMap.empty objectFields
+  where
+    objectField accumulator Full.ObjectField{..} = do
+        objectFieldValue <- fmap Full.node <$> node value
+        pure $ insertIfGiven name objectFieldValue accumulator
+
+insertIfGiven :: forall a
+    . Full.Name
+    -> Maybe a
     -> HashMap Full.Name a
-    -> Full.Document
-    -> Either QueryError (Document m)
-document schema operationName subs ast = do
-    let referencedTypes = Schema.types schema
+    -> HashMap Full.Name a
+insertIfGiven name (Just v) = HashMap.insert name v
+insertIfGiven _ _ = id
 
-    (operations, fragmentTable) <- defragment ast
-    chosenOperation <- getOperation operationName operations
-    coercedValues <- coerceVariableValues referencedTypes chosenOperation subs
+node :: Monad m => Full.Node Full.Value -> TransformT m (Maybe (Full.Node Input))
+node Full.Node{node = node', ..} =
+    traverse Full.Node <$> input node' <*> pure location
 
-    let replacement = Replacement
-            { fragments = HashMap.empty
-            , fragmentDefinitions = fragmentTable
-            , variableValues = coercedValues
-            , types = referencedTypes
-            }
-    case chosenOperation of
-        OperationDefinition Full.Query _ _ _ _ _ ->
-            pure $ Document referencedTypes (Schema.query schema)
-                $ operation chosenOperation replacement
-        OperationDefinition Full.Mutation _ _ _ _ _
-            | Just mutationType <- Schema.mutation schema ->
-                pure $ Document referencedTypes mutationType
-                    $ operation chosenOperation replacement
-        OperationDefinition Full.Subscription _ _ _ _ _
-            | Just subscriptionType <- Schema.subscription schema ->
-                pure $ Document referencedTypes subscriptionType
-                    $ operation chosenOperation replacement
-        _ -> Left UnsupportedRootOperation
-
-defragment
-    :: Full.Document
-    -> Either QueryError (NonEmpty OperationDefinition, FragmentDefinitions)
-defragment ast =
-    let (operations, fragmentTable) = foldr defragment' ([], HashMap.empty) ast
-        nonEmptyOperations = NonEmpty.nonEmpty operations
-        emptyDocument = Left EmptyDocument
-     in (, fragmentTable) <$> maybe emptyDocument Right nonEmptyOperations
-  where
-    defragment' definition (operations, fragments')
-        | (Full.ExecutableDefinition executable) <- definition
-        , (Full.DefinitionOperation operation') <- executable =
-            (transform operation' : operations, fragments')
-        | (Full.ExecutableDefinition executable) <- definition
-        , (Full.DefinitionFragment fragment) <- executable
-        , (Full.FragmentDefinition name _ _ _ _) <- fragment =
-            (operations, HashMap.insert name fragment fragments')
-    defragment' _ acc = acc
-    transform = \case
-        Full.OperationDefinition type' name variables directives' selections location ->
-            OperationDefinition type' name variables directives' selections location
-        Full.SelectionSet selectionSet location ->
-            OperationDefinition Full.Query Nothing mempty mempty selectionSet location
-
--- * Operation
-
-operation :: OperationDefinition -> Replacement m -> Operation m
-operation operationDefinition replacement
-    = runIdentity
-    $ evalStateT (collectFragments >> transform operationDefinition) replacement
-  where
-    transform (OperationDefinition Full.Query name _ _ sels location) =
-        flip (Query name) location <$> appendSelection sels
-    transform (OperationDefinition Full.Mutation name _ _ sels location) =
-        flip (Mutation name) location <$> appendSelection sels
-    transform (OperationDefinition Full.Subscription name _ _ sels location) =
-        flip (Subscription name) location <$> appendSelection sels
-
--- * Selection
-
-selection
-    :: Full.Selection
-    ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
-selection (Full.FieldSelection fieldSelection) =
-    maybe (Left mempty) (Right . SelectionField) <$> field fieldSelection
-selection (Full.FragmentSpreadSelection fragmentSelection)
-    = maybe (Left mempty) (Right . SelectionFragment)
-    <$> fragmentSpread fragmentSelection
-selection (Full.InlineFragmentSelection fragmentSelection) =
-    inlineFragment fragmentSelection
-
-field :: Full.Field ->  State (Replacement m) (Maybe (Field m))
-field (Full.Field alias name arguments' directives' selections location) = do
-    fieldArguments <- foldM go HashMap.empty arguments'
-    fieldSelections <- appendSelection selections
-    fieldDirectives <- Definition.selection <$> directives directives'
-    let field' = Field alias name fieldArguments fieldSelections location
-    pure $ field' <$ fieldDirectives
-  where
-    go arguments (Full.Argument name' (Full.Node value' _) location') = do
-        objectFieldValue <-  input value'
-        case objectFieldValue of
-            Just fieldValue ->
-                let argumentNode = Full.Node fieldValue location'
-                 in pure $ HashMap.insert name' argumentNode arguments
-            Nothing -> pure arguments
-
-fragmentSpread
-    :: Full.FragmentSpread
-    -> State (Replacement m) (Maybe (Fragment m))
-fragmentSpread (Full.FragmentSpread name directives' _) = do
-    spreadDirectives <- Definition.selection <$> directives directives'
-    fragments' <- gets fragments
-
-    fragmentDefinitions' <- gets fragmentDefinitions
-    case HashMap.lookup name fragments' of
-        Just definition -> lift $ pure $ definition <$ spreadDirectives
-        Nothing
-            | Just definition <- HashMap.lookup name fragmentDefinitions' -> do
-                fragDef <- fragmentDefinition definition
-                case fragDef of
-                    Just fragment -> lift $ pure $ fragment <$ spreadDirectives
-                    _ -> lift $ pure  Nothing
-            | otherwise -> lift $ pure  Nothing
-
-inlineFragment
-    :: Full.InlineFragment
-    ->  State (Replacement m) (Either (Seq (Selection m)) (Selection m))
-inlineFragment (Full.InlineFragment type' directives' selections _) = do
-    fragmentDirectives <- Definition.selection <$> directives directives'
-    case fragmentDirectives of
-        Nothing -> pure $ Left mempty
-        _ -> do
-            fragmentSelectionSet <- appendSelection selections
-
-            case type' of
-                Nothing -> pure $ Left fragmentSelectionSet
-                Just typeName -> do
-                    types' <- gets types
-                    case Type.lookupTypeCondition typeName types' of
-                        Just typeCondition -> pure $
-                            selectionFragment typeCondition fragmentSelectionSet
-                        Nothing -> pure $ Left mempty
-  where
-    selectionFragment typeName = Right
-        . SelectionFragment
-        . Fragment typeName
-
-appendSelection :: Traversable t
-    => t Full.Selection
-    ->  State (Replacement m) (Seq (Selection m))
-appendSelection = foldM go mempty
-  where
-    go acc sel = append acc <$> selection sel
-    append acc (Left list) = list >< acc
-    append acc (Right one) = one <| acc
-
-directives :: [Full.Directive] ->  State (Replacement m) [Definition.Directive]
-directives = traverse directive
-  where
-    directive (Full.Directive directiveName directiveArguments _)
-        = Definition.Directive directiveName . Type.Arguments
-        <$> foldM go HashMap.empty directiveArguments
-    go arguments (Full.Argument name (Full.Node value' _) _) = do
-        substitutedValue <- value value'
-        return $ HashMap.insert name substitutedValue arguments
-
--- * Fragment replacement
-
--- | Extract fragment definitions into a single 'HashMap'.
-collectFragments ::  State (Replacement m) ()
-collectFragments = do
-    fragDefs <- gets fragmentDefinitions
-    let nextValue = head $ HashMap.elems fragDefs
-    unless (HashMap.null fragDefs) $ do
-        _ <- fragmentDefinition nextValue
-        collectFragments
-
-fragmentDefinition
-    :: Full.FragmentDefinition
-    ->  State (Replacement m) (Maybe (Fragment m))
-fragmentDefinition (Full.FragmentDefinition name type' _ selections _) = do
-    modify deleteFragmentDefinition
-    fragmentSelection <- appendSelection selections
-    types' <- gets types
-
-    case Type.lookupTypeCondition type' types' of
-        Just compositeType -> do
-            let newValue = Fragment compositeType fragmentSelection
-            modify $ insertFragment newValue
-            lift $ pure $ Just newValue
-        _ -> lift $ pure Nothing
-  where
-    deleteFragmentDefinition replacement@Replacement{..} =
-        let newDefinitions = HashMap.delete name fragmentDefinitions
-         in replacement{ fragmentDefinitions = newDefinitions }
-    insertFragment newValue replacement@Replacement{..} =
-        let newFragments = HashMap.insert name newValue fragments
-         in replacement{ fragments = newFragments }
-
-value :: forall m. Full.Value -> State (Replacement m) Type.Value
-value (Full.Variable name) =
-    gets (fromMaybe Type.Null . HashMap.lookup name . variableValues)
-value (Full.Int int) = pure $ Type.Int int
-value (Full.Float float) = pure $ Type.Float float
-value (Full.String string) = pure $ Type.String string
-value (Full.Boolean boolean) = pure $ Type.Boolean boolean
-value Full.Null = pure Type.Null
-value (Full.Enum enum) = pure $ Type.Enum enum
-value (Full.List list) = Type.List <$> traverse (value . Full.node) list
-value (Full.Object object) =
-    Type.Object . HashMap.fromList <$> traverse objectField object
-  where
-    objectField Full.ObjectField{value = value', ..} =
-        (name,) <$> value (Full.node value')
-
-input :: forall m. Full.Value -> State (Replacement m) (Maybe Input)
-input (Full.Variable name) =
-    gets (fmap Variable . HashMap.lookup name . variableValues)
-input (Full.Int int) = pure $ pure $ Int int
-input (Full.Float float) = pure $ pure $ Float float
-input (Full.String string) = pure $ pure $ String string
-input (Full.Boolean boolean) = pure $ pure $ Boolean boolean
-input Full.Null = pure $ pure Null
-input (Full.Enum enum) = pure $ pure $ Enum enum
-input (Full.List list) = pure . List <$> traverse (value . Full.node) list
-input (Full.Object object) = do
-    objectFields <- foldM objectField HashMap.empty object
-    pure $ pure $ Object objectFields
-  where
-    objectField resultMap Full.ObjectField{value = value', ..} =
-        inputField resultMap name $ Full.node value'
-
-inputField :: forall m
-    . HashMap Full.Name Input
-    -> Full.Name
-    -> Full.Value
-    -> State (Replacement m) (HashMap Full.Name Input)
-inputField resultMap name value' = do
-    objectFieldValue <-  input value'
-    case objectFieldValue of
-        Just fieldValue -> pure $ HashMap.insert name fieldValue resultMap
-        Nothing -> pure resultMap

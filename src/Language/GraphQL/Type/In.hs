@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | Input types and values.

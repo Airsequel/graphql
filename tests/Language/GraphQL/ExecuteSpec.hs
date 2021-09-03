@@ -54,18 +54,23 @@ queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.fromList
     [ ("philosopher", ValueResolver philosopherField philosopherResolver)
     , ("genres", ValueResolver genresField genresResolver)
+    , ("count", ValueResolver countField countResolver)
     ]
   where
     philosopherField =
-        Out.Field Nothing (Out.NonNullObjectType philosopherType)
+        Out.Field Nothing (Out.NamedObjectType philosopherType)
         $ HashMap.singleton "id"
         $ In.Argument Nothing (In.NamedScalarType id) Nothing
     philosopherResolver = pure $ Object mempty
     genresField =
-      let fieldType = Out.ListType $ Out.NonNullScalarType string
-       in Out.Field Nothing fieldType HashMap.empty
+        let fieldType = Out.ListType $ Out.NonNullScalarType string
+         in Out.Field Nothing fieldType HashMap.empty
     genresResolver :: Resolve (Either SomeException)
     genresResolver = throwM PhilosopherException
+    countField =
+        let fieldType = Out.NonNullScalarType int
+         in Out.Field Nothing fieldType HashMap.empty
+    countResolver = pure ""
 
 musicType :: Out.ObjectType (Either SomeException)
 musicType = Out.ObjectType "Music" Nothing []
@@ -230,9 +235,7 @@ spec =
 
             it "errors on invalid output enum values" $
                 let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "school" .= Aeson.Null
-                            ]
+                        [ "philosopher" .= Aeson.Null
                         ]
                     executionErrors = pure $ Error
                         { message =
@@ -247,9 +250,7 @@ spec =
 
             it "gives location information for non-null unions" $
                 let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "interest" .= Aeson.Null
-                            ]
+                        [ "philosopher" .= Aeson.Null
                         ]
                     executionErrors = pure $ Error
                         { message =
@@ -264,9 +265,7 @@ spec =
 
             it "gives location information for invalid interfaces" $
                 let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "majorWork" .= Aeson.Null
-                            ]
+                        [ "philosopher" .= Aeson.Null
                         ]
                     executionErrors = pure $ Error
                         { message
@@ -297,14 +296,12 @@ spec =
 
             it "gives location information for failed result coercion" $
                 let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "century" .= Aeson.Null
-                            ]
+                        [ "philosopher" .= Aeson.Null
                         ]
                     executionErrors = pure $ Error
-                        { message = "Result coercion failed."
+                        { message = "Unable to coerce result to !Int."
                         , locations = [Location 1 26]
-                        , path = []
+                        , path = [Segment "philosopher", Segment "century"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
@@ -318,11 +315,22 @@ spec =
                     executionErrors = pure $ Error
                         { message = "PhilosopherException"
                         , locations = [Location 1 3]
-                        , path = []
+                        , path = [Segment "genres"]
                         }
                     expected = Response data'' executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ genres }"
+                in actual `shouldBe` expected
+
+            it "sets data to null if a root field isn't nullable" $
+                let executionErrors = pure $ Error
+                        { message = "Unable to coerce result to !Int."
+                        , locations = [Location 1 3]
+                        , path = [Segment "count"]
+                        }
+                    expected = Response Aeson.Null executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ count }"
                 in actual `shouldBe` expected
 
         context "Subscription" $

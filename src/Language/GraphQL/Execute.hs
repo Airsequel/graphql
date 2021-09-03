@@ -4,17 +4,13 @@
 
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Language.GraphQL.Execute
-   ( Error(..)
-   , Operation(..)
-   , Path(..)
-   , Response(..)
+   ( module Language.GraphQL.Execute.Coerce
    , execute
    ) where
 
@@ -29,32 +25,27 @@ import Control.Monad.Catch
      , catches
      )
 import Control.Monad.Trans.Class (MonadTrans(..))
-import Control.Monad.Trans.Reader (ReaderT(..), ask, local, runReaderT)
-import Control.Monad.Trans.Writer (WriterT(..), runWriterT, tell)
-import qualified Control.Monad.Trans.Reader as Reader
+import Control.Monad.Trans.Reader (ReaderT(..), ask, runReaderT)
+import Control.Monad.Trans.Writer (WriterT(..), runWriterT)
+import qualified Control.Monad.Trans.Writer as Writer
 import Control.Monad (foldM)
 import qualified Language.GraphQL.AST.Document as Full
-import Data.Bifunctor (first)
 import Data.Foldable (find)
-import Data.Functor ((<&>))
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
-import Data.HashSet (HashSet)
-import qualified Data.HashSet as HashSet
-import Data.Int (Int32)
-import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
-import Data.Maybe (fromMaybe, isJust)
-import Data.Sequence (Seq, (><))
+import Data.Maybe (fromMaybe)
+import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (cast)
 import GHC.Records (HasField(..))
-import qualified Language.GraphQL.Execute.Coerce as Coerce
+import Language.GraphQL.Execute.Coerce
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
+import qualified Language.GraphQL.Execute.Transform as Transform
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import qualified Language.GraphQL.Type as Type
@@ -64,41 +55,11 @@ import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Error
     ( Error(..)
     , Response(..)
-   , Path(..)
-   , ResponseEventStream
-   )
-import Numeric (showFloat)
-
-data Replacement m = Replacement
-    { variableValues :: Type.Subs
-    , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
-    , visitedFragments :: HashSet Full.Name
-    , types :: HashMap Full.Name (Type m)
-    }
-
-newtype TransformT m a = TransformT
-    { runTransformT :: ReaderT (Replacement m) m a
-    }
-
-instance Functor m => Functor (TransformT m) where
-    fmap f = TransformT . fmap f . runTransformT
-
-instance Applicative m => Applicative (TransformT m) where
-    pure = TransformT . pure
-    TransformT f <*> TransformT x = TransformT $ f <*> x
-
-instance Monad m => Monad (TransformT m) where
-    TransformT x >>= f = TransformT $ x >>= runTransformT . f
-
-instance MonadTrans TransformT where
-    lift = TransformT . lift
-
-instance MonadThrow m => MonadThrow (TransformT m) where
-    throwM = lift . throwM
-
-instance MonadCatch m => MonadCatch (TransformT m) where
-  catch (TransformT stack) handler =
-      TransformT $ catch stack $ runTransformT . handler
+    , Path(..)
+    , ResolverException(..)
+    , ResponseEventStream
+    )
+import Prelude hiding (null)
 
 newtype ExecutorT m a = ExecutorT
     { runExecutorT :: ReaderT (HashMap Full.Name (Type m)) (WriterT (Seq Error) m) a
@@ -139,29 +100,31 @@ graphQLExceptionFromException e = do
     GraphQLException graphqlException <- fromException e
     cast graphqlException
 
-data ResolverException = forall e. Exception e => ResolverException e
+data ResultException = forall e. Exception e => ResultException e
 
-instance Show ResolverException where
-    show (ResolverException e) = show e
+instance Show ResultException where
+    show (ResultException e) = show e
 
-instance Exception ResolverException where
+instance Exception ResultException where
     toException = graphQLExceptionToException
     fromException = graphQLExceptionFromException
 
-data FieldError
-    = ResultCoercionError
-    | NullResultError
+resultExceptionToException :: Exception e => e -> SomeException
+resultExceptionToException = toException . ResultException
 
-instance Show FieldError where
-    show ResultCoercionError = "Result coercion failed."
-    show NullResultError = "Non-Nullable field resolver returned Null."
+resultExceptionFromException :: Exception e => SomeException -> Maybe e
+resultExceptionFromException e = do
+    ResultException resultException <- fromException e
+    cast resultException
 
-newtype FieldException = FieldException FieldError
-    deriving Show
+data FieldException = forall e. Exception e => FieldException Full.Location [Path] e
+
+instance Show FieldException where
+    show (FieldException _ _ e) = displayException e
 
 instance Exception FieldException where
-   toException = graphQLExceptionToException
-   fromException = graphQLExceptionFromException
+    toException = graphQLExceptionToException
+    fromException = graphQLExceptionFromException
 
 data ValueCompletionException = ValueCompletionException String Type.Value
 
@@ -175,11 +138,11 @@ instance Show ValueCompletionException where
         ]
 
 instance Exception ValueCompletionException where
-    toException = graphQLExceptionToException
-    fromException = graphQLExceptionFromException
+    toException = resultExceptionToException
+    fromException = resultExceptionFromException
 
 data InputCoercionException =
-    InputCoercionException String In.Type (Maybe (Full.Node Input))
+    InputCoercionException String In.Type (Maybe (Full.Node Transform.Input))
 
 instance Show InputCoercionException where
     show (InputCoercionException argumentName argumentType Nothing) = concat
@@ -203,14 +166,27 @@ instance Exception InputCoercionException where
     toException = graphQLExceptionToException
     fromException = graphQLExceptionFromException
 
-data QueryError
-   = OperationNameRequired
-   | OperationNotFound String
-   | CoercionError Full.VariableDefinition
-   | UnknownInputType Full.VariableDefinition
+newtype ResultCoercionException = ResultCoercionException String
 
-asks :: Monad m => forall a. (Replacement m -> a) -> TransformT m a
-asks = TransformT . Reader.asks
+instance Show ResultCoercionException where
+    show (ResultCoercionException typeRepresentation) = concat
+        [ "Unable to coerce result to "
+        , typeRepresentation
+        , "."
+        ]
+
+instance Exception ResultCoercionException where
+    toException = resultExceptionToException
+    fromException = resultExceptionFromException
+
+data QueryError
+    = OperationNameRequired
+    | OperationNotFound String
+    | CoercionError Full.VariableDefinition
+    | UnknownInputType Full.VariableDefinition
+
+tell :: Monad m => Seq Error -> ExecutorT m ()
+tell = ExecutorT . lift . Writer.tell
 
 queryError :: QueryError -> Error
 queryError OperationNameRequired =
@@ -241,232 +217,7 @@ queryError (UnknownInputType variableDefinition) =
             ]
      in Error{ message = queryErrorMessage, locations = [location], path = [] }
 
-data Operation m
-    = Operation Full.OperationType (Seq (Selection m)) Full.Location
-
-data Selection m
-    = FieldSelection (Field m)
-    | FragmentSelection (Fragment m)
-
-data Field m = Field
-    (Maybe Full.Name)
-    Full.Name
-    (HashMap Full.Name (Full.Node Input))
-    (Seq (Selection m))
-    Full.Location
-
-data Fragment m = Fragment
-    (Type.Internal.CompositeType m) (Seq (Selection m)) Full.Location
-
-data Input
-    = Variable Type.Value
-    | Int Int32
-    | Float Double
-    | String Text
-    | Boolean Bool
-    | Null
-    | Enum Full.Name
-    | List [Input]
-    | Object (HashMap Full.Name Input)
-    deriving Eq
-
-instance Show Input where
-    showList = mappend . showList'
-      where
-        showList' list = "[" ++ intercalate ", " (show <$> list) ++ "]"
-    show (Int integer) = show integer
-    show (Float float') = showFloat float' mempty
-    show (String text) = "\"" <> Text.foldr (mappend . Full.escape) "\"" text
-    show (Boolean boolean') = show boolean'
-    show Null = "null"
-    show (Enum name) = Text.unpack name
-    show (List list) = show list
-    show (Object fields) = unwords
-        [ "{"
-        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
-        , "}"
-        ]
-      where
-        showObject key value accumulator =
-            concat [Text.unpack key, ": ", show value] : accumulator
-    show variableValue = show variableValue
-
-document :: Full.Document
-    -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
-document = foldr filterOperation ([], HashMap.empty)
-  where
-    filterOperation (Full.ExecutableDefinition executableDefinition) accumulator
-        | Full.DefinitionOperation operationDefinition' <- executableDefinition =
-            first (operationDefinition' :) accumulator
-        | Full.DefinitionFragment fragmentDefinition <- executableDefinition
-        , Full.FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition =
-            HashMap.insert fragmentName fragmentDefinition <$> accumulator
-    filterOperation _ accumulator = accumulator -- Type system definitions.
-
-transform :: Monad m => Full.OperationDefinition -> TransformT m (Operation m)
-transform (Full.OperationDefinition operationType _ _ _ selectionSet' operationLocation) = do
-    transformedSelections <- selectionSet selectionSet'
-    pure $ Operation operationType transformedSelections operationLocation
-transform (Full.SelectionSet selectionSet' operationLocation) = do
-    transformedSelections <- selectionSet selectionSet'
-    pure $ Operation Full.Query transformedSelections operationLocation
-
-selectionSet :: Monad m => Full.SelectionSet -> TransformT m (Seq (Selection m))
-selectionSet = selectionSetOpt . NonEmpty.toList
-
-selectionSetOpt :: Monad m => Full.SelectionSetOpt -> TransformT m (Seq (Selection m))
-selectionSetOpt = foldM go Seq.empty
-  where
-    go accumulatedSelections currentSelection =
-        selection currentSelection <&> (accumulatedSelections ><)
-
-selection :: Monad m => Full.Selection -> TransformT m (Seq (Selection m))
-selection (Full.FieldSelection field') =
-    maybeToSelectionSet FieldSelection $ field field'
-selection (Full.FragmentSpreadSelection fragmentSpread') =
-    maybeToSelectionSet FragmentSelection $ fragmentSpread fragmentSpread'
-selection (Full.InlineFragmentSelection inlineFragment') =
-   either id (pure . FragmentSelection) <$> inlineFragment inlineFragment'
-
-maybeToSelectionSet :: Monad m
-    => forall a
-    . (a -> Selection m)
-    -> TransformT m (Maybe a)
-    -> TransformT m (Seq (Selection m))
-maybeToSelectionSet selectionType = fmap (maybe Seq.empty $ pure . selectionType)
-
-directives :: Monad m => [Full.Directive] -> TransformT m (Maybe [Type.Directive])
-directives = fmap Type.selection . traverse directive
-
-inlineFragment :: Monad m
-    => Full.InlineFragment
-    -> TransformT m (Either (Seq (Selection m)) (Fragment m))
-inlineFragment (Full.InlineFragment maybeCondition directives' selectionSet' location)
-    | Just typeCondition <- maybeCondition = do
-        transformedSelections <- selectionSet selectionSet'
-        transformedDirectives <- directives directives'
-        maybeFragmentType <- asks
-            $ Type.Internal.lookupTypeCondition typeCondition
-            . types
-        pure $ case transformedDirectives >> maybeFragmentType of
-            Just fragmentType -> Right
-                $ Fragment fragmentType transformedSelections location
-            Nothing -> Left Seq.empty
-    | otherwise = do
-        transformedSelections <- selectionSet selectionSet'
-        transformedDirectives <- directives directives'
-        pure $ if isJust transformedDirectives
-            then Left transformedSelections
-            else Left Seq.empty
-
-fragmentSpread :: Monad m => Full.FragmentSpread -> TransformT m (Maybe (Fragment m))
-fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
-    transformedDirectives <- directives directives'
-    visitedFragment <- asks $ HashSet.member spreadName . visitedFragments
-    possibleFragmentDefinition <- asks
-        $ HashMap.lookup spreadName
-        . fragmentDefinitions
-    case transformedDirectives >> possibleFragmentDefinition of
-        Just (Full.FragmentDefinition _ typeCondition _ selections _)
-            | visitedFragment -> pure Nothing
-            | otherwise -> do
-                fragmentType <- asks
-                    $ Type.Internal.lookupTypeCondition typeCondition
-                    . types
-                traverse (traverseSelections selections) fragmentType
-        Nothing -> pure Nothing
-  where
-    traverseSelections selections typeCondition = do
-        transformedSelections <- TransformT
-            $ local fragmentInserter
-            $ runTransformT
-            $ selectionSet selections
-        pure $ Fragment typeCondition transformedSelections location
-    fragmentInserter replacement@Replacement{ visitedFragments } = replacement
-        { visitedFragments = HashSet.insert spreadName visitedFragments }
-
-field :: Monad m => Full.Field -> TransformT m (Maybe (Field m))
-field (Full.Field alias' name' arguments' directives' selectionSet' location') = do
-    transformedSelections <- selectionSetOpt selectionSet'
-    transformedDirectives <- directives directives'
-    transformedArguments <- arguments arguments'
-    let transformedField = Field
-            alias'
-            name'
-            transformedArguments
-            transformedSelections
-            location'
-    pure $ transformedDirectives >> pure transformedField
-
-arguments :: Monad m => [Full.Argument] -> TransformT m (HashMap Full.Name (Full.Node Input))
-arguments = foldM go HashMap.empty
-  where
-    go accumulator (Full.Argument name' valueNode argumentLocation) = do
-        let replaceLocation = flip Full.Node argumentLocation . Full.node
-        argumentValue <- fmap replaceLocation <$> node valueNode
-        pure $ insertIfGiven name' argumentValue accumulator
-
-directive :: Monad m => Full.Directive -> TransformT m Type.Directive
-directive (Full.Directive name' arguments' _)
-    = Type.Directive name'
-    . Type.Arguments
-    <$> foldM go HashMap.empty arguments'
-  where
-    go accumulator (Full.Argument argumentName Full.Node{ node = node' } _) = do
-        transformedValue <- directiveValue node'
-        pure $ HashMap.insert argumentName transformedValue accumulator
-
-directiveValue :: Monad m => Full.Value -> TransformT m Type.Value
-directiveValue = \case
-    (Full.Variable name') -> asks
-        $ HashMap.lookupDefault Type.Null name'
-        . variableValues
-    (Full.Int integer) -> pure $ Type.Int integer
-    (Full.Float double) -> pure $ Type.Float double
-    (Full.String string) -> pure $ Type.String string
-    (Full.Boolean boolean) -> pure $ Type.Boolean boolean
-    Full.Null -> pure Type.Null
-    (Full.Enum enum) -> pure $ Type.Enum enum
-    (Full.List list) -> Type.List <$> traverse directiveNode list
-    (Full.Object objectFields) ->
-        Type.Object <$> foldM objectField HashMap.empty objectFields
-  where
-    directiveNode Full.Node{ node = node'} = directiveValue node'
-    objectField accumulator Full.ObjectField{ name, value } = do
-        transformedValue <- directiveNode value
-        pure $ HashMap.insert name transformedValue accumulator
-
-input :: Monad m => Full.Value -> TransformT m (Maybe Input)
-input (Full.Variable name') =
-    asks (HashMap.lookup name' . variableValues) <&> fmap Variable
-input (Full.Int integer) = pure $ Just $ Int integer
-input (Full.Float double) = pure $ Just $ Float double
-input (Full.String string) = pure $ Just $ String string
-input (Full.Boolean boolean) = pure $ Just $ Boolean boolean
-input Full.Null = pure $ Just Null
-input (Full.Enum enum) = pure $ Just $ Enum enum
-input (Full.List list) = Just . List
-    <$> traverse (fmap (fromMaybe Null) . input . Full.node) list
-input (Full.Object objectFields) = Just . Object
-    <$> foldM objectField HashMap.empty objectFields
-  where
-    objectField accumulator Full.ObjectField{..} = do
-        objectFieldValue <- fmap Full.node <$> node value
-        pure $ insertIfGiven name objectFieldValue accumulator
-
-insertIfGiven :: forall a
-    . Full.Name
-    -> Maybe a
-    -> HashMap Full.Name a
-    -> HashMap Full.Name a
-insertIfGiven name (Just v) = HashMap.insert name v
-insertIfGiven _ _ = id
-
-node :: Monad m => Full.Node Full.Value -> TransformT m (Maybe (Full.Node Input))
-node Full.Node{node = node', ..} =
-    traverse Full.Node <$> input node' <*> pure location
-
-execute :: (MonadCatch m, Coerce.VariableValue a, Coerce.Serialize b)
+execute :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
     -> HashMap Full.Name a -- ^ Variable substitution function.
@@ -475,7 +226,7 @@ execute :: (MonadCatch m, Coerce.VariableValue a, Coerce.Serialize b)
 execute schema' operationName subs document' =
     executeRequest schema' document' (Text.unpack <$> operationName) subs
 
-executeRequest :: (MonadCatch m, Coerce.Serialize a, Coerce.VariableValue b)
+executeRequest :: (MonadCatch m, Serialize a, VariableValue b)
     => Schema m
     -> Full.Document
     -> Maybe String
@@ -486,35 +237,36 @@ executeRequest schema sourceDocument operationName variableValues = do
     case operationAndVariables of
         Left queryError' -> pure
             $ Right
-            $ Response Coerce.null $ pure $ queryError queryError'
+            $ Response null $ pure $ queryError queryError'
         Right operation
-            | Operation Full.Query topSelections _operationLocation <- operation ->
+            | Transform.Operation Full.Query topSelections _operationLocation <- operation ->
                  Right <$> executeQuery topSelections schema
-            | Operation Full.Mutation topSelections operationLocation <- operation ->
+            | Transform.Operation Full.Mutation topSelections operationLocation <- operation ->
                 Right <$> executeMutation topSelections schema operationLocation
-            | Operation Full.Subscription topSelections operationLocation <- operation ->
+            | Transform.Operation Full.Subscription topSelections operationLocation <- operation ->
                 either rightErrorResponse Left <$> subscribe topSelections schema operationLocation
   where
     schemaTypes = Schema.types schema
-    (operationDefinitions, fragmentDefinitions') = document sourceDocument
+    (operationDefinitions, fragmentDefinitions') =
+        Transform.document sourceDocument
     buildOperation = do
         operationDefinition <- getOperation operationDefinitions operationName
         coercedVariableValues <- coerceVariableValues
             schemaTypes
             operationDefinition
             variableValues
-        let replacement = Replacement
+        let replacement = Transform.Replacement
                 { variableValues = coercedVariableValues
                 , fragmentDefinitions = fragmentDefinitions'
                 , visitedFragments = mempty
                 , types = schemaTypes
                 }
         pure $ flip runReaderT replacement
-            $ runTransformT
-            $ transform operationDefinition
+            $ Transform.runTransformT
+            $ Transform.transform operationDefinition
 
-rightErrorResponse :: Coerce.Serialize b => forall a. Error -> Either a (Response b)
-rightErrorResponse = Right . Response Coerce.null . pure
+rightErrorResponse :: Serialize b => forall a. Error -> Either a (Response b)
+rightErrorResponse = Right . Response null . pure
 
 getOperation :: [Full.OperationDefinition] -> Maybe String -> Either QueryError Full.OperationDefinition
 getOperation [operation] Nothing = Right operation
@@ -527,8 +279,8 @@ getOperation operations (Just givenOperationName)
     findOperationByName _ = False
 getOperation _ _ = Left OperationNameRequired
 
-executeQuery :: (MonadCatch m, Coerce.Serialize a)
-    => Seq (Selection m)
+executeQuery :: (MonadCatch m, Serialize a)
+    => Seq (Transform.Selection m)
     -> Schema m
     -> m (Response a)
 executeQuery topSelections schema = do
@@ -536,11 +288,26 @@ executeQuery topSelections schema = do
     (data', errors) <- runWriterT
         $ flip runReaderT (Schema.types schema)
         $ runExecutorT
-        $ executeSelectionSet topSelections queryType Type.Null []
+        $ catch (executeSelectionSet topSelections queryType Type.Null [])
+        handleException
     pure $ Response data' errors
 
-executeMutation :: (MonadCatch m, Coerce.Serialize a)
-    => Seq (Selection m)
+handleException :: (MonadCatch m, Serialize a)
+    => FieldException
+    -> ExecutorT m a
+handleException (FieldException fieldLocation errorPath next) =
+    let newError = constructError next fieldLocation errorPath
+     in tell (Seq.singleton newError) >> pure null
+
+constructError :: Exception e => e -> Full.Location -> [Path] -> Error
+constructError e fieldLocation errorPath = Error
+    { message = Text.pack (displayException e)
+    , path = reverse errorPath
+    , locations = [fieldLocation]
+    }
+
+executeMutation :: (MonadCatch m, Serialize a)
+    => Seq (Transform.Selection m)
     -> Schema m
     -> Full.Location
     -> m (Response a)
@@ -549,15 +316,16 @@ executeMutation topSelections schema operationLocation
         (data', errors) <- runWriterT
             $ flip runReaderT (Schema.types schema)
             $ runExecutorT
-            $ executeSelectionSet topSelections mutationType Type.Null []
+            $ catch (executeSelectionSet topSelections mutationType Type.Null [])
+            handleException
         pure $ Response data' errors
     | otherwise = pure
-        $ Response Coerce.null
+        $ Response null
         $ Seq.singleton
         $ Error "Schema doesn't support mutations." [operationLocation] []
 
-executeSelectionSet :: (MonadCatch m, Coerce.Serialize a)
-    => Seq (Selection m)
+executeSelectionSet :: (MonadCatch m, Serialize a)
+    => Seq (Transform.Selection m)
     -> Out.ObjectType m
     -> Type.Value
     -> [Path]
@@ -565,62 +333,80 @@ executeSelectionSet :: (MonadCatch m, Coerce.Serialize a)
 executeSelectionSet selections objectType objectValue errorPath = do
     let groupedFieldSet = collectFields objectType selections
     resolvedValues <- OrderedMap.traverseMaybe go groupedFieldSet
-    coerceResult (Out.NonNullObjectType objectType) $ Coerce.Object resolvedValues
+    coerceResult (Out.NonNullObjectType objectType) $ Object resolvedValues
   where
     executeField' fields resolver =
         executeField objectValue fields resolver errorPath
     Out.ObjectType _ _ _ resolvers = objectType
-    go fields@(Field _ fieldName _ _ _ :| _) =
+    go fields@(Transform.Field _ fieldName _ _ _ :| _) =
         traverse (executeField' fields) $ HashMap.lookup fieldName resolvers
 
-fieldsSegment :: forall m. NonEmpty (Field m) -> Path
-fieldsSegment (Field alias fieldName _ _ _ :| _) =
+fieldsSegment :: forall m. NonEmpty (Transform.Field m) -> Path
+fieldsSegment (Transform.Field alias fieldName _ _ _ :| _) =
     Segment (fromMaybe fieldName alias)
 
-executeField :: (MonadCatch m, Coerce.Serialize a)
+viewResolver :: Out.Resolver m -> (Out.Field m, Out.Resolve m)
+viewResolver (Out.ValueResolver resolverField' resolveFunction) =
+    (resolverField', resolveFunction)
+viewResolver (Out.EventStreamResolver resolverField' resolveFunction _) =
+    (resolverField', resolveFunction)
+
+executeField :: forall m a
+    . (MonadCatch m, Serialize a)
     => Type.Value
-    -> NonEmpty (Field m)
+    -> NonEmpty (Transform.Field m)
     -> Out.Resolver m
     -> [Path]
     -> ExecutorT m a
-executeField objectValue fields resolver errorPath =
-    let Field _ fieldName inputArguments _ fieldLocation :| _ = fields
+executeField objectValue fields (viewResolver -> resolverPair) errorPath =
+    let Transform.Field _ fieldName inputArguments _ fieldLocation :| _ = fields
      in catches (go fieldName inputArguments)
-        [ Handler (inputCoercionHandler fieldLocation)
-        , Handler (graphqlExceptionHandler fieldLocation)
+        [ Handler nullResultHandler
+        , Handler (inputCoercionHandler fieldLocation)
+        , Handler (resultHandler fieldLocation)
+        , Handler (resolverHandler fieldLocation)
         ]
   where
-    inputCoercionHandler :: (MonadCatch m, Coerce.Serialize a)
+    inputCoercionHandler :: (MonadCatch m, Serialize a)
         => Full.Location
         -> InputCoercionException
         -> ExecutorT m a
     inputCoercionHandler _ e@(InputCoercionException _ _ (Just valueNode)) =
         let argumentLocation = getField @"location" valueNode
-         in exceptionHandler argumentLocation $ displayException e
-    inputCoercionHandler fieldLocation e =
-        exceptionHandler fieldLocation $ displayException e
-    graphqlExceptionHandler :: (MonadCatch m, Coerce.Serialize a)
+         in exceptionHandler argumentLocation e
+    inputCoercionHandler fieldLocation e = exceptionHandler fieldLocation e
+    resultHandler :: (MonadCatch m, Serialize a)
         => Full.Location
-        -> GraphQLException
+        -> ResultException
         -> ExecutorT m a
-    graphqlExceptionHandler fieldLocation e =
-        exceptionHandler fieldLocation $ displayException e
-    exceptionHandler errorLocation exceptionText =
-        let newError = Error (Text.pack exceptionText) [errorLocation]
-                $ reverse
-                $ fieldsSegment fields : errorPath
-         in ExecutorT (lift $ tell $ Seq.singleton newError) >> pure Coerce.null
+    resultHandler = exceptionHandler
+    resolverHandler :: (MonadCatch m, Serialize a)
+        => Full.Location
+        -> ResolverException
+        -> ExecutorT m a
+    resolverHandler = exceptionHandler
+    nullResultHandler :: (MonadCatch m, Serialize a)
+        => FieldException
+        -> ExecutorT m a
+    nullResultHandler e@(FieldException fieldLocation errorPath' next) =
+        let newError = constructError next fieldLocation errorPath'
+         in if Out.isNonNullType fieldType
+             then throwM e
+             else returnError newError
+    exceptionHandler errorLocation e =
+        let newPath = fieldsSegment fields : errorPath
+            newError = constructError e errorLocation newPath
+         in if Out.isNonNullType fieldType
+             then throwM $ FieldException errorLocation newPath e
+             else returnError newError
+    returnError newError = tell (Seq.singleton newError) >> pure null
     go fieldName inputArguments = do
-        let (Out.Field _ fieldType argumentTypes, resolveFunction) =
-                resolverField resolver
         argumentValues <- coerceArgumentValues argumentTypes inputArguments
         resolvedValue <-
-            resolveFieldValue resolveFunction objectValue fieldName argumentValues
+           resolveFieldValue resolveFunction objectValue fieldName argumentValues
         completeValue fieldType fields errorPath resolvedValue
-    resolverField (Out.ValueResolver resolverField' resolveFunction) =
-        (resolverField', resolveFunction)
-    resolverField (Out.EventStreamResolver resolverField' resolveFunction _) =
-        (resolverField', resolveFunction)
+    (resolverField, resolveFunction) = resolverPair
+    Out.Field _ fieldType argumentTypes = resolverField
 
 resolveFieldValue :: MonadCatch m
     => Out.Resolve m
@@ -651,34 +437,33 @@ resolveAbstractType abstractType values'
             _ -> pure Nothing
     | otherwise = pure Nothing
 
-completeValue :: (MonadCatch m, Coerce.Serialize a)
+completeValue :: (MonadCatch m, Serialize a)
     => Out.Type m
-    -> NonEmpty (Field m)
+    -> NonEmpty (Transform.Field m)
     -> [Path]
     -> Type.Value
     -> ExecutorT m a
-completeValue outputType _ _ Type.Null
-    | Out.isNonNullType outputType = throwFieldError NullResultError
-    | otherwise = pure Coerce.null
+completeValue (Out.isNonNullType -> False) _ _ Type.Null =
+    pure null
 completeValue outputType@(Out.ListBaseType listType) fields errorPath (Type.List list)
-    = foldM go (0, []) list >>= coerceResult outputType . Coerce.List . snd
+    = foldM go (0, []) list >>= coerceResult outputType . List . snd
   where
     go (index, accumulator) listItem = do
         let updatedPath = Index index : errorPath
         completedValue <- completeValue listType fields updatedPath listItem
         pure (index + 1, completedValue : accumulator)
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.Int int) =
-    coerceResult outputType $ Coerce.Int int
+    coerceResult outputType $ Int int
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.Boolean boolean) =
-    coerceResult outputType $ Coerce.Boolean boolean
+    coerceResult outputType $ Boolean boolean
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.Float float) =
-    coerceResult outputType $ Coerce.Float float
+    coerceResult outputType $ Float float
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.String string) =
-    coerceResult outputType $ Coerce.String string
+    coerceResult outputType $ String string
 completeValue outputType@(Out.EnumBaseType enumType) _ _ (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
      in if HashMap.member enum enumMembers
-        then coerceResult outputType $ Coerce.Enum enum
+        then coerceResult outputType $ Enum enum
         else throwM
             $ ValueCompletionException (show outputType)
             $ Type.Enum enum
@@ -708,28 +493,25 @@ completeValue outputType@(Out.UnionBaseType unionType) fields errorPath result
 completeValue outputType _ _ result =
     throwM $ ValueCompletionException (show outputType) result
 
-coerceResult :: (MonadCatch m, Coerce.Serialize a)
+coerceResult :: (MonadCatch m, Serialize a)
     => Out.Type m
-    -> Coerce.Output a
+    -> Output a
     -> ExecutorT m a
 coerceResult outputType result
-    | Just serialized <- Coerce.serialize outputType result = pure serialized
-    | otherwise = throwFieldError ResultCoercionError
+    | Just serialized <- serialize outputType result = pure serialized
+    | otherwise = throwM $ ResultCoercionException $ show outputType
 
 mergeSelectionSets :: MonadCatch m
-    => NonEmpty (Field m)
-    -> Seq (Selection m)
+    => NonEmpty (Transform.Field m)
+    -> Seq (Transform.Selection m)
 mergeSelectionSets = foldr forEach mempty
   where
-    forEach (Field _ _ _ fieldSelectionSet _) selectionSet' =
+    forEach (Transform.Field _ _ _ fieldSelectionSet _) selectionSet' =
         selectionSet' <> fieldSelectionSet
-
-throwFieldError :: MonadCatch m => FieldError -> m a
-throwFieldError = throwM . FieldException
 
 coerceArgumentValues :: MonadCatch m
     => HashMap Full.Name In.Argument
-    -> HashMap Full.Name (Full.Node Input)
+    -> HashMap Full.Name (Full.Node Transform.Input)
     -> m Type.Subs
 coerceArgumentValues argumentDefinitions argumentValues =
     HashMap.foldrWithKey c pure argumentDefinitions mempty
@@ -754,53 +536,53 @@ coerceArgumentValues argumentDefinitions argumentValues =
                     $ Just inputValue
                 | otherwise -> throwM
                     $ InputCoercionException (Text.unpack argumentName) variableType Nothing
-    matchFieldValues' = Coerce.matchFieldValues coerceArgumentValue
+    matchFieldValues' = matchFieldValues coerceArgumentValue
         $ Full.node <$> argumentValues
-    coerceArgumentValue inputType (Int integer) =
-        Coerce.coerceInputLiteral inputType (Type.Int integer)
-    coerceArgumentValue inputType (Boolean boolean) =
-        Coerce.coerceInputLiteral inputType (Type.Boolean boolean)
-    coerceArgumentValue inputType (String string) =
-        Coerce.coerceInputLiteral inputType (Type.String string)
-    coerceArgumentValue inputType (Float float) =
-        Coerce.coerceInputLiteral inputType (Type.Float float)
-    coerceArgumentValue inputType (Enum enum) =
-        Coerce.coerceInputLiteral inputType (Type.Enum enum)
-    coerceArgumentValue inputType Null
+    coerceArgumentValue inputType (Transform.Int integer) =
+        coerceInputLiteral inputType (Type.Int integer)
+    coerceArgumentValue inputType (Transform.Boolean boolean) =
+        coerceInputLiteral inputType (Type.Boolean boolean)
+    coerceArgumentValue inputType (Transform.String string) =
+        coerceInputLiteral inputType (Type.String string)
+    coerceArgumentValue inputType (Transform.Float float) =
+        coerceInputLiteral inputType (Type.Float float)
+    coerceArgumentValue inputType (Transform.Enum enum) =
+        coerceInputLiteral inputType (Type.Enum enum)
+    coerceArgumentValue inputType Transform.Null
         | In.isNonNullType inputType = Nothing
-        | otherwise = Coerce.coerceInputLiteral inputType Type.Null
-    coerceArgumentValue (In.ListBaseType inputType) (List list) =
+        | otherwise = coerceInputLiteral inputType Type.Null
+    coerceArgumentValue (In.ListBaseType inputType) (Transform.List list) =
         let coerceItem = coerceArgumentValue inputType
          in Type.List <$> traverse coerceItem list
-    coerceArgumentValue (In.InputObjectBaseType inputType) (Object object)
+    coerceArgumentValue (In.InputObjectBaseType inputType) (Transform.Object object)
         | In.InputObjectType _ _ inputFields <- inputType = 
             let go = forEachField object
                 resultMap = HashMap.foldrWithKey go (pure mempty) inputFields
              in Type.Object <$> resultMap
-    coerceArgumentValue _ (Variable variable) = pure variable
+    coerceArgumentValue _ (Transform.Variable variable) = pure variable
     coerceArgumentValue _ _ = Nothing
     forEachField object variableName (In.InputField _ variableType defaultValue) =
-        Coerce.matchFieldValues coerceArgumentValue object variableName variableType defaultValue
+        matchFieldValues coerceArgumentValue object variableName variableType defaultValue
 
 collectFields :: Monad m
     => Out.ObjectType m
-    -> Seq (Selection m)
-    -> OrderedMap (NonEmpty (Field m))
+    -> Seq (Transform.Selection m)
+    -> OrderedMap (NonEmpty (Transform.Field m))
 collectFields objectType = foldl forEach OrderedMap.empty
   where
-    forEach groupedFields (FieldSelection fieldSelection) =
-        let Field maybeAlias fieldName _ _ _ = fieldSelection
+    forEach groupedFields (Transform.FieldSelection fieldSelection) =
+        let Transform.Field maybeAlias fieldName _ _ _ = fieldSelection
             responseKey = fromMaybe fieldName maybeAlias
          in OrderedMap.insert responseKey (fieldSelection :| []) groupedFields
-    forEach groupedFields (FragmentSelection selectionFragment)
-        | Fragment fragmentType fragmentSelectionSet _ <- selectionFragment
+    forEach groupedFields (Transform.FragmentSelection selectionFragment)
+        | Transform.Fragment fragmentType fragmentSelectionSet _ <- selectionFragment
         , Type.Internal.doesFragmentTypeApply fragmentType objectType =
             let fragmentGroupedFieldSet =
                     collectFields objectType fragmentSelectionSet
              in groupedFields <> fragmentGroupedFieldSet
         | otherwise = groupedFields
 
-coerceVariableValues :: (Monad m, Coerce.VariableValue b)
+coerceVariableValues :: (Monad m, VariableValue b)
     => HashMap Full.Name (Schema.Type m)
     -> Full.OperationDefinition
     -> HashMap Full.Name b
@@ -818,7 +600,7 @@ coerceVariableValues types operationDefinition' variableValues
          in case Type.Internal.lookupInputType variableTypeName types of
             Just variableType ->
                 maybe (Left $ CoercionError variableDefinition) Right
-                    $ Coerce.matchFieldValues
+                    $ matchFieldValues
                         coerceVariableValue'
                         variableValues
                         variableName
@@ -828,8 +610,8 @@ coerceVariableValues types operationDefinition' variableValues
             Nothing -> Left $ UnknownInputType variableDefinition
     forEach _ coercedValuesOrError = coercedValuesOrError
     coerceVariableValue' variableType value'
-        = Coerce.coerceVariableValue variableType value'
-        >>= Coerce.coerceInputLiteral variableType
+        = coerceVariableValue variableType value'
+        >>= coerceInputLiteral variableType
 
 constValue :: Full.ConstValue -> Type.Value
 constValue (Full.ConstInt i) = Type.Int i
@@ -845,8 +627,8 @@ constValue (Full.ConstObject o) =
     constObjectField Full.ObjectField{value = value', ..} =
         (name, constValue $ Full.node value')
 
-subscribe :: (MonadCatch m, Coerce.Serialize a)
-    => Seq (Selection m)
+subscribe :: (MonadCatch m, Serialize a)
+    => Seq (Transform.Selection m)
     -> Schema m
     -> Full.Location
     -> m (Either Error (ResponseEventStream m a))
@@ -861,10 +643,10 @@ subscribe fields schema objectLocation
     | otherwise = pure $ Left
         $ Error "Schema doesn't support subscriptions." [] []
 
-mapSourceToResponseEvent :: (MonadCatch m, Coerce.Serialize a)
+mapSourceToResponseEvent :: (MonadCatch m, Serialize a)
     => HashMap Full.Name (Type m)
     -> Out.ObjectType m
-    -> Seq (Selection m)
+    -> Seq (Transform.Selection m)
     -> Out.SourceEventStream m
     -> m (ResponseEventStream m a)
 mapSourceToResponseEvent types' subscriptionType fields sourceStream
@@ -876,11 +658,12 @@ createSourceEventStream :: MonadCatch m
     => HashMap Full.Name (Type m)
     -> Out.ObjectType m
     -> Full.Location
-    -> Seq (Selection m)
+    -> Seq (Transform.Selection m)
     -> m (Either Error (Out.SourceEventStream m))
 createSourceEventStream _types subscriptionType objectLocation fields
     | [fieldGroup] <- OrderedMap.elems groupedFieldSet
-    , Field _ fieldName arguments' _ errorLocation <- NonEmpty.head fieldGroup
+    , Transform.Field _ fieldName arguments' _ errorLocation <-
+        NonEmpty.head fieldGroup
     , Out.ObjectType _ _ _ fieldTypes <- subscriptionType
     , resolverT <- fieldTypes HashMap.! fieldName
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT
@@ -889,16 +672,15 @@ createSourceEventStream _types subscriptionType objectLocation fields
             Left _ -> pure
                 $ Left
                 $ Error "Argument coercion failed." [errorLocation] []
-            Right  argumentValues -> left (singleError' [errorLocation])
+            Right  argumentValues -> left (singleError [errorLocation])
                 <$> resolveFieldEventStream Type.Null argumentValues resolver
     | otherwise = pure
         $ Left
         $ Error "Subscription contains more than one field." [objectLocation] []
   where
     groupedFieldSet = collectFields subscriptionType fields
-
-singleError' :: [Full.Location] -> String -> Error
-singleError' errorLocations message = Error (Text.pack message) errorLocations []
+    singleError :: [Full.Location] -> String -> Error
+    singleError errorLocations message = Error (Text.pack message) errorLocations []
 
 resolveFieldEventStream :: MonadCatch m
     => Type.Value
@@ -917,15 +699,16 @@ resolveFieldEventStream result args resolver =
         , Type.values = result
         }
 
-executeSubscriptionEvent :: (MonadCatch m, Coerce.Serialize a)
+executeSubscriptionEvent :: (MonadCatch m, Serialize a)
     => HashMap Full.Name (Type m)
     -> Out.ObjectType m
-    -> Seq (Selection m)
+    -> Seq (Transform.Selection m)
     -> Type.Value
     -> m (Response a)
 executeSubscriptionEvent types' objectType fields initialValue = do
     (data', errors) <- runWriterT
         $ flip runReaderT types'
         $ runExecutorT
-        $ executeSelectionSet fields objectType initialValue []
+        $ catch (executeSelectionSet fields objectType initialValue [])
+        handleException
     pure $ Response data' errors

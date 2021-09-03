@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE Safe #-}
 
 -- | Types that can be used as both input and output types.
 module Language.GraphQL.Type.Definition

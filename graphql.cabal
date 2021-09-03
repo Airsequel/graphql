@@ -47,11 +47,8 @@ library
       Language.GraphQL.Validate.Validation
       Test.Hspec.GraphQL
   other-modules:
-      Language.GraphQL.Execute.Execution
       Language.GraphQL.Execute.Internal
-      Language.GraphQL.Execute.Subscribe
       Language.GraphQL.Execute.Transform
-      Language.GraphQL.Executor
       Language.GraphQL.Type.Definition
       Language.GraphQL.Type.Internal
       Language.GraphQL.Validate.Rules
