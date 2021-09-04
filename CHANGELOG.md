@@ -7,9 +7,16 @@ and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
 ## [Unreleased]
-### Fixed
-- Provide a custom `Show` instance for `Type.Definition.Value` (for error
+### Added
+- Custom `Show` instance for `Type.Definition.Value` (for error
   messages).
+- Path information in errors (path to the field throwing the error).
+
+### Fixed
+- Error messages are more concrete, they also contain type information and
+  wrong values, where appropriate and possible.
+- If the field with an error is Non-Nullable, the error is propagated to the
+  first nullable field, as required by the specification.
 
 ## [1.0.0.0]
 ### Added
