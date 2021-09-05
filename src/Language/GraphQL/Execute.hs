@@ -9,10 +9,11 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 
+-- | This module provides functions to execute a @GraphQL@ request.
 module Language.GraphQL.Execute
-   ( module Language.GraphQL.Execute.Coerce
-   , execute
-   ) where
+    ( execute
+    , module Language.GraphQL.Execute.Coerce
+    ) where
 
 import Conduit (mapMC, (.|))
 import Control.Arrow (left)
@@ -179,6 +180,7 @@ instance Exception ResultCoercionException where
     toException = resultExceptionToException
     fromException = resultExceptionFromException
 
+-- | Query error types.
 data QueryError
     = OperationNameRequired
     | OperationNotFound String
@@ -217,6 +219,12 @@ queryError (UnknownInputType variableDefinition) =
             ]
      in Error{ message = queryErrorMessage, locations = [location], path = [] }
 
+-- | The substitution is applied to the document, and the resolvers are applied
+-- to the resulting fields. The operation name can be used if the document
+-- defines multiple root operations.
+--
+-- Returns the result of the query against the schema wrapped in a /data/
+-- field, or errors wrapped in an /errors/ field.
 execute :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.

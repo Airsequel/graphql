@@ -11,6 +11,9 @@ and this project adheres to
 - Custom `Show` instance for `Type.Definition.Value` (for error
   messages).
 - Path information in errors (path to the field throwing the error).
+- Deprecation notes in the `Error` module for `Resolution`, `CollectErrsT` and
+  `runCollectErrs`. These symbols are part of the old executor and aren't used
+  anymore, it will be deprecated in the future and removed.
 
 ### Fixed
 - Error messages are more concrete, they also contain type information and

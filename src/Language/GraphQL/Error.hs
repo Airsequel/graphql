@@ -44,12 +44,6 @@ import Text.Megaparsec
     , unPos
     )
 
--- | Executor context.
-data Resolution m = Resolution
-    { errors :: Seq Error
-    , types :: HashMap Name (Schema.Type m)
-    }
-
 -- | Wraps a parse error into a list of errors.
 parseError :: (Applicative f, Serialize a)
     => ParseErrorBundle Text Void
@@ -68,32 +62,6 @@ parseError ParseErrorBundle{..}  =
         let (_, newState) = reachOffset (errorOffset x) state
             sourcePosition = pstateSourcePos newState
          in (result |> errorObject x sourcePosition, newState)
-
--- | A wrapper to pass error messages around.
-type CollectErrsT m = StateT (Resolution m) m
-
--- | Adds an error to the list of errors.
-{-# DEPRECATED #-}
-addErr :: Monad m => Error -> CollectErrsT m ()
-addErr v = modify appender
-  where
-    appender :: Monad m => Resolution m -> Resolution m
-    appender resolution@Resolution{..} = resolution{ errors = errors |> v }
-
-{-# DEPRECATED #-}
-makeErrorMessage :: Text -> Error
-makeErrorMessage s = Error s [] []
-
--- | Constructs a response object containing only the error with the given
--- message.
-{-# DEPRECATED #-}
-singleError :: Serialize a => Text -> Response a
-singleError message = Response null $ Seq.singleton $ Error message [] []
-
--- | Convenience function for just wrapping an error message.
-{-# DEPRECATED #-}
-addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
-addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null
 
 -- | If an error can be associated to a particular field in the GraphQL result,
 -- it must contain an entry with the key path that details the path of the
@@ -133,8 +101,13 @@ instance Show ResolverException where
 
 instance Exception ResolverException
 
+-- * Deprecated
+
 -- | Runs the given query computation, but collects the errors into an error
 -- list, which is then sent back with the data.
+--
+-- /runCollectErrs was part of the old executor and isn't used anymore, it will
+-- be deprecated in the future and removed./
 runCollectErrs :: (Monad m, Serialize a)
     => HashMap Name (Schema.Type m)
     -> CollectErrsT m a
@@ -143,3 +116,41 @@ runCollectErrs types' res = do
     (dat, Resolution{..}) <- runStateT res
         $ Resolution{ errors = Seq.empty, types = types' }
     pure $ Response dat errors
+
+-- | Executor context.
+--
+-- /Resolution was part of the old executor and isn't used anymore, it will be
+-- deprecated in the future and removed./
+data Resolution m = Resolution
+    { errors :: Seq Error
+    , types :: HashMap Name (Schema.Type m)
+    }
+
+-- | A wrapper to pass error messages around.
+--
+-- /CollectErrsT was part of the old executor and isn't used anymore, it will be
+-- deprecated in the future and removed./
+type CollectErrsT m = StateT (Resolution m) m
+
+-- | Adds an error to the list of errors.
+{-# DEPRECATED #-}
+addErr :: Monad m => Error -> CollectErrsT m ()
+addErr v = modify appender
+  where
+    appender :: Monad m => Resolution m -> Resolution m
+    appender resolution@Resolution{..} = resolution{ errors = errors |> v }
+
+{-# DEPRECATED #-}
+makeErrorMessage :: Text -> Error
+makeErrorMessage s = Error s [] []
+
+-- | Constructs a response object containing only the error with the given
+-- message.
+{-# DEPRECATED #-}
+singleError :: Serialize a => Text -> Response a
+singleError message = Response null $ Seq.singleton $ Error message [] []
+
+-- | Convenience function for just wrapping an error message.
+{-# DEPRECATED #-}
+addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
+addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null

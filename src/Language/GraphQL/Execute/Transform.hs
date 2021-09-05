@@ -58,6 +58,7 @@ import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Internal as Type
 import Numeric (showFloat)
 
+-- | Associates a fragment name with a list of 'Field's.
 data Replacement m = Replacement
     { variableValues :: Type.Subs
     , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
@@ -92,9 +93,11 @@ instance MonadCatch m => MonadCatch (TransformT m) where
 asks :: Monad m => forall a. (Replacement m -> a) -> TransformT m a
 asks = TransformT . Reader.asks
 
+-- | GraphQL has 3 operation types: queries, mutations and subscribtions.
 data Operation m
     = Operation Full.OperationType (Seq (Selection m)) Full.Location
 
+-- | Field or inlined fragment.
 data Selection m
     = FieldSelection (Field m)
     | FragmentSelection (Fragment m)
@@ -142,6 +145,7 @@ instance Show Input where
             concat [Text.unpack key, ": ", show value] : accumulator
     show variableValue = show variableValue
 
+-- | Extracts operations and fragment definitions of the document.
 document :: Full.Document
     -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
 document = foldr filterOperation ([], HashMap.empty)
@@ -154,6 +158,8 @@ document = foldr filterOperation ([], HashMap.empty)
             HashMap.insert fragmentName fragmentDefinition <$> accumulator
     filterOperation _ accumulator = accumulator -- Type system definitions.
 
+-- | Rewrites the original syntax tree into an intermediate representation used
+-- for the query execution.
 transform :: Monad m => Full.OperationDefinition -> TransformT m (Operation m)
 transform (Full.OperationDefinition operationType _ _ _ selectionSet' operationLocation) = do
     transformedSelections <- selectionSet selectionSet'
@@ -177,7 +183,7 @@ selection (Full.FieldSelection field') =
 selection (Full.FragmentSpreadSelection fragmentSpread') =
     maybeToSelectionSet FragmentSelection $ fragmentSpread fragmentSpread'
 selection (Full.InlineFragmentSelection inlineFragment') =
-   either id (pure . FragmentSelection) <$> inlineFragment inlineFragment'
+    either id (pure . FragmentSelection) <$> inlineFragment inlineFragment'
 
 maybeToSelectionSet :: Monad m
     => forall a
