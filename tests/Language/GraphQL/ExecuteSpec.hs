@@ -106,6 +106,7 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         , ("interest", ValueResolver interestField interestResolver)
         , ("majorWork", ValueResolver majorWorkField majorWorkResolver)
         , ("century", ValueResolver centuryField centuryResolver)
+        , ("firstLanguage", ValueResolver firstLanguageField firstLanguageResolver)
         ]
     firstNameField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
@@ -131,6 +132,9 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
     centuryField =
         Out.Field Nothing (Out.NonNullScalarType int) HashMap.empty
     centuryResolver = pure $ Float 18.5
+    firstLanguageField
+        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    firstLanguageResolver = pure Null
 
 workType :: Out.InterfaceType (Either SomeException)
 workType = Out.InterfaceType "Work" Nothing []
@@ -331,6 +335,20 @@ spec =
                     expected = Response Aeson.Null executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ count }"
+                in actual `shouldBe` expected
+
+            it "detects nullability errors" $
+                let data'' = Aeson.object
+                        [ "philosopher" .= Aeson.Null
+                        ]
+                    executionErrors = pure $ Error
+                        { message = "Value completion error. Expected type !String, found: null."
+                        , locations = [Location 1 26]
+                        , path = [Segment "philosopher", Segment "firstLanguage"]
+                        }
+                    expected = Response data'' executionErrors
+                    Right (Right actual) = either (pure . parseError) execute'
+                        $ parse document "" "{ philosopher(id: \"1\") { firstLanguage } }"
                 in actual `shouldBe` expected
 
         context "Subscription" $
