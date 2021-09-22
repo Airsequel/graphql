@@ -7,10 +7,10 @@ module Language.GraphQL.AST.LexerSpec
 import Data.Text (Text)
 import Data.Void (Void)
 import Language.GraphQL.AST.Lexer
+import Language.GraphQL.TH
 import Test.Hspec (Spec, context, describe, it)
 import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (ParseErrorBundle, parse)
-import Text.RawString.QQ (r)
 
 spec :: Spec
 spec = describe "Lexer" $ do
@@ -19,32 +19,32 @@ spec = describe "Lexer" $ do
             parse unicodeBOM "" `shouldSucceedOn` "\xfeff"
 
         it "lexes strings" $ do
-            parse string "" [r|"simple"|] `shouldParse` "simple"
-            parse string "" [r|" white space "|] `shouldParse` " white space "
-            parse string "" [r|"quote \""|] `shouldParse` [r|quote "|]
-            parse string "" [r|"escaped \n"|] `shouldParse` "escaped \n"
-            parse string "" [r|"slashes \\ \/"|] `shouldParse` [r|slashes \ /|]
-            parse string "" [r|"unicode \u1234\u5678\u90AB\uCDEF"|]
+            parse string "" [gql|"simple"|] `shouldParse` "simple"
+            parse string "" [gql|" white space "|] `shouldParse` " white space "
+            parse string "" [gql|"quote \""|] `shouldParse` [gql|quote "|]
+            parse string "" [gql|"escaped \n"|] `shouldParse` "escaped \n"
+            parse string "" [gql|"slashes \\ \/"|] `shouldParse` [gql|slashes \ /|]
+            parse string "" [gql|"unicode \u1234\u5678\u90AB\uCDEF"|]
                 `shouldParse` "unicode ሴ噸邫췯"
 
         it "lexes block string" $ do
-            parse blockString "" [r|"""simple"""|] `shouldParse` "simple"
-            parse blockString "" [r|""" white space """|]
+            parse blockString "" [gql|"""simple"""|] `shouldParse` "simple"
+            parse blockString "" [gql|""" white space """|]
                 `shouldParse` " white space "
-            parse blockString "" [r|"""contains " quote"""|]
-                `shouldParse` [r|contains " quote|]
-            parse blockString "" [r|"""contains \""" triplequote"""|]
-                `shouldParse` [r|contains """ triplequote|]
+            parse blockString "" [gql|"""contains " quote"""|]
+                `shouldParse` [gql|contains " quote|]
+            parse blockString "" [gql|"""contains \""" triplequote"""|]
+                `shouldParse` [gql|contains """ triplequote|]
             parse blockString "" "\"\"\"multi\nline\"\"\"" `shouldParse` "multi\nline"
             parse blockString "" "\"\"\"multi\rline\r\nnormalized\"\"\""
                 `shouldParse` "multi\nline\nnormalized"
             parse blockString "" "\"\"\"multi\rline\r\nnormalized\"\"\""
                 `shouldParse` "multi\nline\nnormalized"
-            parse blockString "" [r|"""unescaped \n\r\b\t\f\u1234"""|]
-                `shouldParse` [r|unescaped \n\r\b\t\f\u1234|]
-            parse blockString "" [r|"""slashes \\ \/"""|]
-                `shouldParse` [r|slashes \\ \/|]
-            parse blockString "" [r|"""
+            parse blockString "" [gql|"""unescaped \n\r\b\t\f\u1234"""|]
+                `shouldParse` [gql|unescaped \n\r\b\t\f\u1234|]
+            parse blockString "" [gql|"""slashes \\ \/"""|]
+                `shouldParse` [gql|slashes \\ \/|]
+            parse blockString "" [gql|"""
 
                 spans
                   multiple
@@ -84,7 +84,7 @@ spec = describe "Lexer" $ do
 
     context "Implementation tests" $ do
         it "lexes empty block strings" $
-            parse blockString "" [r|""""""|] `shouldParse` ""
+            parse blockString "" [gql|""""""|] `shouldParse` ""
         it "lexes ampersand" $
             parse amp "" "&" `shouldParse` "&"
         it "lexes schema extensions" $

@@ -21,6 +21,7 @@ import Language.GraphQL.AST (Document, Location(..), Name)
 import Language.GraphQL.AST.Parser (document)
 import Language.GraphQL.Error
 import Language.GraphQL.Execute (execute)
+import Language.GraphQL.TH
 import qualified Language.GraphQL.Type.Schema as Schema
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
@@ -28,7 +29,6 @@ import qualified Language.GraphQL.Type.Out as Out
 import Prelude hiding (id)
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
-import Text.RawString.QQ (r)
 
 data PhilosopherException = PhilosopherException
     deriving Show
@@ -200,7 +200,7 @@ spec :: Spec
 spec =
     describe "execute" $ do
         it "rejects recursive fragments" $
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 ...cyclicFragment
               }

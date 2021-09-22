@@ -11,18 +11,21 @@ import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Language.Haskell.TH (Exp(..), Lit(..))
 
 stripIndentation :: String -> String
-stripIndentation code = unlines
+stripIndentation code = reverse
+    $ dropNewlines
     $ reverse
-    $ dropWhile null
-    $ reverse
+    $ unlines
     $ indent spaces <$> lines withoutLeadingNewlines
   where
     indent 0 xs = xs
     indent count (' ' : xs) = indent (count - 1) xs
     indent _ xs = xs
-    withoutLeadingNewlines = dropWhile (== '\n') code
+    withoutLeadingNewlines = dropNewlines code
+    dropNewlines = dropWhile (== '\n')
     spaces = length $ takeWhile (== ' ') withoutLeadingNewlines
 
+-- | Removes leading and trailing newlines. Indentation of the first line is
+-- removed from each line of the string.
 gql :: QuasiQuoter
 gql = QuasiQuoter
     { quoteExp = pure . LitE . StringL . stripIndentation

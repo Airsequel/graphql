@@ -13,13 +13,13 @@ import Data.Foldable (toList)
 import qualified Data.HashMap.Strict as HashMap
 import Data.Text (Text)
 import qualified Language.GraphQL.AST as AST
+import Language.GraphQL.TH
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Validate
 import Test.Hspec (Spec, context, describe, it, shouldBe, shouldContain)
 import Text.Megaparsec (parse, errorBundlePretty)
-import Text.RawString.QQ (r)
 
 petSchema :: Schema IO
 petSchema = schema queryType Nothing (Just subscriptionType) mempty
@@ -163,7 +163,7 @@ spec =
     describe "document" $ do
         context "executableDefinitionsRule" $
             it "rejects type definitions" $
-                let queryString = [r|
+                let queryString = [gql|
                   query getDogName {
                     dog {
                       name
@@ -179,13 +179,13 @@ spec =
                         { message =
                             "Definition must be OperationDefinition or \
                             \FragmentDefinition."
-                        , locations = [AST.Location 9 19]
+                        , locations = [AST.Location 8 1]
                         }
                  in validate queryString `shouldContain` [expected]
 
         context "singleFieldSubscriptionsRule" $ do
             it "rejects multiple subscription root fields" $
-                let queryString = [r|
+                let queryString = [gql|
                   subscription sub {
                     newMessage {
                       body
@@ -198,12 +198,12 @@ spec =
                         { message =
                             "Subscription \"sub\" must select only one top \
                             \level field."
-                        , locations = [AST.Location 2 19]
+                        , locations = [AST.Location 1 1]
                         }
                  in validate queryString `shouldContain` [expected]
 
             it "rejects multiple subscription root fields coming from a fragment" $
-                let queryString = [r|
+                let queryString = [gql|
                   subscription sub {
                     ...multipleSubscriptions
                   }
@@ -220,12 +220,12 @@ spec =
                         { message =
                             "Subscription \"sub\" must select only one top \
                             \level field."
-                        , locations = [AST.Location 2 19]
+                        , locations = [AST.Location 1 1]
                         }
                  in validate queryString `shouldContain` [expected]
 
             it "finds corresponding subscription fragment" $
-                let queryString = [r|
+                let queryString = [gql|
                   subscription sub {
                     ...anotherSubscription
                     ...multipleSubscriptions
@@ -249,13 +249,13 @@ spec =
                         { message =
                             "Subscription \"sub\" must select only one top \
                             \level field."
-                        , locations = [AST.Location 2 19]
+                        , locations = [AST.Location 1 1]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "loneAnonymousOperationRule" $
             it "rejects multiple anonymous operations" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       name
@@ -274,13 +274,13 @@ spec =
                         { message =
                             "This anonymous operation must be the only defined \
                             \operation."
-                        , locations = [AST.Location 2 19]
+                        , locations = [AST.Location 1 1]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "uniqueOperationNamesRule" $
             it "rejects operations with the same name" $
-                let queryString = [r|
+                let queryString = [gql|
                   query dogOperation {
                     dog {
                       name
@@ -297,13 +297,13 @@ spec =
                         { message =
                             "There can be only one operation named \
                             \\"dogOperation\"."
-                        , locations = [AST.Location 2 19, AST.Location 8 19]
+                        , locations = [AST.Location 1 1, AST.Location 7 1]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "uniqueFragmentNamesRule" $
             it "rejects fragments with the same name" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ...fragmentOne
@@ -324,13 +324,13 @@ spec =
                         { message =
                             "There can be only one fragment named \
                             \\"fragmentOne\"."
-                        , locations = [AST.Location 8 19, AST.Location 12 19]
+                        , locations = [AST.Location 7 1, AST.Location 11 1]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "fragmentSpreadTargetDefinedRule" $
             it "rejects the fragment spread without a target" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ...undefinedFragment
@@ -341,13 +341,13 @@ spec =
                         { message =
                             "Fragment target \"undefinedFragment\" is \
                             \undefined."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "fragmentSpreadTypeExistenceRule" $ do
             it "rejects fragment spreads without an unknown target type" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ...notOnExistingType
@@ -362,12 +362,12 @@ spec =
                             "Fragment \"notOnExistingType\" is specified on \
                             \type \"NotInSchema\" which doesn't exist in the \
                             \schema."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "rejects inline fragments without a target" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     ... on NotInSchema {
                       name
@@ -378,13 +378,13 @@ spec =
                         { message =
                             "Inline fragment is specified on type \
                             \\"NotInSchema\" which doesn't exist in the schema."
-                        , locations = [AST.Location 3 21]
+                        , locations = [AST.Location 2 3]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "fragmentsOnCompositeTypesRule" $ do
             it "rejects fragments on scalar types" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ...fragOnScalar
@@ -398,12 +398,12 @@ spec =
                         { message =
                             "Fragment cannot condition on non composite type \
                             \\"Int\"."
-                        , locations = [AST.Location 7 19]
+                        , locations = [AST.Location 6 1]
                         }
                  in validate queryString `shouldContain` [expected]
 
             it "rejects inline fragments on scalar types" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     ... on Boolean {
                       name
@@ -414,13 +414,13 @@ spec =
                         { message =
                             "Fragment cannot condition on non composite type \
                             \\"Boolean\"."
-                        , locations = [AST.Location 3 21]
+                        , locations = [AST.Location 2 3]
                         }
                 in validate queryString `shouldContain` [expected]
 
         context "noUnusedFragmentsRule" $
             it "rejects unused fragments" $
-                let queryString = [r|
+                let queryString = [gql|
                   fragment nameFragment on Dog { # unused
                     name
                   }
@@ -434,13 +434,13 @@ spec =
                     expected = Error
                         { message =
                             "Fragment \"nameFragment\" is never used."
-                        , locations = [AST.Location 2 19]
+                        , locations = [AST.Location 1 1]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "noFragmentCyclesRule" $
             it "rejects spreads that form cycles" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ...nameFragment
@@ -460,20 +460,20 @@ spec =
                             "Cannot spread fragment \"barkVolumeFragment\" \
                             \within itself (via barkVolumeFragment -> \
                             \nameFragment -> barkVolumeFragment)."
-                        , locations = [AST.Location 11 19]
+                        , locations = [AST.Location 10 1]
                         }
                     error2 = Error
                         { message =
                             "Cannot spread fragment \"nameFragment\" within \
                             \itself (via nameFragment -> barkVolumeFragment -> \
                             \nameFragment)."
-                        , locations = [AST.Location 7 19]
+                        , locations = [AST.Location 6 1]
                         }
                  in validate queryString `shouldBe` [error1, error2]
 
         context "uniqueArgumentNamesRule" $
             it "rejects duplicate field arguments" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       isHousetrained(atOtherHomes: true, atOtherHomes: true)
@@ -484,13 +484,13 @@ spec =
                         { message =
                             "There can be only one argument named \
                             \\"atOtherHomes\"."
-                        , locations = [AST.Location 4 38, AST.Location 4 58]
+                        , locations = [AST.Location 3 20, AST.Location 3 40]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "uniqueDirectiveNamesRule" $
             it "rejects more than one directive per location" $
-                let queryString = [r|
+                let queryString = [gql|
                   query ($foo: Boolean = true, $bar: Boolean = false) {
                     dog @skip(if: $foo) @skip(if: $bar) {
                       name
@@ -500,13 +500,13 @@ spec =
                     expected = Error
                         { message =
                             "There can be only one directive named \"skip\"."
-                        , locations = [AST.Location 3 25, AST.Location 3 41]
+                        , locations = [AST.Location 2 7, AST.Location 2 23]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "uniqueVariableNamesRule" $
             it "rejects duplicate variables" $
-                let queryString = [r|
+                let queryString = [gql|
                   query houseTrainedQuery($atOtherHomes: Boolean, $atOtherHomes: Boolean) {
                     dog {
                       isHousetrained(atOtherHomes: $atOtherHomes)
@@ -517,13 +517,13 @@ spec =
                         { message =
                             "There can be only one variable named \
                             \\"atOtherHomes\"."
-                        , locations = [AST.Location 2 43, AST.Location 2 67]
+                        , locations = [AST.Location 1 25, AST.Location 1 49]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "variablesAreInputTypesRule" $
             it "rejects non-input types as variables" $
-                let queryString = [r|
+                let queryString = [gql|
                   query takesDogBang($dog: Dog!) {
                     dog {
                       isHousetrained(atOtherHomes: $dog)
@@ -534,13 +534,13 @@ spec =
                         { message =
                             "Variable \"$dog\" cannot be non-input type \
                             \\"Dog\"."
-                        , locations = [AST.Location 2 38]
+                        , locations = [AST.Location 1 20]
                         }
                  in validate queryString `shouldContain` [expected]
 
         context "noUndefinedVariablesRule" $
             it "rejects undefined variables" $
-                let queryString = [r|
+                let queryString = [gql|
                   query variableIsNotDefinedUsedInSingleFragment {
                     dog {
                       ...isHousetrainedFragment
@@ -556,13 +556,13 @@ spec =
                             "Variable \"$atOtherHomes\" is not defined by \
                             \operation \
                             \\"variableIsNotDefinedUsedInSingleFragment\"."
-                        , locations = [AST.Location 9 50]
+                        , locations = [AST.Location 8 32]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "noUnusedVariablesRule" $
             it "rejects unused variables" $
-                let queryString = [r|
+                let queryString = [gql|
                   query variableUnused($atOtherHomes: Boolean) {
                     dog {
                       isHousetrained
@@ -573,13 +573,13 @@ spec =
                         { message =
                             "Variable \"$atOtherHomes\" is never used in \
                             \operation \"variableUnused\"."
-                        , locations = [AST.Location 2 40]
+                        , locations = [AST.Location 1 22]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "uniqueInputFieldNamesRule" $
             it "rejects duplicate fields in input objects" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     findDog(complex: { name: "Fido", name: "Jack" }) {
                       name
@@ -589,13 +589,13 @@ spec =
                     expected = Error
                         { message =
                             "There can be only one input field named \"name\"."
-                        , locations = [AST.Location 3 40, AST.Location 3 54]
+                        , locations = [AST.Location 2 22, AST.Location 2 36]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "fieldsOnCorrectTypeRule" $
             it "rejects undefined fields" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       meowVolume
@@ -605,13 +605,13 @@ spec =
                     expected = Error
                         { message =
                             "Cannot query field \"meowVolume\" on type \"Dog\"."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "scalarLeafsRule" $
             it "rejects scalar fields with not empty selection set" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       barkVolume {
@@ -624,13 +624,13 @@ spec =
                         { message =
                             "Field \"barkVolume\" must not have a selection \
                             \since type \"Int\" has no subfields."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "knownArgumentNamesRule" $ do
             it "rejects field arguments missing in the type" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       doesKnowCommand(command: CLEAN_UP_HOUSE, dogCommand: SIT)
@@ -641,12 +641,12 @@ spec =
                         { message =
                             "Unknown argument \"command\" on field \
                             \\"Dog.doesKnowCommand\"."
-                        , locations = [AST.Location 4 39]
+                        , locations = [AST.Location 3 21]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "rejects directive arguments missing in the definition" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       isHousetrained(atOtherHomes: true) @include(unless: false, if: true)
@@ -657,13 +657,13 @@ spec =
                         { message =
                             "Unknown argument \"unless\" on directive \
                             \\"@include\"."
-                        , locations = [AST.Location 4 67]
+                        , locations = [AST.Location 3 49]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "knownDirectiveNamesRule" $
             it "rejects undefined directives" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       isHousetrained(atOtherHomes: true) @ignore(if: true)
@@ -672,13 +672,13 @@ spec =
                 |]
                     expected = Error
                         { message = "Unknown directive \"@ignore\"."
-                        , locations = [AST.Location 4 58]
+                        , locations = [AST.Location 3 40]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "knownInputFieldNamesRule" $
             it "rejects undefined input object fields" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     findDog(complex: { favoriteCookieFlavor: "Bacon", name: "Jack" }) {
                       name
@@ -689,13 +689,13 @@ spec =
                         { message =
                             "Field \"favoriteCookieFlavor\" is not defined \
                             \by type \"DogData\"."
-                        , locations = [AST.Location 3 40]
+                        , locations = [AST.Location 2 22]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "directivesInValidLocationsRule" $
             it "rejects directives in invalid locations" $
-                let queryString = [r|
+                let queryString = [gql|
                   query @skip(if: $foo) {
                     dog {
                       name
@@ -705,13 +705,13 @@ spec =
                     expected = Error
                         { message =
                             "Directive \"@skip\" may not be used on QUERY."
-                        , locations = [AST.Location 2 25]
+                        , locations = [AST.Location 1 7]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "overlappingFieldsCanBeMergedRule" $ do
             it "fails to merge fields of mismatching types" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       name: nickname
@@ -725,12 +725,12 @@ spec =
                             \\"name\" are different fields. Use different \
                             \aliases on the fields to fetch both if this was \
                             \intentional."
-                        , locations = [AST.Location 4 23, AST.Location 5 23]
+                        , locations = [AST.Location 3 5, AST.Location 4 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "fails if the arguments of the same field don't match" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       doesKnowCommand(dogCommand: SIT)
@@ -744,12 +744,12 @@ spec =
                             \have different arguments. Use different aliases \
                             \on the fields to fetch both if this was \
                             \intentional."
-                        , locations = [AST.Location 4 23, AST.Location 5 23]
+                        , locations = [AST.Location 3 5, AST.Location 4 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "fails to merge same-named field and alias" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       doesKnowCommand(dogCommand: SIT)
@@ -763,12 +763,12 @@ spec =
                             \\"doesKnowCommand\" and \"isHousetrained\" are \
                             \different fields. Use different aliases on the \
                             \fields to fetch both if this was intentional."
-                        , locations = [AST.Location 4 23, AST.Location 5 23]
+                        , locations = [AST.Location 3 5, AST.Location 4 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "looks for fields after a successfully merged field pair" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       name
@@ -786,13 +786,13 @@ spec =
                             \\"doesKnowCommand\" and \"isHousetrained\" are \
                             \different fields. Use different aliases on the \
                             \fields to fetch both if this was intentional."
-                        , locations = [AST.Location 5 23, AST.Location 9 23]
+                        , locations = [AST.Location 4 5, AST.Location 8 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "possibleFragmentSpreadsRule" $ do
             it "rejects object inline spreads outside object scope" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ... on Cat {
@@ -805,12 +805,12 @@ spec =
                         { message =
                             "Fragment cannot be spread here as objects of type \
                             \\"Dog\" can never be of type \"Cat\"."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "rejects object named spreads outside object scope" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       ... catInDogFragmentInvalid
@@ -826,13 +826,13 @@ spec =
                             "Fragment \"catInDogFragmentInvalid\" cannot be \
                             \spread here as objects of type \"Dog\" can never \
                             \be of type \"Cat\"."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "providedRequiredInputFieldsRule" $
             it "rejects missing required input fields" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     findDog(complex: { name: null }) {
                       name
@@ -843,13 +843,13 @@ spec =
                         { message =
                             "Input field \"name\" of type \"DogData\" is \
                             \required, but it was not provided."
-                        , locations = [AST.Location 3 38]
+                        , locations = [AST.Location 2 20]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "providedRequiredArgumentsRule" $ do
             it "checks for (non-)nullable arguments" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       doesKnowCommand(dogCommand: null)
@@ -861,13 +861,13 @@ spec =
                             "Field \"doesKnowCommand\" argument \"dogCommand\" \
                             \of type \"DogCommand\" is required, but it was \
                             \not provided."
-                        , locations = [AST.Location 4 23]
+                        , locations = [AST.Location 3 5]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "variablesInAllowedPositionRule" $ do
             it "rejects wrongly typed variable arguments" $
-                let queryString = [r|
+                let queryString = [gql|
                   query dogCommandArgQuery($dogCommandArg: DogCommand) {
                     dog {
                       doesKnowCommand(dogCommand: $dogCommandArg)
@@ -879,12 +879,12 @@ spec =
                             "Variable \"$dogCommandArg\" of type \
                             \\"DogCommand\" used in position expecting type \
                             \\"!DogCommand\"."
-                        , locations = [AST.Location 2 44]
+                        , locations = [AST.Location 1 26]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "rejects wrongly typed variable arguments" $
-                let queryString = [r|
+                let queryString = [gql|
                   query intCannotGoIntoBoolean($intArg: Int) {
                     dog {
                       isHousetrained(atOtherHomes: $intArg)
@@ -895,13 +895,13 @@ spec =
                         { message =
                             "Variable \"$intArg\" of type \"Int\" used in \
                             \position expecting type \"Boolean\"."
-                        , locations = [AST.Location 2 48]
+                        , locations = [AST.Location 1 30]
                         }
                  in validate queryString `shouldBe` [expected]
 
         context "valuesOfCorrectTypeRule" $ do
             it "rejects values of incorrect types" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     dog {
                       isHousetrained(atOtherHomes: 3)
@@ -911,12 +911,12 @@ spec =
                     expected = Error
                         { message =
                             "Value 3 cannot be coerced to type \"Boolean\"."
-                        , locations = [AST.Location 4 52]
+                        , locations = [AST.Location 3 34]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "uses the location of a single list value" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     cat {
                       doesKnowCommands(catCommands: [3])
@@ -926,12 +926,12 @@ spec =
                     expected = Error
                         { message =
                             "Value 3 cannot be coerced to type \"!CatCommand\"."
-                        , locations = [AST.Location 4 54]
+                        , locations = [AST.Location 3 36]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "validates input object properties once" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     findDog(complex: { name: 3 }) {
                       name
@@ -941,12 +941,12 @@ spec =
                     expected = Error
                         { message =
                             "Value 3 cannot be coerced to type \"!String\"."
-                        , locations = [AST.Location 3 46]
+                        , locations = [AST.Location 2 28]
                         }
                  in validate queryString `shouldBe` [expected]
 
             it "checks for required list members" $
-                let queryString = [r|
+                let queryString = [gql|
                   {
                     cat {
                       doesKnowCommands(catCommands: [null])
@@ -957,6 +957,6 @@ spec =
                         { message =
                             "List of non-null values of type \"CatCommand\" \
                             \cannot contain null values."
-                        , locations = [AST.Location 4 54]
+                        , locations = [AST.Location 3 36]
                         }
                  in validate queryString `shouldBe` [expected]
