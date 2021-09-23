@@ -12,11 +12,11 @@ import Data.Aeson (object, (.=))
 import qualified Data.Aeson as Aeson
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
+import Language.GraphQL.TH
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.GraphQL
-import Text.RawString.QQ (r)
 
 experimentalResolver :: Schema IO
 experimentalResolver = schema queryType Nothing Nothing mempty
@@ -33,7 +33,7 @@ spec :: Spec
 spec =
     describe "Directive executor" $ do
         it "should be able to @skip fields" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 experimentalField @skip(if: true)
               }
@@ -43,7 +43,7 @@ spec =
             actual `shouldResolveTo` emptyObject
 
         it "should not skip fields if @skip is false" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 experimentalField @skip(if: false)
               }
@@ -56,7 +56,7 @@ spec =
             actual `shouldResolveTo` expected
 
         it "should skip fields if @include is false" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 experimentalField @include(if: false)
               }
@@ -66,7 +66,7 @@ spec =
             actual `shouldResolveTo` emptyObject
 
         it "should be able to @skip a fragment spread" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 ...experimentalFragment @skip(if: true)
               }
@@ -80,7 +80,7 @@ spec =
             actual `shouldResolveTo` emptyObject
 
         it "should be able to @skip an inline fragment" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 ... on Query @skip(if: true) {
                   experimentalField

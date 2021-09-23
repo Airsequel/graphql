@@ -102,7 +102,6 @@ test-suite graphql-test
     , hspec >= 2.8.2 && < 2.9
     , hspec-megaparsec >= 2.2.0 && < 2.3
     , megaparsec
-    , raw-strings-qq >= 1.1 && < 1.2
     , scientific
     , text
     , unordered-containers

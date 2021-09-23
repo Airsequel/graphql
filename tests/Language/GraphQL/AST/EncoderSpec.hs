@@ -6,10 +6,10 @@ module Language.GraphQL.AST.EncoderSpec
 
 import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.AST.Encoder
+import Language.GraphQL.TH
 import Test.Hspec (Spec, context, describe, it, shouldBe, shouldStartWith, shouldEndWith, shouldNotContain)
 import Test.QuickCheck (choose, oneof, forAll)
-import Text.RawString.QQ (r)
-import Data.Text.Lazy (cons, toStrict, unpack)
+import qualified Data.Text.Lazy as Text.Lazy
 
 spec :: Spec
 spec = do
@@ -48,23 +48,32 @@ spec = do
             it "uses strings for short string values" $
                 value pretty (Full.String "Short text") `shouldBe` "\"Short text\""
             it "uses block strings for text with new lines, with newline symbol" $
-                value pretty (Full.String "Line 1\nLine 2")
-                    `shouldBe` [r|"""
-  Line 1
-  Line 2
-"""|]
+                let expected = [gql|
+                  """
+                    Line 1
+                    Line 2
+                  """
+                |]
+                    actual = value pretty $ Full.String "Line 1\nLine 2"
+                 in actual `shouldBe` expected
             it "uses block strings for text with new lines, with CR symbol" $
-                value pretty (Full.String "Line 1\rLine 2")
-                    `shouldBe` [r|"""
-  Line 1
-  Line 2
-"""|]
+                let expected = [gql|
+                  """
+                    Line 1
+                    Line 2
+                  """
+                |]
+                    actual = value pretty $ Full.String "Line 1\rLine 2"
+                 in actual `shouldBe` expected
             it "uses block strings for text with new lines, with CR symbol followed by newline" $
-                value pretty (Full.String "Line 1\r\nLine 2")
-                    `shouldBe` [r|"""
-  Line 1
-  Line 2
-"""|]
+                let expected = [gql|
+                  """
+                    Line 1
+                    Line 2
+                  """
+                |]
+                    actual = value pretty $ Full.String "Line 1\r\nLine 2"
+                 in actual `shouldBe` expected
             it "encodes as one line string if has escaped symbols" $ do
                 let
                   genNotAllowedSymbol = oneof
@@ -76,48 +85,74 @@ spec = do
 
                 forAll genNotAllowedSymbol $ \x -> do
                     let
-                      rawValue = "Short \n" <> cons x "text"
-                      encoded = value pretty (Full.String $ toStrict rawValue)
-                    shouldStartWith (unpack encoded) "\""
-                    shouldEndWith (unpack encoded) "\""
-                    shouldNotContain (unpack encoded) "\"\"\""
+                      rawValue = "Short \n" <> Text.Lazy.cons x "text"
+                      encoded = value pretty
+                          $ Full.String $ Text.Lazy.toStrict rawValue
+                    shouldStartWith (Text.Lazy.unpack encoded) "\""
+                    shouldEndWith (Text.Lazy.unpack encoded) "\""
+                    shouldNotContain (Text.Lazy.unpack encoded) "\"\"\""
 
-            it "Hello world" $ value pretty (Full.String "Hello,\n  World!\n\nYours,\n  GraphQL.")
-              `shouldBe` [r|"""
-  Hello,
-    World!
+            it "Hello world" $
+                let actual = value pretty
+                        $ Full.String "Hello,\n  World!\n\nYours,\n  GraphQL."
+                    expected = [gql|
+                      """
+                        Hello,
+                          World!
 
-  Yours,
-    GraphQL.
-"""|]
+                        Yours,
+                          GraphQL.
+                      """
+                    |]
+                  in actual `shouldBe` expected
 
-            it "has only newlines" $ value pretty (Full.String "\n") `shouldBe` [r|"""
+            it "has only newlines" $
+                let actual = value pretty $ Full.String "\n"
+                    expected = [gql|
+                      """
 
 
-"""|]
+                      """
+                    |]
+                 in actual `shouldBe` expected
             it "has newlines and one symbol at the begining" $
-              value pretty (Full.String "a\n\n") `shouldBe` [r|"""
-  a
+                let actual = value pretty $ Full.String "a\n\n"
+                    expected = [gql|
+                      """
+                        a
 
 
-"""|]
+                      """|]
+                 in actual `shouldBe` expected
             it "has newlines and one symbol at the end" $
-              value pretty (Full.String "\n\na") `shouldBe` [r|"""
+                let actual = value pretty $ Full.String "\n\na"
+                    expected = [gql|
+                      """
 
 
-  a
-"""|]
+                        a
+                      """
+                    |]
+                 in actual `shouldBe` expected
             it "has newlines and one symbol in the middle" $
-              value pretty (Full.String "\na\n") `shouldBe` [r|"""
+                let actual = value pretty $ Full.String "\na\n"
+                    expected = [gql|
+                      """
 
-  a
+                        a
 
-"""|]
-            it "skip trailing whitespaces" $ value pretty (Full.String "  Short\ntext    ")
-              `shouldBe` [r|"""
-  Short
-  text
-"""|]
+                      """
+                    |]
+                 in actual `shouldBe` expected
+            it "skip trailing whitespaces" $
+                let actual = value pretty $ Full.String "  Short\ntext    "
+                    expected = [gql|
+                      """
+                        Short
+                        text
+                      """
+                    |]
+                 in actual `shouldBe` expected
 
     describe "definition" $
         it "indents block strings in arguments" $
@@ -128,10 +163,13 @@ spec = do
                 fieldSelection = pure $ Full.FieldSelection field
                 operation = Full.DefinitionOperation
                     $ Full.SelectionSet fieldSelection location
-             in definition pretty operation `shouldBe` [r|{
-  field(message: """
-    line1
-    line2
-  """)
-}
-|]
+                expected = Text.Lazy.snoc [gql|
+                  {
+                    field(message: """
+                      line1
+                      line2
+                    """)
+                  }
+                |] '\n'
+                actual = definition pretty operation
+             in actual `shouldBe` expected

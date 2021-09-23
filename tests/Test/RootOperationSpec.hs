@@ -12,7 +12,7 @@ import Data.Aeson ((.=), object)
 import qualified Data.HashMap.Strict as HashMap
 import Language.GraphQL
 import Test.Hspec (Spec, describe, it)
-import Text.RawString.QQ (r)
+import Language.GraphQL.TH
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
 import Test.Hspec.GraphQL
@@ -42,7 +42,7 @@ spec :: Spec
 spec =
     describe "Root operation type" $ do
         it "returns objects from the root resolvers" $ do
-            let querySource = [r|
+            let querySource = [gql|
               {
                 garment {
                   circumference
@@ -59,7 +59,7 @@ spec =
             actual `shouldResolveTo` expected
 
         it "chooses Mutation" $ do
-            let querySource = [r|
+            let querySource = [gql|
               mutation {
                 incrementCircumference
               }

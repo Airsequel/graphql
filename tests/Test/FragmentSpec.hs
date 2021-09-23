@@ -15,9 +15,9 @@ import Data.Text (Text)
 import Language.GraphQL
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.Out as Out
+import Language.GraphQL.TH
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.GraphQL
-import Text.RawString.QQ (r)
 
 size :: (Text, Value)
 size = ("size", String "L")
@@ -34,16 +34,18 @@ garment typeName =
     )
 
 inlineQuery :: Text
-inlineQuery = [r|{
-  garment {
-    ... on Hat {
-      circumference
-    }
-    ... on Shirt {
-      size
+inlineQuery = [gql|
+  {
+    garment {
+      ... on Hat {
+        circumference
+      }
+      ... on Shirt {
+        size
+      }
     }
   }
-}|]
+|]
 
 shirtType :: Out.ObjectType IO
 shirtType = Out.ObjectType "Shirt" Nothing [] $ HashMap.fromList
@@ -106,12 +108,14 @@ spec = do
              in actual `shouldResolveTo` expected
 
         it "embeds inline fragments without type" $ do
-            let sourceQuery = [r|{
-              circumference
-              ... {
-                size
+            let sourceQuery = [gql|
+              {
+                circumference
+                ... {
+                  size
+                }
               }
-            }|]
+            |]
             actual <- graphql (toSchema "circumference" circumference) sourceQuery
             let expected = HashMap.singleton "data"
                     $ Aeson.object
@@ -121,16 +125,18 @@ spec = do
              in actual `shouldResolveTo` expected
 
         it "evaluates fragments on Query" $ do
-            let sourceQuery = [r|{
-              ... {
-                size
+            let sourceQuery = [gql|
+              {
+                ... {
+                  size
+                }
               }
-            }|]
+            |]
              in graphql (toSchema "size" size) `shouldResolve` sourceQuery
 
     describe "Fragment spread executor" $ do
         it "evaluates fragment spreads" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 ...circumferenceFragment
               }
@@ -148,7 +154,7 @@ spec = do
              in actual `shouldResolveTo` expected
 
         it "evaluates nested fragments" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 garment {
                   ...circumferenceFragment
@@ -174,7 +180,7 @@ spec = do
              in actual `shouldResolveTo` expected
 
         it "considers type condition" $ do
-            let sourceQuery = [r|
+            let sourceQuery = [gql|
               {
                 garment {
                   ...circumferenceFragment

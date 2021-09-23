@@ -8,10 +8,10 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.AST.DirectiveLocation as DirLoc
 import Language.GraphQL.AST.Parser
+import Language.GraphQL.TH
 import Test.Hspec (Spec, describe, it)
 import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (parse)
-import Text.RawString.QQ (r)
 
 spec :: Spec
 spec = describe "Parser" $ do
@@ -19,74 +19,74 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` "\xfeff{foo}"
 
     it "accepts block strings as argument" $
-        parse document "" `shouldSucceedOn` [r|{
+        parse document "" `shouldSucceedOn` [gql|{
               hello(text: """Argument""")
             }|]
 
     it "accepts strings as argument" $
-        parse document "" `shouldSucceedOn` [r|{
+        parse document "" `shouldSucceedOn` [gql|{
               hello(text: "Argument")
             }|]
 
     it "accepts two required arguments" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             mutation auth($username: String!, $password: String!){
               test
             }|]
 
     it "accepts two string arguments" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             mutation auth{
               test(username: "username", password: "password")
             }|]
 
     it "accepts two block string arguments" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             mutation auth{
               test(username: """username""", password: """password""")
             }|]
 
     it "parses minimal schema definition" $
-        parse document "" `shouldSucceedOn` [r|schema { query: Query }|]
+        parse document "" `shouldSucceedOn` [gql|schema { query: Query }|]
 
     it "parses minimal scalar definition" $
-        parse document "" `shouldSucceedOn` [r|scalar Time|]
+        parse document "" `shouldSucceedOn` [gql|scalar Time|]
 
     it "parses ImplementsInterfaces" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             type Person implements NamedEntity & ValuedEntity {
               name: String
             }
         |]
 
     it "parses a  type without ImplementsInterfaces" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             type Person {
               name: String
             }
         |]
 
     it "parses ArgumentsDefinition in an ObjectDefinition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             type Person {
               name(first: String, last: String): String
             }
         |]
 
     it "parses minimal union type definition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             union SearchResult = Photo | Person
         |]
 
     it "parses minimal interface type definition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             interface NamedEntity {
               name: String
             }
         |]
 
     it "parses minimal enum type definition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             enum Direction {
               NORTH
               EAST
@@ -96,7 +96,7 @@ spec = describe "Parser" $ do
         |]
 
     it "parses minimal enum type definition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             enum Direction {
               NORTH
               EAST
@@ -106,7 +106,7 @@ spec = describe "Parser" $ do
         |]
 
     it "parses minimal input object type definition" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             input Point2D {
               x: Float
               y: Float
@@ -114,7 +114,7 @@ spec = describe "Parser" $ do
         |]
 
     it "parses minimal input enum definition with an optional pipe" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             directive @example on
               | FIELD
               | FRAGMENT_SPREAD
@@ -131,15 +131,15 @@ spec = describe "Parser" $ do
             example1 =
                 directive "example1"
                     (DirLoc.TypeSystemDirectiveLocation DirLoc.FieldDefinition)
-                    (Location {line = 2, column = 17})
+                    (Location {line = 1, column = 1})
             example2 =
                 directive "example2"
                     (DirLoc.ExecutableDirectiveLocation DirLoc.Field)
-                    (Location {line = 3, column = 17})
+                    (Location {line = 2, column = 1})
             testSchemaExtension = example1 :| [ example2 ]
-            query = [r|
-                directive @example1 on FIELD_DEFINITION
-                directive @example2 on FIELD
+            query = [gql|
+              directive @example1 on FIELD_DEFINITION
+              directive @example2 on FIELD
             |]
          in parse document "" query `shouldParse` testSchemaExtension
 
@@ -167,16 +167,16 @@ spec = describe "Parser" $ do
                           $ Node (ConstList [])
                           $ Location {line = 1, column = 33})]
                     (Location {line = 1, column = 1})
-            query = [r|directive @test(foo: [String] = []) on FIELD_DEFINITION|]
+            query = [gql|directive @test(foo: [String] = []) on FIELD_DEFINITION|]
          in parse document "" query `shouldParse` (defn :| [ ])
 
     it "parses schema extension with a new directive" $
-        parse document "" `shouldSucceedOn`[r|
+        parse document "" `shouldSucceedOn`[gql|
             extend schema @newDirective
         |]
 
     it "parses schema extension with an operation type definition" $
-        parse document "" `shouldSucceedOn` [r|extend schema { query: Query }|]
+        parse document "" `shouldSucceedOn` [gql|extend schema { query: Query }|]
 
     it "parses schema extension with an operation type and directive" $
         let newDirective = Directive "newDirective" [] $ Location 1 15
@@ -185,25 +185,25 @@ spec = describe "Parser" $ do
                 $ OperationTypeDefinition Query "Query" :| []
             testSchemaExtension = TypeSystemExtension schemaExtension
                 $ Location 1 1
-            query = [r|extend schema @newDirective { query: Query }|]
+            query = [gql|extend schema @newDirective { query: Query }|]
          in parse document "" query `shouldParse` (testSchemaExtension :| [])
 
     it "parses an object extension" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             extend type Story {
               isHiddenLocally: Boolean
             }
         |]
 
     it "rejects variables in DefaultValue" $
-        parse document "" `shouldFailOn` [r|
+        parse document "" `shouldFailOn` [gql|
             query ($book: String = "Zarathustra", $author: String = $book) {
               title
             }
         |]
 
     it "parses documents beginning with a comment" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             """
             Query
             """
@@ -213,7 +213,7 @@ spec = describe "Parser" $ do
         |]
 
     it "parses subscriptions" $
-        parse document "" `shouldSucceedOn` [r|
+        parse document "" `shouldSucceedOn` [gql|
             subscription NewMessages {
               newMessage(roomId: 123) {
                 sender
