@@ -205,5 +205,5 @@ collectImplementations = HashMap.foldr go HashMap.empty
         let Out.ObjectType _ _ interfaces _ = objectType
          in foldr (add implementation) accumulator interfaces
     go _ accumulator = accumulator
-    add implementation (Out.InterfaceType typeName _ _ _) accumulator =
-        HashMap.insertWith (++) typeName [implementation] accumulator
+    add implementation (Out.InterfaceType typeName _ _ _) =
+        HashMap.insertWith (++) typeName [implementation]

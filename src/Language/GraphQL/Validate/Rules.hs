@@ -152,7 +152,7 @@ singleFieldSubscriptionsRule = OperationDefinitionRule $ \case
   where
     errorMessage =
         "Anonymous Subscription must select only one top level field."
-    collectFields selectionSet = foldM forEach HashSet.empty selectionSet
+    collectFields = foldM forEach HashSet.empty
     forEach accumulator = \case
         Full.FieldSelection fieldSelection -> forField accumulator fieldSelection
         Full.FragmentSpreadSelection fragmentSelection ->
@@ -472,7 +472,7 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
     collectCycles :: Traversable t
         => t Full.Selection
         -> StateT (Int, Full.Name) (ReaderT (Validation m) Seq) (HashMap Full.Name Int)
-    collectCycles selectionSet = foldM forEach HashMap.empty selectionSet
+    collectCycles = foldM forEach HashMap.empty
     forEach accumulator = \case
         Full.FieldSelection fieldSelection -> forField accumulator fieldSelection
         Full.InlineFragmentSelection fragmentSelection ->
@@ -702,8 +702,7 @@ uniqueInputFieldNamesRule =
   where
     go (Full.Node (Full.Object fields) _) = filterFieldDuplicates fields
     go _ = mempty
-    filterFieldDuplicates fields =
-        filterDuplicates getFieldName "input field" fields
+    filterFieldDuplicates = filterDuplicates getFieldName "input field"
     getFieldName (Full.ObjectField fieldName _ location') = (fieldName, location')
     constGo (Full.Node (Full.ConstObject fields) _) = filterFieldDuplicates fields
     constGo _ = mempty
@@ -1331,8 +1330,8 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
         -> Type.CompositeType m
         -> t Full.Selection
         -> ValidationState m (Seq Error)
-    visitSelectionSet variables selectionType selections =
-        foldM (evaluateSelection variables selectionType) mempty selections
+    visitSelectionSet variables selectionType =
+        foldM (evaluateSelection variables selectionType) mempty
     evaluateFieldSelection variables selections accumulator = \case
         Just newParentType -> do
             let folder = evaluateSelection variables newParentType
@@ -1617,4 +1616,3 @@ valuesOfCorrectTypeRule = ValueRule go constGo
                         }
                 | otherwise -> mempty
             _ -> checkResult
-
