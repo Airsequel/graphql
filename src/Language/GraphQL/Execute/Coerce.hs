@@ -3,6 +3,7 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -60,6 +61,9 @@ class VariableValue a where
         :: In.Type -- ^ Expected type (variable type given in the query).
         -> a -- ^ Variable value being coerced.
         -> Maybe Type.Value -- ^ Coerced value on success, 'Nothing' otherwise.
+
+instance VariableValue Type.Value where
+    coerceVariableValue = const Just
 
 instance VariableValue Aeson.Value where
     coerceVariableValue _ Aeson.Null = Just Type.Null
@@ -215,6 +219,20 @@ data Output a
 
 instance forall a. IsString (Output a) where
     fromString = String . fromString
+
+instance Serialize Type.Value where
+    null = Type.Null
+    serialize _ = \case
+        Int int -> Just $ Type.Int int
+        Float float -> Just $ Type.Float float
+        String string -> Just $ Type.String string
+        Boolean boolean -> Just $ Type.Boolean boolean
+        Enum enum -> Just $ Type.Enum enum
+        List list -> Just $ Type.List list
+        Object object -> Just
+            $ Type.Object
+            $ HashMap.fromList
+            $ OrderedMap.toList object
 
 instance Serialize Aeson.Value where
     serialize (Out.ScalarBaseType scalarType) value

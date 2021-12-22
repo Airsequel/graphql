@@ -6,6 +6,11 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [Unreleased]
+### Added
+- `Serialize` instance for `Type.Definition.Value`.
+- `VariableValue` instance for `Type.Definition.Value`.
+
 ## [1.0.1.0] - 2021-09-27
 ### Added
 - Custom `Show` instance for `Type.Definition.Value` (for error
@@ -459,6 +464,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v1.0.1.0
 [1.0.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.1.0&rev_to=v1.0.0.0
 [1.0.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.0.0&rev_to=v0.11.1.0
 [0.11.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.1.0&rev_to=v0.11.0.0
