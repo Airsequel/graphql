@@ -2,6 +2,9 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
+{-# LANGUAGE CPP #-}
+
+#ifdef WITH_JSON
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -39,3 +42,8 @@ shouldResolve executor query = do
             response `shouldNotSatisfy` HashMap.member "errors"
         _ -> expectationFailure
             "the query is expected to resolve to a value, but it resolved to an event stream"
+#else
+module Test.Hspec.GraphQL
+    (
+    ) where
+#endif

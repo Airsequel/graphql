@@ -10,6 +10,8 @@ and this project adheres to
 ### Added
 - `Serialize` instance for `Type.Definition.Value`.
 - `VariableValue` instance for `Type.Definition.Value`.
+- `Json` build flag, enabled by default. JSON and Aeson support can be disabled
+  by disabling this flag.
 
 ## [1.0.1.0] - 2021-09-27
 ### Added

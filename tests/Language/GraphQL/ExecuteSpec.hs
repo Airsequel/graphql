@@ -10,9 +10,6 @@ module Language.GraphQL.ExecuteSpec
 
 import Control.Exception (Exception(..), SomeException)
 import Control.Monad.Catch (throwM)
-import Data.Aeson ((.=))
-import qualified Data.Aeson as Aeson
-import Data.Aeson.Types (emptyObject)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -189,12 +186,12 @@ schoolType = EnumType "School" Nothing $ HashMap.fromList
     ]
 
 type EitherStreamOrValue = Either
-    (ResponseEventStream (Either SomeException) Aeson.Value)
-    (Response Aeson.Value)
+    (ResponseEventStream (Either SomeException) Value)
+    (Response Value)
 
 execute' :: Document -> Either SomeException EitherStreamOrValue
 execute' =
-    execute philosopherSchema Nothing (mempty :: HashMap Name Aeson.Value)
+    execute philosopherSchema Nothing (mempty :: HashMap Name Value)
 
 spec :: Spec
 spec =
@@ -209,38 +206,37 @@ spec =
                 ...cyclicFragment
               }
             |]
-                expected = Response emptyObject mempty
+                expected = Response (Object mempty) mempty
                 Right (Right actual) = either (pure . parseError) execute'
                     $ parse document "" sourceQuery
              in actual `shouldBe` expected
 
         context "Query" $ do
             it "skips unknown fields" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "firstName" .= ("Friedrich" :: String)
-                            ]
-                        ]
+                let data'' = Object
+                        $ HashMap.singleton "philosopher"
+                        $ Object
+                        $ HashMap.singleton "firstName"
+                        $ String "Friedrich"
                     expected = Response data'' mempty
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName surname } }"
                 in actual `shouldBe` expected
             it "merges selections" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.object
-                            [ "firstName" .= ("Friedrich" :: String)
-                            , "lastName" .= ("Nietzsche" :: String)
+                let data'' = Object
+                        $ HashMap.singleton "philosopher"
+                        $ Object
+                        $ HashMap.fromList
+                            [ ("firstName", String "Friedrich")
+                            , ("lastName", String "Nietzsche")
                             ]
-                        ]
                     expected = Response data'' mempty
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
                 in actual `shouldBe` expected
 
             it "errors on invalid output enum values" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Value completion error. Expected type !School, found: EXISTENTIALISM."
@@ -253,9 +249,7 @@ spec =
                 in actual `shouldBe` expected
 
             it "gives location information for non-null unions" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Value completion error. Expected type !Interest, found: { instrument: \"piano\" }."
@@ -268,9 +262,7 @@ spec =
                 in actual `shouldBe` expected
 
             it "gives location information for invalid interfaces" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message
                             = "Value completion error. Expected type !Work, found:\
@@ -284,9 +276,7 @@ spec =
                 in actual `shouldBe` expected
 
             it "gives location information for invalid scalar arguments" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Argument \"id\" has invalid type. Expected type ID, found: True."
@@ -299,9 +289,7 @@ spec =
                 in actual `shouldBe` expected
 
             it "gives location information for failed result coercion" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message = "Unable to coerce result to !Int."
                         , locations = [Location 1 26]
@@ -313,9 +301,7 @@ spec =
                 in actual `shouldBe` expected
 
             it "gives location information for failed result coercion" $
-                let data'' = Aeson.object
-                        [ "genres" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "genres" Null
                     executionErrors = pure $ Error
                         { message = "PhilosopherException"
                         , locations = [Location 1 3]
@@ -332,15 +318,13 @@ spec =
                         , locations = [Location 1 3]
                         , path = [Segment "count"]
                         }
-                    expected = Response Aeson.Null executionErrors
+                    expected = Response Null executionErrors
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ count }"
                 in actual `shouldBe` expected
 
             it "detects nullability errors" $
-                let data'' = Aeson.object
-                        [ "philosopher" .= Aeson.Null
-                        ]
+                let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message = "Value completion error. Expected type !String, found: null."
                         , locations = [Location 1 26]
@@ -353,11 +337,11 @@ spec =
 
         context "Subscription" $
             it "subscribes" $
-                let data'' = Aeson.object
-                        [ "newQuote" .= Aeson.object
-                            [ "quote" .= ("Naturam expelles furca, tamen usque recurret." :: String)
-                            ]
-                        ]
+                let data'' = Object
+                        $ HashMap.singleton "newQuote"
+                        $ Object
+                        $ HashMap.singleton "quote"
+                        $ String "Naturam expelles furca, tamen usque recurret."
                     expected = Response data'' mempty
                     Right (Left stream) = either (pure . parseError) execute'
                         $ parse document "" "subscription { newQuote { quote } }"

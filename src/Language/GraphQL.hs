@@ -1,3 +1,6 @@
+{-# LANGUAGE CPP #-}
+
+#ifdef WITH_JSON
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -73,3 +76,9 @@ graphqlSubs schema operationName variableValues document' =
         [ ("line", Aeson.toJSON line)
         , ("column", Aeson.toJSON column)
         ]
+#else
+-- | This module provides the functions to parse and execute @GraphQL@ queries.
+module Language.GraphQL
+    (
+    ) where
+#endif

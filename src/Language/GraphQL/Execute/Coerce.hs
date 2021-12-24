@@ -3,9 +3,9 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE ExplicitForAll #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE CPP #-}
 
 -- | Types and functions used for input and result coercion.
 module Language.GraphQL.Execute.Coerce
@@ -16,7 +16,10 @@ module Language.GraphQL.Execute.Coerce
     , matchFieldValues
     ) where
 
+#ifdef WITH_JSON
 import qualified Data.Aeson as Aeson
+import Data.Scientific (toBoundedInteger, toRealFloat)
+#endif
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -25,7 +28,6 @@ import Data.Text (Text)
 import qualified Data.Text.Lazy as Text.Lazy
 import qualified Data.Text.Lazy.Builder as Text.Builder
 import qualified Data.Text.Lazy.Builder.Int as Text.Builder
-import Data.Scientific (toBoundedInteger, toRealFloat)
 import Language.GraphQL.AST (Name)
 import Language.GraphQL.Execute.OrderedMap (OrderedMap)
 import qualified Language.GraphQL.Execute.OrderedMap as OrderedMap
@@ -63,22 +65,12 @@ class VariableValue a where
         -> Maybe Type.Value -- ^ Coerced value on success, 'Nothing' otherwise.
 
 instance VariableValue Type.Value where
-    coerceVariableValue = const Just
-
-instance VariableValue Aeson.Value where
-    coerceVariableValue _ Aeson.Null = Just Type.Null
-    coerceVariableValue (In.ScalarBaseType scalarType) value
-        | (Aeson.String stringValue) <- value = Just $ Type.String stringValue
-        | (Aeson.Bool booleanValue) <- value = Just $ Type.Boolean booleanValue
-        | (Aeson.Number numberValue) <- value
-        , (Type.ScalarType "Float" _) <- scalarType =
-            Just $ Type.Float $ toRealFloat numberValue
-        | (Aeson.Number numberValue) <- value = -- ID or Int
-            Type.Int <$> toBoundedInteger numberValue
-    coerceVariableValue (In.EnumBaseType _) (Aeson.String stringValue) =
+    coerceVariableValue _ Type.Null = Just Type.Null
+    coerceVariableValue (In.ScalarBaseType _) value = Just value
+    coerceVariableValue (In.EnumBaseType _) (Type.Enum stringValue) =
         Just $ Type.Enum stringValue
     coerceVariableValue (In.InputObjectBaseType objectType) value
-        | (Aeson.Object objectValue) <- value = do
+        | (Type.Object objectValue) <- value = do
             let (In.InputObjectType _ _ inputFields) = objectType
             (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
             if HashMap.null newObjectValue
@@ -98,14 +90,9 @@ instance VariableValue Aeson.Value where
                         pure (newObjectValue, insert coerced)
                     Nothing -> Just (objectValue, resultMap)
     coerceVariableValue (In.ListBaseType listType) value
-        | (Aeson.Array arrayValue) <- value =
-            Type.List <$> foldr foldVector (Just []) arrayValue
+        | (Type.List arrayValue) <- value =
+            Type.List <$> traverse (coerceVariableValue listType) arrayValue
         | otherwise = coerceVariableValue listType value
-      where
-        foldVector _ Nothing = Nothing
-        foldVector variableValue (Just list) = do
-            coerced <- coerceVariableValue listType variableValue
-            pure $ coerced : list 
     coerceVariableValue _ _ = Nothing
 
 -- | Looks up a value by name in the given map, coerces it and inserts into the
@@ -222,18 +209,26 @@ instance forall a. IsString (Output a) where
 
 instance Serialize Type.Value where
     null = Type.Null
-    serialize _ = \case
-        Int int -> Just $ Type.Int int
-        Float float -> Just $ Type.Float float
-        String string -> Just $ Type.String string
-        Boolean boolean -> Just $ Type.Boolean boolean
-        Enum enum -> Just $ Type.Enum enum
-        List list -> Just $ Type.List list
-        Object object -> Just
-            $ Type.Object
-            $ HashMap.fromList
-            $ OrderedMap.toList object
+    serialize (Out.ScalarBaseType scalarType) value
+        | Type.ScalarType "Int" _ <- scalarType
+        , Int int <- value = Just $ Type.Int int
+        | Type.ScalarType "Float" _ <- scalarType
+        , Float float <- value = Just $ Type.Float float
+        | Type.ScalarType "String" _ <- scalarType
+        , String string <- value = Just $ Type.String string
+        | Type.ScalarType "ID" _ <- scalarType
+        , String string <- value = Just $ Type.String string
+        | Type.ScalarType "Boolean" _ <- scalarType
+        , Boolean boolean <- value = Just $ Type.Boolean boolean
+    serialize _ (Enum enum) = Just $ Type.Enum enum
+    serialize _ (List list) = Just $ Type.List list
+    serialize _ (Object object) = Just
+        $ Type.Object
+        $ HashMap.fromList
+        $ OrderedMap.toList object
+    serialize _ _ = Nothing
 
+#ifdef WITH_JSON
 instance Serialize Aeson.Value where
     serialize (Out.ScalarBaseType scalarType) value
         | Type.ScalarType "Int" _ <- scalarType
@@ -254,3 +249,47 @@ instance Serialize Aeson.Value where
         $ Aeson.toJSON <$> object
     serialize _ _ = Nothing
     null = Aeson.Null
+
+instance VariableValue Aeson.Value where
+    coerceVariableValue _ Aeson.Null = Just Type.Null
+    coerceVariableValue (In.ScalarBaseType scalarType) value
+        | (Aeson.String stringValue) <- value = Just $ Type.String stringValue
+        | (Aeson.Bool booleanValue) <- value = Just $ Type.Boolean booleanValue
+        | (Aeson.Number numberValue) <- value
+        , (Type.ScalarType "Float" _) <- scalarType =
+            Just $ Type.Float $ toRealFloat numberValue
+        | (Aeson.Number numberValue) <- value = -- ID or Int
+            Type.Int <$> toBoundedInteger numberValue
+    coerceVariableValue (In.EnumBaseType _) (Aeson.String stringValue) =
+        Just $ Type.Enum stringValue
+    coerceVariableValue (In.InputObjectBaseType objectType) value
+        | (Aeson.Object objectValue) <- value = do
+            let (In.InputObjectType _ _ inputFields) = objectType
+            (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
+            if HashMap.null newObjectValue
+                then Just $ Type.Object resultMap
+                else Nothing
+      where
+        foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues'
+            $ Just (objectValue, HashMap.empty)
+        matchFieldValues' _ _ Nothing = Nothing
+        matchFieldValues' fieldName inputField (Just (objectValue, resultMap)) =
+            let (In.InputField _ fieldType _) = inputField
+                insert = flip (HashMap.insert fieldName) resultMap
+                newObjectValue = HashMap.delete fieldName objectValue
+             in case HashMap.lookup fieldName objectValue of
+                    Just variableValue -> do
+                        coerced <- coerceVariableValue fieldType variableValue
+                        pure (newObjectValue, insert coerced)
+                    Nothing -> Just (objectValue, resultMap)
+    coerceVariableValue (In.ListBaseType listType) value
+        | (Aeson.Array arrayValue) <- value =
+            Type.List <$> foldr foldVector (Just []) arrayValue
+        | otherwise = coerceVariableValue listType value
+      where
+        foldVector _ Nothing = Nothing
+        foldVector variableValue (Just list) = do
+            coerced <- coerceVariableValue listType variableValue
+            pure $ coerced : list 
+    coerceVariableValue _ _ = Nothing
+#endif

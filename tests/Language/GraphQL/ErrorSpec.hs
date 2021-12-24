@@ -7,9 +7,9 @@ module Language.GraphQL.ErrorSpec
     ( spec
     ) where
 
-import qualified Data.Aeson as Aeson
 import Data.List.NonEmpty (NonEmpty (..))
 import Language.GraphQL.Error
+import qualified Language.GraphQL.Type as Type
 import Test.Hspec
     ( Spec
     , describe
@@ -31,6 +31,6 @@ spec = describe "parseError" $
                 , pstateTabWidth = mkPos 1
                 , pstateLinePrefix = ""
                 }
-        Response Aeson.Null actual <-
+        Response Type.Null actual <-
             parseError (ParseErrorBundle parseErrors posState)
         length actual `shouldBe` 1
