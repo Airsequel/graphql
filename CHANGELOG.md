@@ -6,6 +6,10 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.0.3] - 2021-01-04
+### Fixed
+- Index position in error path. (Index and Segment paths of a field have been swapped)
+
 ## [1.0.2.0] - 2021-12-26
 ### Added
 - `Serialize` instance for `Type.Definition.Value`.

@@ -375,6 +375,7 @@ executeField objectValue fields (viewResolver -> resolverPair) errorPath =
         , Handler (resolverHandler fieldLocation)
         ]
   where
+    fieldErrorPath = fieldsSegment fields : errorPath
     inputCoercionHandler :: (MonadCatch m, Serialize a)
         => Full.Location
         -> InputCoercionException
@@ -402,17 +403,16 @@ executeField objectValue fields (viewResolver -> resolverPair) errorPath =
              then throwM e
              else returnError newError
     exceptionHandler errorLocation e =
-        let newPath = fieldsSegment fields : errorPath
-            newError = constructError e errorLocation newPath
+        let newError = constructError e errorLocation fieldErrorPath
          in if Out.isNonNullType fieldType
-             then throwM $ FieldException errorLocation newPath e
+             then throwM $ FieldException errorLocation fieldErrorPath e
              else returnError newError
     returnError newError = tell (Seq.singleton newError) >> pure null
     go fieldName inputArguments = do
         argumentValues <- coerceArgumentValues argumentTypes inputArguments
         resolvedValue <-
            resolveFieldValue resolveFunction objectValue fieldName argumentValues
-        completeValue fieldType fields errorPath resolvedValue
+        completeValue fieldType fields fieldErrorPath resolvedValue
     (resolverField, resolveFunction) = resolverPair
     Out.Field _ fieldType argumentTypes = resolverField
 
@@ -445,6 +445,7 @@ resolveAbstractType abstractType values'
             _ -> pure Nothing
     | otherwise = pure Nothing
 
+-- https://spec.graphql.org/October2021/#sec-Value-Completion
 completeValue :: (MonadCatch m, Serialize a)
     => Out.Type m
     -> NonEmpty (Transform.Field m)
@@ -476,8 +477,7 @@ completeValue outputType@(Out.EnumBaseType enumType) _ _ (Type.Enum enum) =
             $ ValueCompletionException (show outputType)
             $ Type.Enum enum
 completeValue (Out.ObjectBaseType objectType) fields errorPath result
-    = executeSelectionSet (mergeSelectionSets fields) objectType result
-    $ fieldsSegment fields : errorPath
+    = executeSelectionSet (mergeSelectionSets fields) objectType result errorPath
 completeValue outputType@(Out.InterfaceBaseType interfaceType) fields errorPath result
     | Type.Object objectMap <- result = do
         let abstractType = Type.Internal.AbstractInterfaceType interfaceType

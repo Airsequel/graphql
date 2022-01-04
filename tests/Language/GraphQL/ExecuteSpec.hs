@@ -4,6 +4,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+
 module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
@@ -26,6 +27,9 @@ import qualified Language.GraphQL.Type.Out as Out
 import Prelude hiding (id)
 import Test.Hspec (Spec, context, describe, it, shouldBe)
 import Text.Megaparsec (parse)
+import Schemas.HeroSchema (heroSchema)
+import Data.Maybe (fromJust)
+import qualified Data.Sequence as Seq
 
 data PhilosopherException = PhilosopherException
     deriving Show
@@ -334,6 +338,18 @@ spec =
                     Right (Right actual) = either (pure . parseError) execute'
                         $ parse document "" "{ philosopher(id: \"1\") { firstLanguage } }"
                 in actual `shouldBe` expected
+
+            context "Error path" $ do
+                let executeHero :: Document -> Either SomeException EitherStreamOrValue
+                    executeHero = execute heroSchema Nothing (HashMap.empty :: HashMap Name Value)
+
+                it "at the beggining of the list" $
+                    let Right (Right actual) = either (pure . parseError) executeHero
+                            $ parse document "" "{ hero(id: \"1\") { friends { name } } }"
+                        Response _ errors' = actual
+                        Error _ _ path' = fromJust $ Seq.lookup 0 errors'
+                        expected = [Segment "hero", Segment "friends", Index 0, Segment "name"]
+                    in path' `shouldBe` expected
 
         context "Subscription" $
             it "subscribes" $
