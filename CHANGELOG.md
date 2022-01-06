@@ -8,7 +8,9 @@ and this project adheres to
 
 ## [Unreleased]
 ### Fixed
-- Index position in error path. (Index and Segment paths of a field have been swapped)
+- Index position in error path. (Index and Segment paths of a field have been
+  swapped).
+- Parsing empty list as an argument.
 
 ## [1.0.2.0] - 2021-12-26
 ### Added

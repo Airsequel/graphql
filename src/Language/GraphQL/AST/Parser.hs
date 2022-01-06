@@ -450,8 +450,8 @@ value = Full.Variable <$> variable
     <|> Full.Null <$  nullValue
     <|> Full.String <$> stringValue
     <|> Full.Enum <$> try enumValue
-    <|> Full.List <$> brackets (some $ valueNode value)
-    <|> Full.Object <$> braces (some $ objectField $ valueNode value)
+    <|> Full.List <$> brackets (many $ valueNode value)
+    <|> Full.Object <$> braces (many $ objectField $ valueNode value)
     <?> "Value"
 
 constValue :: Parser Full.ConstValue

@@ -9,7 +9,7 @@ import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.AST.DirectiveLocation as DirLoc
 import Language.GraphQL.AST.Parser
 import Language.GraphQL.TH
-import Test.Hspec (Spec, describe, it)
+import Test.Hspec (Spec, describe, it, context)
 import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (parse)
 
@@ -18,33 +18,56 @@ spec = describe "Parser" $ do
     it "accepts BOM header" $
         parse document "" `shouldSucceedOn` "\xfeff{foo}"
 
-    it "accepts block strings as argument" $
-        parse document "" `shouldSucceedOn` [gql|{
-              hello(text: """Argument""")
-            }|]
+    context "Arguments" $ do
+       it "accepts block strings as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 hello(text: """Argument""")
+               }|]
 
-    it "accepts strings as argument" $
-        parse document "" `shouldSucceedOn` [gql|{
-              hello(text: "Argument")
-            }|]
+       it "accepts strings as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 hello(text: "Argument")
+               }|]
 
-    it "accepts two required arguments" $
-        parse document "" `shouldSucceedOn` [gql|
-            mutation auth($username: String!, $password: String!){
-              test
-            }|]
+       it "accepts int as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 user(id: 4)
+               }|]
 
-    it "accepts two string arguments" $
-        parse document "" `shouldSucceedOn` [gql|
-            mutation auth{
-              test(username: "username", password: "password")
-            }|]
+       it "accepts boolean as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 hello(flag: true) { field1 }
+               }|]
 
-    it "accepts two block string arguments" $
-        parse document "" `shouldSucceedOn` [gql|
-            mutation auth{
-              test(username: """username""", password: """password""")
-            }|]
+       it "accepts float as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 body(height: 172.5) { height }
+               }|]
+
+       it "accepts empty list as argument" $
+           parse document "" `shouldSucceedOn` [gql|{
+                 query(list: []) { field1 }
+               }|]
+
+       it "accepts two required arguments" $
+           parse document "" `shouldSucceedOn` [gql|
+               mutation auth($username: String!, $password: String!){
+                 test
+               }|]
+
+       it "accepts two string arguments" $
+           parse document "" `shouldSucceedOn` [gql|
+               mutation auth{
+                 test(username: "username", password: "password")
+               }|]
+
+       it "accepts two block string arguments" $
+           parse document "" `shouldSucceedOn` [gql|
+               mutation auth{
+                 test(username: """username""", password: """password""")
+               }|]
+
+
 
     it "parses minimal schema definition" $
         parse document "" `shouldSucceedOn` [gql|schema { query: Query }|]
@@ -199,6 +222,13 @@ spec = describe "Parser" $ do
         parse document "" `shouldFailOn` [gql|
             query ($book: String = "Zarathustra", $author: String = $book) {
               title
+            }
+        |]
+
+    it "rejects empty selection set" $
+       parse document "" `shouldFailOn` [gql|
+            query {
+              innerField {}
             }
         |]
 
