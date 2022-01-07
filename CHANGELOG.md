@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [1.0.3] - 2021-01-04
+## [Unreleased]
 ### Fixed
 - Index position in error path. (Index and Segment paths of a field have been swapped)
 
@@ -470,6 +470,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v1.0.2.0
 [1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=1.0.2.0&rev_to=v1.0.1.0
 [1.0.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.1.0&rev_to=v1.0.0.0
 [1.0.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.0.0&rev_to=v0.11.1.0
