@@ -12,6 +12,9 @@ and this project adheres to
   swapped).
 - Parsing empty list as an argument.
 
+### Added
+- quickCheck Parser test for arguments. Arbitrary instances for Language.GraphQL.AST.Document.
+
 ## [1.0.2.0] - 2021-12-26
 ### Added
 - `Serialize` instance for `Type.Definition.Value`.

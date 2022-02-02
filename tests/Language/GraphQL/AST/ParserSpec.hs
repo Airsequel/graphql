@@ -5,6 +5,8 @@ module Language.GraphQL.AST.ParserSpec
     ) where
 
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Text (Text)
+import qualified Data.Text as Text
 import Language.GraphQL.AST.Document
 import qualified Language.GraphQL.AST.DirectiveLocation as DirLoc
 import Language.GraphQL.AST.Parser
@@ -12,6 +14,8 @@ import Language.GraphQL.TH
 import Test.Hspec (Spec, describe, it, context)
 import Test.Hspec.Megaparsec (shouldParse, shouldFailOn, shouldSucceedOn)
 import Text.Megaparsec (parse)
+import Test.QuickCheck (property, NonEmptyList (..), mapSize)
+import Language.GraphQL.AST.Arbitrary
 
 spec :: Spec
 spec = describe "Parser" $ do
@@ -29,7 +33,7 @@ spec = describe "Parser" $ do
                  hello(text: "Argument")
                }|]
 
-       it "accepts int as argument" $
+       it "accepts int as argument1" $
            parse document "" `shouldSucceedOn` [gql|{
                  user(id: 4)
                }|]
@@ -66,8 +70,13 @@ spec = describe "Parser" $ do
                mutation auth{
                  test(username: """username""", password: """password""")
                }|]
-
-
+ 
+       it "accepts any arguments" $ mapSize (const 10) $ property $ \xs ->
+            let
+                query' :: Text
+                arguments = map printArgument $ getNonEmpty (xs :: NonEmptyList (AnyArgument AnyValue))
+                query' = "query(" <> Text.intercalate ", " arguments <> ")" in
+            parse document "" `shouldSucceedOn` ("{ " <> query' <> " }")
 
     it "parses minimal schema definition" $
         parse document "" `shouldSucceedOn` [gql|schema { query: Query }|]
@@ -105,16 +114,6 @@ spec = describe "Parser" $ do
         parse document "" `shouldSucceedOn` [gql|
             interface NamedEntity {
               name: String
-            }
-        |]
-
-    it "parses minimal enum type definition" $
-        parse document "" `shouldSucceedOn` [gql|
-            enum Direction {
-              NORTH
-              EAST
-              SOUTH
-              WEST
             }
         |]
 

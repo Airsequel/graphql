@@ -93,6 +93,7 @@ test-suite graphql-test
     Language.GraphQL.AST.EncoderSpec
     Language.GraphQL.AST.LexerSpec
     Language.GraphQL.AST.ParserSpec
+    Language.GraphQL.AST.Arbitrary
     Language.GraphQL.ErrorSpec
     Language.GraphQL.Execute.CoerceSpec
     Language.GraphQL.Execute.OrderedMapSpec
