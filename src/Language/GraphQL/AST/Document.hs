@@ -49,6 +49,8 @@ module Language.GraphQL.AST.Document
     , Value(..)
     , VariableDefinition(..)
     , escape
+    , showVariableName
+    , showVariable
     ) where
 
 import Data.Char (ord)
@@ -338,6 +340,12 @@ instance Functor ObjectField where
 data VariableDefinition =
     VariableDefinition Name Type (Maybe (Node ConstValue)) Location
     deriving (Eq, Show)
+
+showVariableName :: VariableDefinition -> String
+showVariableName (VariableDefinition name _ _ _) = "$" <> Text.unpack name
+
+showVariable :: VariableDefinition -> String
+showVariable var@(VariableDefinition _ type' _ _) = showVariableName var <> ":" <> " " <> show type'
 
 -- ** Type References
 

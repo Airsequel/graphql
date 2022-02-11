@@ -61,6 +61,7 @@ import Language.GraphQL.Error
     , ResponseEventStream
     )
 import Prelude hiding (null)
+import Language.GraphQL.AST.Document (showVariableName)
 
 newtype ExecutorT m a = ExecutorT
     { runExecutorT :: ReaderT (HashMap Full.Name (Type m)) (WriterT (Seq Error) m) a
@@ -190,32 +191,42 @@ data QueryError
 tell :: Monad m => Seq Error -> ExecutorT m ()
 tell = ExecutorT . lift . Writer.tell
 
+operationNameErrorText :: Text
+operationNameErrorText = Text.unlines
+    [ "Named operations must be provided with the name of the desired operation."
+    , "See https://spec.graphql.org/June2018/#sec-Language.Document description."
+    ]
+
 queryError :: QueryError -> Error
 queryError OperationNameRequired =
-    Error{ message = "Operation name is required.", locations = [], path = [] }
+    let queryErrorMessage = "Operation name is required. " <> operationNameErrorText
+    in Error{ message = queryErrorMessage, locations = [], path = [] }
 queryError (OperationNotFound operationName) =
-    let queryErrorMessage = Text.concat
-            [ "Operation \""
-            , Text.pack operationName
-            , "\" not found."
+    let queryErrorMessage = Text.unlines
+            [ Text.concat
+              [ "Operation \""
+              , Text.pack operationName
+              , "\" is not found in the named operations you've provided. "
+              ]
+            , operationNameErrorText
             ]
      in Error{ message = queryErrorMessage, locations = [], path = [] }
 queryError (CoercionError variableDefinition) =
-    let Full.VariableDefinition variableName _ _ location = variableDefinition
+    let (Full.VariableDefinition _ _ _ location) = variableDefinition
         queryErrorMessage = Text.concat
-            [ "Failed to coerce the variable \""
-            , variableName
-            , "\"."
+            [ "Failed to coerce the variable "
+            , Text.pack $ Full.showVariable variableDefinition
+            , "."
             ]
      in Error{ message = queryErrorMessage, locations = [location], path = [] }
 queryError (UnknownInputType variableDefinition) =
-    let Full.VariableDefinition variableName variableTypeName _ location = variableDefinition
+    let Full.VariableDefinition _ variableTypeName _ location = variableDefinition
         queryErrorMessage = Text.concat
-            [ "Variable \""
-            , variableName
-            , "\" has unknown type \""
+            [ "Variable "
+            , Text.pack $ showVariableName variableDefinition
+            , " has unknown type "
             , Text.pack $ show variableTypeName
-            , "\"."
+            , "."
             ]
      in Error{ message = queryErrorMessage, locations = [location], path = [] }
 

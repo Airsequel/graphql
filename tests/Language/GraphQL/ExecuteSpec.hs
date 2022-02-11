@@ -21,6 +21,7 @@ import Language.GraphQL.Error
 import Language.GraphQL.Execute (execute)
 import Language.GraphQL.TH
 import qualified Language.GraphQL.Type.Schema as Schema
+import qualified Language.GraphQL.Type as Type
 import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
@@ -30,6 +31,7 @@ import Text.Megaparsec (parse)
 import Schemas.HeroSchema (heroSchema)
 import Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
+import qualified Data.Text as Text
 
 data PhilosopherException = PhilosopherException
     deriving Show
@@ -182,7 +184,7 @@ quoteType = Out.ObjectType "Quote" Nothing []
     quoteField =
         Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
-schoolType :: EnumType
+schoolType :: Type.EnumType
 schoolType = EnumType "School" Nothing $ HashMap.fromList
     [ ("NOMINALISM", EnumValue Nothing)
     , ("REALISM", EnumValue Nothing)
@@ -190,12 +192,12 @@ schoolType = EnumType "School" Nothing $ HashMap.fromList
     ]
 
 type EitherStreamOrValue = Either
-    (ResponseEventStream (Either SomeException) Value)
-    (Response Value)
+    (ResponseEventStream (Either SomeException) Type.Value)
+    (Response Type.Value)
 
 execute' :: Document -> Either SomeException EitherStreamOrValue
 execute' =
-    execute philosopherSchema Nothing (mempty :: HashMap Name Value)
+    execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
 
 spec :: Spec
 spec =
@@ -339,9 +341,59 @@ spec =
                         $ parse document "" "{ philosopher(id: \"1\") { firstLanguage } }"
                 in actual `shouldBe` expected
 
+            context "queryError" $ do
+                let
+                  namedQuery name = "query " <> name <> " { philosopher(id: \"1\") { interest } }"
+                  twoQueries = namedQuery "A" <> " " <> namedQuery "B"
+                  startsWith :: Text.Text -> Text.Text -> Bool
+                  startsWith xs ys = Text.take (Text.length ys) xs == ys
+
+                it "throws operation name is required error" $
+                    let expectedErrorMessage :: Text.Text
+                        expectedErrorMessage = "Operation name is required"
+                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute' $ parse document "" twoQueries
+                        Error msg _ _ = Seq.index executionErrors 0
+                     in msg `startsWith` expectedErrorMessage `shouldBe` True
+
+                it "throws operation not found error" $
+                    let expectedErrorMessage :: Text.Text
+                        expectedErrorMessage = "Operation \"C\" is not found"
+                        execute'' :: Document -> Either SomeException EitherStreamOrValue
+                        execute'' = execute philosopherSchema (Just "C") (mempty :: HashMap Name Type.Value)
+                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute''
+                            $ parse document "" twoQueries
+                        Error msg _ _ = Seq.index executionErrors 0
+                     in msg `startsWith` expectedErrorMessage `shouldBe` True
+
+                it "throws variable coercion error" $
+                    let data'' = Null
+                        executionErrors = pure $ Error
+                            { message = "Failed to coerce the variable $id: String."
+                            , locations =[Location 1 7]
+                            , path = []
+                            }
+                        expected = Response data'' executionErrors
+                        executeWithVars :: Document -> Either SomeException EitherStreamOrValue
+                        executeWithVars = execute philosopherSchema Nothing (HashMap.singleton "id" (Type.Int 1))
+                        Right (Right actual) = either (pure . parseError) executeWithVars
+                            $ parse document "" "query($id: String) { philosopher(id: \"1\") { firstLanguage } }"
+                    in actual `shouldBe` expected
+
+                it "throws variable unkown input type error" $
+                    let data'' = Null
+                        executionErrors = pure $ Error
+                            { message = "Variable $id has unknown type Cat."
+                            , locations =[Location 1 7]
+                            , path = []
+                            }
+                        expected = Response data'' executionErrors
+                        Right (Right actual) = either (pure . parseError) execute'
+                            $ parse document "" "query($id: Cat) { philosopher(id: \"1\") { firstLanguage } }"
+                    in actual `shouldBe` expected
+
             context "Error path" $ do
                 let executeHero :: Document -> Either SomeException EitherStreamOrValue
-                    executeHero = execute heroSchema Nothing (HashMap.empty :: HashMap Name Value)
+                    executeHero = execute heroSchema Nothing (HashMap.empty :: HashMap Name Type.Value)
 
                 it "at the beggining of the list" $
                     let Right (Right actual) = either (pure . parseError) executeHero
