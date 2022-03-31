@@ -15,16 +15,13 @@ module Language.GraphQL.Error
     , ResolverException(..)
     , Response(..)
     , ResponseEventStream
-    , addErr
-    , addErrMsg
     , parseError
     , runCollectErrs
-    , singleError
     ) where
 
 import Conduit
 import Control.Exception (Exception(..))
-import Control.Monad.Trans.State (StateT, modify, runStateT)
+import Control.Monad.Trans.State (StateT, runStateT)
 import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
@@ -131,26 +128,3 @@ data Resolution m = Resolution
 -- /CollectErrsT was part of the old executor and isn't used anymore, it will be
 -- deprecated in the future and removed./
 type CollectErrsT m = StateT (Resolution m) m
-
--- | Adds an error to the list of errors.
-{-# DEPRECATED #-}
-addErr :: Monad m => Error -> CollectErrsT m ()
-addErr v = modify appender
-  where
-    appender :: Monad m => Resolution m -> Resolution m
-    appender resolution@Resolution{..} = resolution{ errors = errors |> v }
-
-{-# DEPRECATED #-}
-makeErrorMessage :: Text -> Error
-makeErrorMessage s = Error s [] []
-
--- | Constructs a response object containing only the error with the given
--- message.
-{-# DEPRECATED #-}
-singleError :: Serialize a => Text -> Response a
-singleError message = Response null $ Seq.singleton $ Error message [] []
-
--- | Convenience function for just wrapping an error message.
-{-# DEPRECATED #-}
-addErrMsg :: (Monad m, Serialize a) => Text -> CollectErrsT m a
-addErrMsg errorMessage = (addErr . makeErrorMessage) errorMessage >> pure null

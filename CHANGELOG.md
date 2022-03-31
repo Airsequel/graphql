@@ -6,6 +6,11 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [Unreleased]
+### Changed
+- Removed deprecated `Language.GraphQL.Error` functions: `addErr`, `addErrMsg`,
+  `singleError`.
+
 ## [1.0.3.0] - 2022-03-27
 ### Fixed
 - Index position in error path. (Index and Segment paths of a field have been
@@ -477,6 +482,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v1.0.3.0
 [1.0.3.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=1.0.3.0&rev_to=v1.0.2.0
 [1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=1.0.2.0&rev_to=v1.0.1.0
 [1.0.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.1.0&rev_to=v1.0.0.0
