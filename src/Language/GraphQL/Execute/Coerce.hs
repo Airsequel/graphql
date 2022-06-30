@@ -8,6 +8,11 @@
 {-# LANGUAGE CPP #-}
 
 -- | Types and functions used for input and result coercion.
+--
+-- JSON instances in this module are only available with the __json__
+-- flag that is currently on by default, but will be disabled in the future.
+-- Refer to the documentation in the 'Language.GraphQL' module and to
+-- the __graphql-spice__ package.
 module Language.GraphQL.Execute.Coerce
     ( Output(..)
     , Serialize(..)

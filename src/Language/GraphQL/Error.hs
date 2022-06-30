@@ -103,8 +103,8 @@ instance Exception ResolverException
 -- | Runs the given query computation, but collects the errors into an error
 -- list, which is then sent back with the data.
 --
--- /runCollectErrs was part of the old executor and isn't used anymore, it will
--- be deprecated in the future and removed./
+-- {-# DEPRECATED runCollectErrs was part of the old executor and isn't used
+-- anymore #-}
 runCollectErrs :: (Monad m, Serialize a)
     => HashMap Name (Schema.Type m)
     -> CollectErrsT m a
@@ -116,8 +116,8 @@ runCollectErrs types' res = do
 
 -- | Executor context.
 --
--- /Resolution was part of the old executor and isn't used anymore, it will be
--- deprecated in the future and removed./
+-- {-# DEPRECATED Resolution was part of the old executor and isn't used
+-- anymore #-}
 data Resolution m = Resolution
     { errors :: Seq Error
     , types :: HashMap Name (Schema.Type m)
@@ -125,6 +125,6 @@ data Resolution m = Resolution
 
 -- | A wrapper to pass error messages around.
 --
--- /CollectErrsT was part of the old executor and isn't used anymore, it will be
--- deprecated in the future and removed./
+-- {-# DEPRECATED CollectErrsT was part of the old executor and isn't used
+-- anymore #-}
 type CollectErrsT m = StateT (Resolution m) m

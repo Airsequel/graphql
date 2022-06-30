@@ -4,6 +4,28 @@
 
 #ifdef WITH_JSON
 -- | This module provides the functions to parse and execute @GraphQL@ queries.
+--
+-- The content of this module depends on the value of the __json__ flag, which
+-- is currently on by default. This behavior will change in the future, the flag
+-- will be switched off by default and then removed.
+--
+-- This documentation is generated with the enabled __json__ flag and functions
+-- described here support JSON and are deprecated. JSON instances are provided
+-- now by an additional package, __graphql-spice__. To start using the new
+-- package create __cabal.project__ in the root directory of your project with
+-- the following contents:
+--
+-- @
+-- packages: .
+-- constraints: graphql -json
+-- @
+--
+-- Then add __graphql-spice__ as dependency.
+--
+-- The new version of this module defines only one function, @graphql@, which
+-- works with the internal GraphQL value representation used by this lbirary.
+-- Refer to @Language.GraphQL.JSON.graphql@ in __graphql-spice__ for the
+-- function that accepts and returns JSON.
 module Language.GraphQL
     ( graphql
     , graphqlSubs
