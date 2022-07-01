@@ -2,6 +2,8 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
+{-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -9,7 +11,7 @@ module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
 
-import Control.Exception (Exception(..), SomeException)
+import Control.Exception (Exception(..), SomeException, throwIO)
 import Control.Monad.Catch (throwM)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
@@ -27,11 +29,16 @@ import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Prelude hiding (id)
 import Test.Hspec (Spec, context, describe, it, shouldBe)
-import Text.Megaparsec (parse)
+import Text.Megaparsec (parse, errorBundlePretty)
 import Schemas.HeroSchema (heroSchema)
 import Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
 import qualified Data.Text as Text
+import Test.Hspec.Expectations
+    ( Expectation
+    , expectationFailure
+    )
+import Data.Either (fromRight)
 
 data PhilosopherException = PhilosopherException
     deriving Show
@@ -195,9 +202,17 @@ type EitherStreamOrValue = Either
     (ResponseEventStream (Either SomeException) Type.Value)
     (Response Type.Value)
 
-execute' :: Document -> Either SomeException EitherStreamOrValue
-execute' =
-    execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
+-- Asserts that a query resolves to a value.
+shouldResolveTo :: Text.Text -> Response Type.Value -> Expectation
+shouldResolveTo querySource expected =
+    case parse document "" querySource of
+        (Right parsedDocument) ->
+            case execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value) parsedDocument of
+                Right (Right result) -> shouldBe result expected
+                Right (Left _) -> expectationFailure
+                    "the query is expected to resolve to a value, but it resolved to an event stream"
+                Left executionError -> throwIO executionError
+        (Left errorBundle) -> expectationFailure $ errorBundlePretty errorBundle
 
 spec :: Spec
 spec =
@@ -213,9 +228,7 @@ spec =
               }
             |]
                 expected = Response (Object mempty) mempty
-                Right (Right actual) = either (pure . parseError) execute'
-                    $ parse document "" sourceQuery
-             in actual `shouldBe` expected
+             in sourceQuery `shouldResolveTo` expected
 
         context "Query" $ do
             it "skips unknown fields" $
@@ -225,9 +238,8 @@ spec =
                         $ HashMap.singleton "firstName"
                         $ String "Friedrich"
                     expected = Response data'' mempty
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher { firstName surname } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher { firstName surname } }"
+                in sourceQuery `shouldResolveTo` expected
             it "merges selections" $
                 let data'' = Object
                         $ HashMap.singleton "philosopher"
@@ -237,9 +249,8 @@ spec =
                             , ("lastName", String "Nietzsche")
                             ]
                     expected = Response data'' mempty
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher { firstName } philosopher { lastName } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher { firstName } philosopher { lastName } }"
+                in sourceQuery `shouldResolveTo` expected
 
             it "errors on invalid output enum values" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -250,9 +261,8 @@ spec =
                         , path = [Segment "philosopher", Segment "school"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher { school } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher { school } }"
+                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for non-null unions" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -263,9 +273,8 @@ spec =
                         , path = [Segment "philosopher", Segment "interest"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher { interest } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher { interest } }"
+                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for invalid interfaces" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -277,9 +286,8 @@ spec =
                         , path = [Segment "philosopher", Segment "majorWork"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher { majorWork { title } } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher { majorWork { title } } }"
+                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for invalid scalar arguments" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -290,9 +298,8 @@ spec =
                         , path = [Segment "philosopher"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher(id: true) { lastName } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher(id: true) { lastName } }"
+                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for failed result coercion" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -302,9 +309,8 @@ spec =
                         , path = [Segment "philosopher", Segment "century"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher(id: \"1\") { century } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher(id: \"1\") { century } }"
+                in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for failed result coercion" $
                 let data'' = Object $ HashMap.singleton "genres" Null
@@ -314,9 +320,8 @@ spec =
                         , path = [Segment "genres"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ genres }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ genres }"
+                in sourceQuery `shouldResolveTo` expected
 
             it "sets data to null if a root field isn't nullable" $
                 let executionErrors = pure $ Error
@@ -325,9 +330,8 @@ spec =
                         , path = [Segment "count"]
                         }
                     expected = Response Null executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ count }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ count }"
+                in sourceQuery `shouldResolveTo` expected
 
             it "detects nullability errors" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
@@ -337,30 +341,31 @@ spec =
                         , path = [Segment "philosopher", Segment "firstLanguage"]
                         }
                     expected = Response data'' executionErrors
-                    Right (Right actual) = either (pure . parseError) execute'
-                        $ parse document "" "{ philosopher(id: \"1\") { firstLanguage } }"
-                in actual `shouldBe` expected
+                    sourceQuery = "{ philosopher(id: \"1\") { firstLanguage } }"
+                in sourceQuery `shouldResolveTo` expected
 
             context "queryError" $ do
-                let
-                  namedQuery name = "query " <> name <> " { philosopher(id: \"1\") { interest } }"
-                  twoQueries = namedQuery "A" <> " " <> namedQuery "B"
-                  startsWith :: Text.Text -> Text.Text -> Bool
-                  startsWith xs ys = Text.take (Text.length ys) xs == ys
+                let namedQuery name = "query " <> name <> " { philosopher(id: \"1\") { interest } }"
+                    twoQueries = namedQuery "A" <> " " <> namedQuery "B"
+                    startsWith :: Text.Text -> Text.Text -> Bool
+                    startsWith xs ys = Text.take (Text.length ys) xs == ys
 
                 it "throws operation name is required error" $
                     let expectedErrorMessage :: Text.Text
                         expectedErrorMessage = "Operation name is required"
-                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute' $ parse document "" twoQueries
+                        execute' :: Document -> Either SomeException EitherStreamOrValue
+                        execute' = execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
+                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute'
+                            $ parse document "" twoQueries 
                         Error msg _ _ = Seq.index executionErrors 0
                      in msg `startsWith` expectedErrorMessage `shouldBe` True
 
                 it "throws operation not found error" $
                     let expectedErrorMessage :: Text.Text
                         expectedErrorMessage = "Operation \"C\" is not found"
-                        execute'' :: Document -> Either SomeException EitherStreamOrValue
-                        execute'' = execute philosopherSchema (Just "C") (mempty :: HashMap Name Type.Value)
-                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute''
+                        execute' :: Document -> Either SomeException EitherStreamOrValue
+                        execute' = execute philosopherSchema (Just "C") (mempty :: HashMap Name Type.Value)
+                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute'
                             $ parse document "" twoQueries
                         Error msg _ _ = Seq.index executionErrors 0
                      in msg `startsWith` expectedErrorMessage `shouldBe` True
@@ -387,9 +392,8 @@ spec =
                             , path = []
                             }
                         expected = Response data'' executionErrors
-                        Right (Right actual) = either (pure . parseError) execute'
-                            $ parse document "" "query($id: Cat) { philosopher(id: \"1\") { firstLanguage } }"
-                    in actual `shouldBe` expected
+                        sourceQuery = "query($id: Cat) { philosopher(id: \"1\") { firstLanguage } }"
+                     in sourceQuery `shouldResolveTo` expected
 
             context "Error path" $ do
                 let executeHero :: Document -> Either SomeException EitherStreamOrValue
@@ -411,7 +415,10 @@ spec =
                         $ HashMap.singleton "quote"
                         $ String "Naturam expelles furca, tamen usque recurret."
                     expected = Response data'' mempty
-                    Right (Left stream) = either (pure . parseError) execute'
+                    Left stream
+                        = fromRight (error "Execution error")
+                        $ execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
+                        $ fromRight (error "Parse error")
                         $ parse document "" "subscription { newQuote { quote } }"
                     Right (Just actual) = runConduit $ stream .| await
                 in actual `shouldBe` expected

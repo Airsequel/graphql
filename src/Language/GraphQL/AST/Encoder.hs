@@ -101,7 +101,7 @@ variableDefinition formatter variableDefinition' =
      in variable variableName
     <> eitherFormat formatter ": " ":"
     <> type' variableType
-    <> maybe mempty (defaultValue formatter) (Full.node <$> defaultValue')
+    <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
 
 defaultValue :: Formatter -> Full.ConstValue -> Lazy.Text
 defaultValue formatter val

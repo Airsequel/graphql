@@ -54,7 +54,7 @@ import Data.HashMap.Strict (HashMap)
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
-import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Ord (comparing)
 import Data.Sequence (Seq(..), (|>))
@@ -1551,9 +1551,9 @@ valuesOfCorrectTypeRule = ValueRule go constGo
     toConst Full.Null = Just Full.ConstNull
     toConst (Full.Enum enum) = Just $ Full.ConstEnum enum
     toConst (Full.List values) =
-        Just $ Full.ConstList $ catMaybes $ toConstNode <$> values
+        Just $ Full.ConstList $ mapMaybe toConstNode values
     toConst (Full.Object fields) = Just $ Full.ConstObject
-        $ catMaybes $ constObjectField <$> fields
+        $ mapMaybe constObjectField fields
     constObjectField Full.ObjectField{..}
         | Just constValue <- toConstNode value =
             Just $ Full.ObjectField name constValue location
