@@ -3,7 +3,9 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
@@ -11,7 +13,7 @@ module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
 
-import Control.Exception (Exception(..), SomeException, throwIO)
+import Control.Exception (Exception(..), SomeException)
 import Control.Monad.Catch (throwM)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
@@ -33,6 +35,7 @@ import Text.Megaparsec (parse, errorBundlePretty)
 import Schemas.HeroSchema (heroSchema)
 import Data.Maybe (fromJust)
 import qualified Data.Sequence as Seq
+import Data.Text (Text)
 import qualified Data.Text as Text
 import Test.Hspec.Expectations
     ( Expectation
@@ -49,7 +52,7 @@ instance Exception PhilosopherException where
         ResolverException resolverException <- fromException e
         cast resolverException
 
-philosopherSchema :: Schema (Either SomeException)
+philosopherSchema :: Schema IO
 philosopherSchema =
     schemaWithTypes Nothing queryType Nothing subscriptionRoot extraTypes mempty
   where
@@ -59,7 +62,7 @@ philosopherSchema =
         , Schema.ObjectType bookCollectionType
         ]
 
-queryType :: Out.ObjectType (Either SomeException)
+queryType :: Out.ObjectType IO
 queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.fromList
     [ ("philosopher", ValueResolver philosopherField philosopherResolver)
@@ -75,14 +78,14 @@ queryType = Out.ObjectType "Query" Nothing []
     genresField =
         let fieldType = Out.ListType $ Out.NonNullScalarType string
          in Out.Field Nothing fieldType HashMap.empty
-    genresResolver :: Resolve (Either SomeException)
+    genresResolver :: Resolve IO
     genresResolver = throwM PhilosopherException
     countField =
         let fieldType = Out.NonNullScalarType int
          in Out.Field Nothing fieldType HashMap.empty
     countResolver = pure ""
 
-musicType :: Out.ObjectType (Either SomeException)
+musicType :: Out.ObjectType IO
 musicType = Out.ObjectType "Music" Nothing []
     $ HashMap.fromList resolvers
   where
@@ -92,7 +95,7 @@ musicType = Out.ObjectType "Music" Nothing []
     instrumentResolver = pure $ String "piano"
     instrumentField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
-poetryType :: Out.ObjectType (Either SomeException)
+poetryType :: Out.ObjectType IO
 poetryType = Out.ObjectType "Poetry" Nothing []
     $ HashMap.fromList resolvers
   where
@@ -102,10 +105,10 @@ poetryType = Out.ObjectType "Poetry" Nothing []
     genreResolver = pure $ String "Futurism"
     genreField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
-interestType :: Out.UnionType (Either SomeException)
+interestType :: Out.UnionType IO
 interestType = Out.UnionType "Interest" Nothing [musicType, poetryType]
 
-philosopherType :: Out.ObjectType (Either SomeException)
+philosopherType :: Out.ObjectType IO
 philosopherType = Out.ObjectType "Philosopher" Nothing []
     $ HashMap.fromList resolvers
   where
@@ -146,14 +149,14 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     firstLanguageResolver = pure Null
 
-workType :: Out.InterfaceType (Either SomeException)
+workType :: Out.InterfaceType IO
 workType = Out.InterfaceType "Work" Nothing []
     $ HashMap.fromList fields
   where
     fields = [("title", titleField)]
     titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
 
-bookType :: Out.ObjectType (Either SomeException)
+bookType :: Out.ObjectType IO
 bookType = Out.ObjectType "Book" Nothing [workType]
     $ HashMap.fromList resolvers
   where
@@ -163,7 +166,7 @@ bookType = Out.ObjectType "Book" Nothing [workType]
     titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     titleResolver = pure "Also sprach Zarathustra: Ein Buch für Alle und Keinen"
 
-bookCollectionType :: Out.ObjectType (Either SomeException)
+bookCollectionType :: Out.ObjectType IO
 bookCollectionType = Out.ObjectType "Book" Nothing [workType]
     $ HashMap.fromList resolvers
   where
@@ -173,7 +176,7 @@ bookCollectionType = Out.ObjectType "Book" Nothing [workType]
     titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
     titleResolver = pure "The Three Critiques"
 
-subscriptionType :: Out.ObjectType (Either SomeException)
+subscriptionType :: Out.ObjectType IO
 subscriptionType = Out.ObjectType "Subscription" Nothing []
     $ HashMap.singleton "newQuote"
     $ EventStreamResolver quoteField (pure $ Object mempty)
@@ -182,7 +185,7 @@ subscriptionType = Out.ObjectType "Subscription" Nothing []
     quoteField =
         Out.Field Nothing (Out.NonNullObjectType quoteType) HashMap.empty
 
-quoteType :: Out.ObjectType (Either SomeException)
+quoteType :: Out.ObjectType IO
 quoteType = Out.ObjectType "Quote" Nothing []
     $ HashMap.singleton "quote"
     $ ValueResolver quoteField
@@ -207,12 +210,40 @@ shouldResolveTo :: Text.Text -> Response Type.Value -> Expectation
 shouldResolveTo querySource expected =
     case parse document "" querySource of
         (Right parsedDocument) ->
-            case execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value) parsedDocument of
-                Right (Right result) -> shouldBe result expected
-                Right (Left _) -> expectationFailure
-                    "the query is expected to resolve to a value, but it resolved to an event stream"
-                Left executionError -> throwIO executionError
+            execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value) parsedDocument >>= go
         (Left errorBundle) -> expectationFailure $ errorBundlePretty errorBundle
+  where
+    go = \case
+        Right result -> shouldBe result expected
+        Left _ -> expectationFailure
+            "the query is expected to resolve to a value, but it resolved to an event stream"
+
+-- Asserts that the executor produces an error that starts with a string.
+shouldContainError :: Either (ResponseEventStream IO Type.Value) (Response Type.Value)
+    -> Text
+    -> Expectation
+shouldContainError streamOrValue expected =
+    case streamOrValue of
+        Right response -> respond response
+        Left _ -> expectationFailure
+            "the query is expected to resolve to a value, but it resolved to an event stream"
+  where
+    startsWith :: Text.Text -> Text.Text -> Bool
+    startsWith xs ys = Text.take (Text.length ys) xs == ys
+    respond :: Response Type.Value -> Expectation
+    respond Response{ errors }
+        | any ((`startsWith` expected) . message) errors = pure ()
+        | otherwise = expectationFailure
+            "the query is expected to execute with errors, but the response doesn't contain any errors"
+
+parseAndExecute :: Schema IO
+    -> Maybe Text
+    -> HashMap Name Type.Value
+    -> Text
+    -> IO (Either (ResponseEventStream IO Type.Value) (Response Type.Value))
+parseAndExecute schema' operation variables
+    = either (pure . parseError) (execute schema' operation variables)
+    . parse document ""
 
 spec :: Spec
 spec =
@@ -347,30 +378,18 @@ spec =
             context "queryError" $ do
                 let namedQuery name = "query " <> name <> " { philosopher(id: \"1\") { interest } }"
                     twoQueries = namedQuery "A" <> " " <> namedQuery "B"
-                    startsWith :: Text.Text -> Text.Text -> Bool
-                    startsWith xs ys = Text.take (Text.length ys) xs == ys
 
-                it "throws operation name is required error" $
-                    let expectedErrorMessage :: Text.Text
-                        expectedErrorMessage = "Operation name is required"
-                        execute' :: Document -> Either SomeException EitherStreamOrValue
-                        execute' = execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
-                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute'
-                            $ parse document "" twoQueries 
-                        Error msg _ _ = Seq.index executionErrors 0
-                     in msg `startsWith` expectedErrorMessage `shouldBe` True
+                it "throws operation name is required error" $ do
+                    let expectedErrorMessage = "Operation name is required"
+                    actual <- parseAndExecute philosopherSchema Nothing mempty twoQueries
+                    actual `shouldContainError` expectedErrorMessage
 
-                it "throws operation not found error" $
-                    let expectedErrorMessage :: Text.Text
-                        expectedErrorMessage = "Operation \"C\" is not found"
-                        execute' :: Document -> Either SomeException EitherStreamOrValue
-                        execute' = execute philosopherSchema (Just "C") (mempty :: HashMap Name Type.Value)
-                        Right (Right (Response _ executionErrors)) = either (pure . parseError) execute'
-                            $ parse document "" twoQueries
-                        Error msg _ _ = Seq.index executionErrors 0
-                     in msg `startsWith` expectedErrorMessage `shouldBe` True
+                it "throws operation not found error" $ do
+                    let expectedErrorMessage = "Operation \"C\" is not found"
+                    actual <- parseAndExecute philosopherSchema (Just "C") mempty twoQueries
+                    actual `shouldContainError` expectedErrorMessage
 
-                it "throws variable coercion error" $
+                it "throws variable coercion error" $ do
                     let data'' = Null
                         executionErrors = pure $ Error
                             { message = "Failed to coerce the variable $id: String."
@@ -378,11 +397,10 @@ spec =
                             , path = []
                             }
                         expected = Response data'' executionErrors
-                        executeWithVars :: Document -> Either SomeException EitherStreamOrValue
                         executeWithVars = execute philosopherSchema Nothing (HashMap.singleton "id" (Type.Int 1))
-                        Right (Right actual) = either (pure . parseError) executeWithVars
-                            $ parse document "" "query($id: String) { philosopher(id: \"1\") { firstLanguage } }"
-                    in actual `shouldBe` expected
+                    Right actual <- either (pure . parseError) executeWithVars
+                        $ parse document "" "query($id: String) { philosopher(id: \"1\") { firstLanguage } }"
+                    actual `shouldBe` expected
 
                 it "throws variable unkown input type error" $
                     let data'' = Null
@@ -408,17 +426,15 @@ spec =
                     in path' `shouldBe` expected
 
         context "Subscription" $
-            it "subscribes" $
+            it "subscribes" $ do
                 let data'' = Object
                         $ HashMap.singleton "newQuote"
                         $ Object
                         $ HashMap.singleton "quote"
                         $ String "Naturam expelles furca, tamen usque recurret."
                     expected = Response data'' mempty
-                    Left stream
-                        = fromRight (error "Execution error")
-                        $ execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
-                        $ fromRight (error "Parse error")
-                        $ parse document "" "subscription { newQuote { quote } }"
-                    Right (Just actual) = runConduit $ stream .| await
-                in actual `shouldBe` expected
+                Left stream <- execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
+                    $ fromRight (error "Parse error")
+                    $ parse document "" "subscription { newQuote { quote } }"
+                Just actual <- runConduit $ stream .| await
+                actual `shouldBe` expected
