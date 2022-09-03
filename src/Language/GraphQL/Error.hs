@@ -19,10 +19,11 @@ module Language.GraphQL.Error
     , runCollectErrs
     ) where
 
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as Aeson
 import Conduit
 import Control.Exception (Exception(..))
 import Control.Monad.Trans.State (StateT, runStateT)
-import Data.HashMap.Strict (HashMap)
 import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
@@ -106,7 +107,7 @@ instance Exception ResolverException
 -- {-# DEPRECATED runCollectErrs was part of the old executor and isn't used
 -- anymore #-}
 runCollectErrs :: (Monad m, Serialize a)
-    => HashMap Name (Schema.Type m)
+    => KeyMap (Schema.Type m)
     -> CollectErrsT m a
     -> m (Response a)
 runCollectErrs types' res = do
@@ -120,7 +121,7 @@ runCollectErrs types' res = do
 -- anymore #-}
 data Resolution m = Resolution
     { errors :: Seq Error
-    , types :: HashMap Name (Schema.Type m)
+    , types :: KeyMap (Schema.Type m)
     }
 
 -- | A wrapper to pass error messages around.

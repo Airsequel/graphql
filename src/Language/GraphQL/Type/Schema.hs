@@ -13,8 +13,9 @@ module Language.GraphQL.Type.Schema
     , module Language.GraphQL.Type.Internal
     ) where
 
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
 import qualified Language.GraphQL.AST.DirectiveLocation as DirectiveLocation
@@ -65,36 +66,36 @@ schemaWithTypes description' queryRoot mutationRoot subscriptionRoot types' dire
     Internal.Schema description' queryRoot mutationRoot subscriptionRoot
         allDirectives collectedTypes collectedImplementations
   where
-    allTypes = foldr addTypeDefinition HashMap.empty types'
+    allTypes = foldr addTypeDefinition KeyMap.empty types'
     addTypeDefinition type'@(ScalarType (Definition.ScalarType typeName _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert typeName type' accumulator
     addTypeDefinition type'@(EnumType (Definition.EnumType typeName _ _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert typeName type' accumulator
     addTypeDefinition type'@(ObjectType (Out.ObjectType typeName _ _ _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert (Key.fromText typeName) type' accumulator
     addTypeDefinition type'@(InputObjectType (In.InputObjectType typeName _ _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert typeName type' accumulator
     addTypeDefinition type'@(InterfaceType (Out.InterfaceType typeName _ _ _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert (Key.fromText typeName) type' accumulator
     addTypeDefinition type'@(UnionType (Out.UnionType typeName _ _)) accumulator =
-        HashMap.insert typeName type' accumulator
+        KeyMap.insert (Key.fromText typeName) type' accumulator
     collectedTypes = collectReferencedTypes queryRoot mutationRoot subscriptionRoot allTypes
     collectedImplementations = collectImplementations collectedTypes
-    allDirectives = HashMap.union directiveDefinitions defaultDirectives
-    defaultDirectives = HashMap.fromList
+    allDirectives = KeyMap.union directiveDefinitions defaultDirectives
+    defaultDirectives = KeyMap.fromList
         [ ("skip", skipDirective)
         , ("include", includeDirective)
         , ("deprecated", deprecatedDirective)
         ]
     includeDirective =
         Directive includeDescription skipIncludeLocations includeArguments
-    includeArguments = HashMap.singleton "if"
+    includeArguments = KeyMap.singleton "if"
         $ In.Argument (Just "Included when true.") ifType Nothing
     includeDescription = Just
         "Directs the executor to include this field or fragment only when the \
         \`if` argument is true."
     skipDirective = Directive skipDescription skipIncludeLocations skipArguments
-    skipArguments = HashMap.singleton "if"
+    skipArguments = KeyMap.singleton "if"
         $ In.Argument (Just "skipped when true.") ifType Nothing
     ifType = In.NonNullScalarType Definition.boolean
     skipDescription = Just
@@ -112,7 +113,7 @@ schemaWithTypes description' queryRoot mutationRoot subscriptionRoot types' dire
         \suggestion for how to access supported similar data. Formatted using \
         \the Markdown syntax, as specified by \
         \[CommonMark](https://commonmark.org/).'"
-    deprecatedArguments = HashMap.singleton "reason"
+    deprecatedArguments = KeyMap.singleton "reason"
         $ In.Argument reasonDescription reasonType
         $ Just "No longer supported"
     reasonType = In.NamedScalarType Definition.string
@@ -130,8 +131,8 @@ collectReferencedTypes :: forall m
     . Out.ObjectType m
     -> Maybe (Out.ObjectType m)
     -> Maybe (Out.ObjectType m)
-    -> HashMap Full.Name (Type m)
-    -> HashMap Full.Name (Type m)
+    -> KeyMap (Type m)
+    -> KeyMap (Type m)
 collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
     let queryTypes = traverseObjectType queryRoot extraTypes
         mutationTypes = maybe queryTypes (`traverseObjectType` queryTypes)
@@ -139,8 +140,8 @@ collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
      in maybe mutationTypes (`traverseObjectType` mutationTypes) subscriptionRoot
   where
     collect traverser typeName element foundTypes
-        | HashMap.member typeName foundTypes = foundTypes
-        | otherwise = traverser $ HashMap.insert typeName element foundTypes
+        | KeyMap.member typeName foundTypes = foundTypes
+        | otherwise = traverser $ KeyMap.insert typeName element foundTypes
     visitFields (Out.Field _ outputType arguments) foundTypes
         = traverseOutputType outputType
         $ foldr visitArguments foundTypes arguments
@@ -168,7 +169,7 @@ collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
     traverseOutputType (Out.UnionBaseType unionType) =
         let Out.UnionType typeName _ types' = unionType
             traverser = flip (foldr traverseObjectType) types'
-         in collect traverser typeName (UnionType unionType)
+         in collect traverser (Key.fromText typeName) (UnionType unionType)
     traverseOutputType (Out.ListBaseType listType) =
         traverseOutputType listType
     traverseOutputType (Out.ScalarBaseType scalarType) =
@@ -181,12 +182,12 @@ collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
         let Out.ObjectType typeName _ interfaces fields = objectType
             element = ObjectType objectType
             traverser = polymorphicTraverser interfaces (getField <$> fields)
-         in collect traverser typeName element foundTypes
+         in collect traverser (Key.fromText typeName) element foundTypes
     traverseInterfaceType interfaceType foundTypes =
         let Out.InterfaceType typeName _ interfaces fields = interfaceType
             element = InterfaceType interfaceType
             traverser = polymorphicTraverser interfaces fields
-         in collect traverser typeName element foundTypes
+         in collect traverser (Key.fromText typeName) element foundTypes
     polymorphicTraverser interfaces fields
         = flip (foldr visitFields) fields
         . flip (foldr traverseInterfaceType) interfaces
@@ -194,9 +195,9 @@ collectReferencedTypes queryRoot mutationRoot subscriptionRoot extraTypes =
 -- | Looks for objects and interfaces under the schema types and collects the
 -- interfaces they implement.
 collectImplementations :: forall m
-    . HashMap Full.Name (Type m)
-    -> HashMap Full.Name [Type m]
-collectImplementations = HashMap.foldr go HashMap.empty
+    . KeyMap (Type m)
+    -> KeyMap [Type m]
+collectImplementations = KeyMap.foldr go KeyMap.empty
   where
     go implementation@(InterfaceType interfaceType) accumulator =
         let Out.InterfaceType _ _ interfaces _ = interfaceType
@@ -206,4 +207,6 @@ collectImplementations = HashMap.foldr go HashMap.empty
          in foldr (add implementation) accumulator interfaces
     go _ accumulator = accumulator
     add implementation (Out.InterfaceType typeName _ _ _) =
-        HashMap.insertWith (++) typeName [implementation]
+        -- KeyMap.insertWith (++) typeName [implementation]
+        KeyMap.insert (Key.fromText typeName) [implementation]
+

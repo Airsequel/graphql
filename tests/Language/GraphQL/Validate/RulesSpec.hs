@@ -10,7 +10,9 @@ module Language.GraphQL.Validate.RulesSpec
     ) where
 
 import Data.Foldable (toList)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import qualified Language.GraphQL.AST as AST
 import Language.GraphQL.TH
@@ -25,7 +27,7 @@ petSchema :: Schema IO
 petSchema = schema queryType Nothing (Just subscriptionType) mempty
 
 queryType :: ObjectType IO
-queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
+queryType = ObjectType "Query" Nothing [] $ KeyMap.fromList
     [ ("dog", dogResolver)
     , ("cat", catResolver)
     , ("findDog", findDogResolver)
@@ -33,7 +35,7 @@ queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
   where
     dogField = Field Nothing (Out.NamedObjectType dogType) mempty
     dogResolver = ValueResolver dogField $ pure Null
-    findDogArguments = HashMap.singleton "complex"
+    findDogArguments = KeyMap.singleton "complex"
         $ In.Argument Nothing (In.NonNullInputObjectType dogDataType) Nothing
     findDogField = Field Nothing (Out.NamedObjectType dogType) findDogArguments
     findDogResolver = ValueResolver findDogField $ pure Null
@@ -41,12 +43,12 @@ queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
     catResolver = ValueResolver catField $ pure Null
 
 catCommandType :: EnumType
-catCommandType = EnumType "CatCommand" Nothing $ HashMap.fromList
+catCommandType = EnumType "CatCommand" Nothing $ KeyMap.fromList
     [ ("JUMP", EnumValue Nothing)
     ]
 
 catType :: ObjectType IO
-catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
+catType = ObjectType "Cat" Nothing [petType] $ KeyMap.fromList
     [ ("name", nameResolver)
     , ("nickname", nicknameResolver)
     , ("doesKnowCommands", doesKnowCommandsResolver)
@@ -58,7 +60,7 @@ catType = ObjectType "Cat" Nothing [petType] $ HashMap.fromList
     doesKnowCommandsType = In.NonNullListType
         $ In.NonNullEnumType catCommandType
     doesKnowCommandsField = Field Nothing (Out.NonNullScalarType boolean)
-        $ HashMap.singleton "catCommands"
+        $ KeyMap.singleton "catCommands"
         $ In.Argument Nothing doesKnowCommandsType Nothing
     doesKnowCommandsResolver = ValueResolver doesKnowCommandsField
         $ pure $ Boolean True
@@ -74,14 +76,14 @@ nicknameResolver = ValueResolver nicknameField $ pure "Nickname"
     nicknameField = Field Nothing (Out.NamedScalarType string) mempty
 
 dogCommandType :: EnumType
-dogCommandType = EnumType "DogCommand" Nothing $ HashMap.fromList
+dogCommandType = EnumType "DogCommand" Nothing $ KeyMap.fromList
     [ ("SIT", EnumValue Nothing)
     , ("DOWN", EnumValue Nothing)
     , ("HEEL", EnumValue Nothing)
     ]
 
 dogType :: ObjectType IO
-dogType = ObjectType "Dog" Nothing [petType] $ HashMap.fromList
+dogType = ObjectType "Dog" Nothing [petType] $ KeyMap.fromList
     [ ("name", nameResolver)
     , ("nickname", nicknameResolver)
     , ("barkVolume", barkVolumeResolver)
@@ -93,12 +95,12 @@ dogType = ObjectType "Dog" Nothing [petType] $ HashMap.fromList
     barkVolumeField = Field Nothing (Out.NamedScalarType int) mempty
     barkVolumeResolver = ValueResolver barkVolumeField $ pure $ Int 3
     doesKnowCommandField = Field Nothing (Out.NonNullScalarType boolean)
-        $ HashMap.singleton "dogCommand"
+        $ KeyMap.singleton "dogCommand"
         $ In.Argument Nothing (In.NonNullEnumType dogCommandType) Nothing
     doesKnowCommandResolver = ValueResolver doesKnowCommandField
         $ pure $ Boolean True
     isHousetrainedField = Field Nothing (Out.NonNullScalarType boolean)
-        $ HashMap.singleton "atOtherHomes"
+        $ KeyMap.singleton "atOtherHomes"
         $ In.Argument Nothing (In.NamedScalarType boolean) Nothing
     isHousetrainedResolver = ValueResolver isHousetrainedField
         $ pure $ Boolean True
@@ -107,32 +109,32 @@ dogType = ObjectType "Dog" Nothing [petType] $ HashMap.fromList
 
 dogDataType :: InputObjectType
 dogDataType = InputObjectType "DogData" Nothing
-    $ HashMap.singleton "name" nameInputField
+    $ KeyMap.singleton "name" nameInputField
   where
     nameInputField = InputField Nothing (In.NonNullScalarType string) Nothing
 
 sentientType :: InterfaceType IO
 sentientType = InterfaceType "Sentient" Nothing []
-    $ HashMap.singleton "name"
+    $ KeyMap.singleton "name"
     $ Field Nothing (Out.NonNullScalarType string) mempty
 
 petType :: InterfaceType IO
 petType = InterfaceType "Pet" Nothing []
-    $ HashMap.singleton "name"
+    $ KeyMap.singleton "name"
     $ Field Nothing (Out.NonNullScalarType string) mempty
 
 subscriptionType :: ObjectType IO
-subscriptionType = ObjectType "Subscription" Nothing [] $ HashMap.fromList
+subscriptionType = ObjectType "Subscription" Nothing [] $ KeyMap.fromList
     [ ("newMessage", newMessageResolver)
     , ("disallowedSecondRootField", newMessageResolver)
     ]
   where
     newMessageField = Field Nothing (Out.NonNullObjectType messageType) mempty
     newMessageResolver = ValueResolver newMessageField
-        $ pure $ Object HashMap.empty
+        $ pure $ Object KeyMap.empty
 
 messageType :: ObjectType IO
-messageType = ObjectType "Message" Nothing [] $ HashMap.fromList
+messageType = ObjectType "Message" Nothing [] $ KeyMap.fromList
     [ ("sender", senderResolver)
     , ("body", bodyResolver)
     ]
@@ -143,7 +145,7 @@ messageType = ObjectType "Message" Nothing [] $ HashMap.fromList
     bodyResolver = ValueResolver bodyField $ pure "Message body."
 
 humanType :: ObjectType IO
-humanType = ObjectType "Human" Nothing [sentientType] $ HashMap.fromList
+humanType = ObjectType "Human" Nothing [sentientType] $ KeyMap.fromList
     [ ("name", nameResolver)
     , ("pets", petsResolver)
     ]

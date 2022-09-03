@@ -16,7 +16,9 @@ module Test.Hspec.GraphQL
 
 import Control.Monad.Catch (MonadCatch)
 import qualified Data.Aeson as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import Language.GraphQL.Error
 import Test.Hspec.Expectations (Expectation, expectationFailure, shouldBe, shouldNotSatisfy)
@@ -39,7 +41,7 @@ shouldResolve executor query = do
     actual <- executor query
     case actual of
         Right response ->
-            response `shouldNotSatisfy` HashMap.member "errors"
+            response `shouldNotSatisfy` KeyMap.member "errors"
         _ -> expectationFailure
             "the query is expected to resolve to a value, but it resolved to an event stream"
 #else

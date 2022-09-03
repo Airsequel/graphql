@@ -12,7 +12,9 @@ import Language.GraphQL.Error (ResolverException (..))
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type as Type
 import Language.GraphQL.Type.Schema (schemaWithTypes)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Typeable (cast)
 import qualified Language.GraphQL.Type.Out as Out
 
@@ -33,36 +35,36 @@ type ObjectType = Out.ObjectType (Either SomeException)
 
 queryType :: ObjectType
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.fromList
+    $ KeyMap.fromList
         [ ("hero", Out.ValueResolver heroField heroResolver)
         ]
   where
     heroField = Out.Field Nothing (Out.NamedObjectType heroType)
-        $ HashMap.singleton "id"
+        $ KeyMap.singleton "id"
         $ In.Argument Nothing (In.NamedScalarType Type.id) Nothing
     heroResolver = pure $ Type.Object mempty
 
 stringField :: Out.Field (Either SomeException)
-stringField = Out.Field Nothing (Out.NonNullScalarType Type.string) HashMap.empty
+stringField = Out.Field Nothing (Out.NonNullScalarType Type.string) KeyMap.empty
 
 heroType :: ObjectType
-heroType = Out.ObjectType "Hero" Nothing [] $ HashMap.fromList resolvers
+heroType = Out.ObjectType "Hero" Nothing [] $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("id", Out.ValueResolver stringField (pure $ Type.String "4111"))
         , ("name", Out.ValueResolver stringField (pure $ Type.String "R2D2"))
         , ("friends", Out.ValueResolver friendsField (pure $ Type.List [luke]))
         ]
-    friendsField = Out.Field Nothing (Out.ListType $ Out.NonNullObjectType lukeType) HashMap.empty
+    friendsField = Out.Field Nothing (Out.ListType $ Out.NonNullObjectType lukeType) KeyMap.empty
     -- This list values are ignored because of current realisation (types and resolvers are the same entity)
     -- The values from lukeType will be used
-    luke = Type.Object $ HashMap.fromList
+    luke = Type.Object $ KeyMap.fromList
         [ ("id", "dfdfdf")
         , ("name", "dfdfdff")
         ]
 
 lukeType :: ObjectType
-lukeType = Out.ObjectType "Luke" Nothing [] $ HashMap.fromList resolvers
+lukeType = Out.ObjectType "Luke" Nothing [] $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("id", Out.ValueResolver stringField (pure $ Type.String "1000"))

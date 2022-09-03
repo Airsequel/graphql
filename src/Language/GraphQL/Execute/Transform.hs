@@ -39,8 +39,9 @@ import Control.Monad.Trans.Reader (ReaderT(..), local)
 import qualified Control.Monad.Trans.Reader as Reader
 import Data.Bifunctor (first)
 import Data.Functor ((<&>))
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.Int (Int32)
@@ -61,9 +62,9 @@ import Numeric (showFloat)
 -- | Associates a fragment name with a list of 'Field's.
 data Replacement m = Replacement
     { variableValues :: Type.Subs
-    , fragmentDefinitions :: HashMap Full.Name Full.FragmentDefinition
-    , visitedFragments :: HashSet Full.Name
-    , types :: HashMap Full.Name (Type m)
+    , fragmentDefinitions :: KeyMap Full.FragmentDefinition
+    , visitedFragments :: HashSet Key.Key
+    , types :: KeyMap (Type m)
     }
 
 newtype TransformT m a = TransformT
@@ -103,9 +104,9 @@ data Selection m
     | FragmentSelection (Fragment m)
 
 data Field m = Field
-    (Maybe Full.Name)
-    Full.Name
-    (HashMap Full.Name (Full.Node Input))
+    (Maybe Key.Key)
+    Key.Key
+    (KeyMap (Full.Node Input))
     (Seq (Selection m))
     Full.Location
 
@@ -119,9 +120,9 @@ data Input
     | String Text
     | Boolean Bool
     | Null
-    | Enum Full.Name
+    | Enum Key.Key
     | List [Input]
-    | Object (HashMap Full.Name Input)
+    | Object (KeyMap Input)
     deriving Eq
 
 instance Show Input where
@@ -137,7 +138,7 @@ instance Show Input where
     show (List list) = show list
     show (Object fields) = unwords
         [ "{"
-        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
+        , intercalate ", " (KeyMap.foldrWithKey showObject [] fields)
         , "}"
         ]
       where
@@ -147,15 +148,15 @@ instance Show Input where
 
 -- | Extracts operations and fragment definitions of the document.
 document :: Full.Document
-    -> ([Full.OperationDefinition], HashMap Full.Name Full.FragmentDefinition)
-document = foldr filterOperation ([], HashMap.empty)
+    -> ([Full.OperationDefinition], KeyMap Full.FragmentDefinition)
+document = foldr filterOperation ([], KeyMap.empty)
   where
     filterOperation (Full.ExecutableDefinition executableDefinition) accumulator
         | Full.DefinitionOperation operationDefinition' <- executableDefinition =
             first (operationDefinition' :) accumulator
         | Full.DefinitionFragment fragmentDefinition <- executableDefinition
         , Full.FragmentDefinition fragmentName _ _ _ _ <- fragmentDefinition =
-            HashMap.insert fragmentName fragmentDefinition <$> accumulator
+            KeyMap.insert fragmentName fragmentDefinition <$> accumulator
     filterOperation _ accumulator = accumulator -- Type system definitions.
 
 -- | Rewrites the original syntax tree into an intermediate representation used
@@ -221,7 +222,7 @@ fragmentSpread (Full.FragmentSpread spreadName directives' location) = do
     transformedDirectives <- directives directives'
     visitedFragment <- asks $ HashSet.member spreadName . visitedFragments
     possibleFragmentDefinition <- asks
-        $ HashMap.lookup spreadName
+        $ KeyMap.lookup spreadName
         . fragmentDefinitions
     case transformedDirectives >> possibleFragmentDefinition of
         Just (Full.FragmentDefinition _ typeCondition _ selections _)
@@ -255,8 +256,8 @@ field (Full.Field alias' name' arguments' directives' selectionSet' location') =
             location'
     pure $ transformedDirectives >> pure transformedField
 
-arguments :: Monad m => [Full.Argument] -> TransformT m (HashMap Full.Name (Full.Node Input))
-arguments = foldM go HashMap.empty
+arguments :: Monad m => [Full.Argument] -> TransformT m (KeyMap (Full.Node Input))
+arguments = foldM go KeyMap.empty
   where
     go accumulator (Full.Argument name' valueNode argumentLocation) = do
         let replaceLocation = flip Full.Node argumentLocation . Full.node
@@ -267,16 +268,16 @@ directive :: Monad m => Full.Directive -> TransformT m Definition.Directive
 directive (Full.Directive name' arguments' _)
     = Definition.Directive name'
     . Type.Arguments
-    <$> foldM go HashMap.empty arguments'
+    <$> foldM go KeyMap.empty arguments'
   where
     go accumulator (Full.Argument argumentName Full.Node{ node = node' } _) = do
         transformedValue <- directiveValue node'
-        pure $ HashMap.insert argumentName transformedValue accumulator
+        pure $ KeyMap.insert argumentName transformedValue accumulator
 
 directiveValue :: Monad m => Full.Value -> TransformT m Type.Value
 directiveValue = \case
     (Full.Variable name') -> asks
-        $ HashMap.lookupDefault Type.Null name'
+        $ (\x -> fromMaybe Type.Null (KeyMap.lookup name' x))
         . variableValues
     (Full.Int integer) -> pure $ Type.Int integer
     (Full.Float double) -> pure $ Type.Float double
@@ -286,16 +287,16 @@ directiveValue = \case
     (Full.Enum enum) -> pure $ Type.Enum enum
     (Full.List list) -> Type.List <$> traverse directiveNode list
     (Full.Object objectFields) ->
-        Type.Object <$> foldM objectField HashMap.empty objectFields
+        Type.Object <$> foldM objectField KeyMap.empty objectFields
   where
     directiveNode Full.Node{ node = node'} = directiveValue node'
     objectField accumulator Full.ObjectField{ name, value } = do
         transformedValue <- directiveNode value
-        pure $ HashMap.insert name transformedValue accumulator
+        pure $ KeyMap.insert name transformedValue accumulator
 
 input :: Monad m => Full.Value -> TransformT m (Maybe Input)
 input (Full.Variable name') =
-    asks (HashMap.lookup name' . variableValues) <&> fmap Variable
+    asks (KeyMap.lookup name' . variableValues) <&> fmap Variable
 input (Full.Int integer) = pure $ Just $ Int integer
 input (Full.Float double) = pure $ Just $ Float double
 input (Full.String string) = pure $ Just $ String string
@@ -305,18 +306,18 @@ input (Full.Enum enum) = pure $ Just $ Enum enum
 input (Full.List list) = Just . List
     <$> traverse (fmap (fromMaybe Null) . input . Full.node) list
 input (Full.Object objectFields) = Just . Object
-    <$> foldM objectField HashMap.empty objectFields
+    <$> foldM objectField KeyMap.empty objectFields
   where
     objectField accumulator Full.ObjectField{..} = do
         objectFieldValue <- fmap Full.node <$> node value
         pure $ insertIfGiven name objectFieldValue accumulator
 
 insertIfGiven :: forall a
-    . Full.Name
+    . Key.Key
     -> Maybe a
-    -> HashMap Full.Name a
-    -> HashMap Full.Name a
-insertIfGiven name (Just v) = HashMap.insert name v
+    -> KeyMap a
+    -> KeyMap a
+insertIfGiven name (Just v) = KeyMap.insert name v
 insertIfGiven _ _ = id
 
 node :: Monad m => Full.Node Full.Value -> TransformT m (Maybe (Full.Node Input))

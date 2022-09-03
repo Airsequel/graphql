@@ -8,6 +8,7 @@ module Language.GraphQL.AST.Parser
     ( document
     ) where
 
+import qualified Data.Aeson.Key as Key
 import Control.Applicative (Alternative(..), liftA2, optional)
 import Control.Applicative.Combinators (sepBy1)
 import qualified Control.Applicative.Combinators.NonEmpty as NonEmpty
@@ -530,7 +531,7 @@ directive = label "Directive" $ do
     at
     directiveName <- name
     directiveArguments <- arguments
-    pure $ Full.Directive directiveName directiveArguments location
+    pure $ Full.Directive (Key.fromText directiveName) directiveArguments location
 
 listOptIn :: (Parser [a] -> Parser [a]) -> Parser a -> Parser [a]
 listOptIn surround = option [] . surround . some

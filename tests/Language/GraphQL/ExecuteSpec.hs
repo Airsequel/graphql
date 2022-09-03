@@ -16,8 +16,9 @@ module Language.GraphQL.ExecuteSpec
 import Control.Exception (Exception(..), SomeException)
 import Control.Monad.Catch (throwM)
 import Data.Conduit
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Typeable (cast)
 import Language.GraphQL.AST (Document, Location(..), Name)
 import Language.GraphQL.AST.Parser (document)
@@ -64,7 +65,7 @@ philosopherSchema =
 
 queryType :: Out.ObjectType IO
 queryType = Out.ObjectType "Query" Nothing []
-    $ HashMap.fromList
+    $ KeyMap.fromList
     [ ("philosopher", ValueResolver philosopherField philosopherResolver)
     , ("genres", ValueResolver genresField genresResolver)
     , ("count", ValueResolver countField countResolver)
@@ -72,45 +73,45 @@ queryType = Out.ObjectType "Query" Nothing []
   where
     philosopherField =
         Out.Field Nothing (Out.NamedObjectType philosopherType)
-        $ HashMap.singleton "id"
+        $ KeyMap.singleton "id"
         $ In.Argument Nothing (In.NamedScalarType id) Nothing
     philosopherResolver = pure $ Object mempty
     genresField =
         let fieldType = Out.ListType $ Out.NonNullScalarType string
-         in Out.Field Nothing fieldType HashMap.empty
+         in Out.Field Nothing fieldType KeyMap.empty
     genresResolver :: Resolve IO
     genresResolver = throwM PhilosopherException
     countField =
         let fieldType = Out.NonNullScalarType int
-         in Out.Field Nothing fieldType HashMap.empty
+         in Out.Field Nothing fieldType KeyMap.empty
     countResolver = pure ""
 
 musicType :: Out.ObjectType IO
 musicType = Out.ObjectType "Music" Nothing []
-    $ HashMap.fromList resolvers
+    $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("instrument", ValueResolver instrumentField instrumentResolver)
         ]
     instrumentResolver = pure $ String "piano"
-    instrumentField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    instrumentField = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
 
 poetryType :: Out.ObjectType IO
 poetryType = Out.ObjectType "Poetry" Nothing []
-    $ HashMap.fromList resolvers
+    $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("genre", ValueResolver genreField genreResolver)
         ]
     genreResolver = pure $ String "Futurism"
-    genreField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    genreField = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
 
 interestType :: Out.UnionType IO
 interestType = Out.UnionType "Interest" Nothing [musicType, poetryType]
 
 philosopherType :: Out.ObjectType IO
 philosopherType = Out.ObjectType "Philosopher" Nothing []
-    $ HashMap.fromList resolvers
+    $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("firstName", ValueResolver firstNameField firstNameResolver)
@@ -122,80 +123,80 @@ philosopherType = Out.ObjectType "Philosopher" Nothing []
         , ("firstLanguage", ValueResolver firstLanguageField firstLanguageResolver)
         ]
     firstNameField =
-        Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
     firstNameResolver = pure $ String "Friedrich"
     lastNameField
-        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
     lastNameResolver = pure $ String "Nietzsche"
     schoolField
-       = Out.Field Nothing (Out.NonNullEnumType schoolType) HashMap.empty
+       = Out.Field Nothing (Out.NonNullEnumType schoolType) KeyMap.empty
     schoolResolver = pure $ Enum "EXISTENTIALISM"
     interestField
-        = Out.Field Nothing (Out.NonNullUnionType interestType) HashMap.empty
+        = Out.Field Nothing (Out.NonNullUnionType interestType) KeyMap.empty
     interestResolver = pure
         $ Object
-        $ HashMap.fromList [("instrument", "piano")]
+        $ KeyMap.fromList [("instrument", "piano")]
     majorWorkField
-        = Out.Field Nothing (Out.NonNullInterfaceType workType) HashMap.empty
+        = Out.Field Nothing (Out.NonNullInterfaceType workType) KeyMap.empty
     majorWorkResolver = pure
         $ Object
-        $ HashMap.fromList
+        $ KeyMap.fromList
             [ ("title", "Also sprach Zarathustra: Ein Buch für Alle und Keinen")
             ]
     centuryField =
-        Out.Field Nothing (Out.NonNullScalarType int) HashMap.empty
+        Out.Field Nothing (Out.NonNullScalarType int) KeyMap.empty
     centuryResolver = pure $ Float 18.5
     firstLanguageField
-        = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
     firstLanguageResolver = pure Null
 
 workType :: Out.InterfaceType IO
 workType = Out.InterfaceType "Work" Nothing []
-    $ HashMap.fromList fields
+    $ KeyMap.fromList fields
   where
     fields = [("title", titleField)]
-    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
 
 bookType :: Out.ObjectType IO
 bookType = Out.ObjectType "Book" Nothing [workType]
-    $ HashMap.fromList resolvers
+    $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("title", ValueResolver titleField titleResolver)
         ]
-    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
     titleResolver = pure "Also sprach Zarathustra: Ein Buch für Alle und Keinen"
 
 bookCollectionType :: Out.ObjectType IO
 bookCollectionType = Out.ObjectType "Book" Nothing [workType]
-    $ HashMap.fromList resolvers
+    $ KeyMap.fromList resolvers
   where
     resolvers =
         [ ("title", ValueResolver titleField titleResolver)
         ]
-    titleField = Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+    titleField = Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
     titleResolver = pure "The Three Critiques"
 
 subscriptionType :: Out.ObjectType IO
 subscriptionType = Out.ObjectType "Subscription" Nothing []
-    $ HashMap.singleton "newQuote"
+    $ KeyMap.singleton "newQuote"
     $ EventStreamResolver quoteField (pure $ Object mempty)
     $ pure $ yield $ Object mempty
   where
     quoteField =
-        Out.Field Nothing (Out.NonNullObjectType quoteType) HashMap.empty
+        Out.Field Nothing (Out.NonNullObjectType quoteType) KeyMap.empty
 
 quoteType :: Out.ObjectType IO
 quoteType = Out.ObjectType "Quote" Nothing []
-    $ HashMap.singleton "quote"
+    $ KeyMap.singleton "quote"
     $ ValueResolver quoteField
     $ pure "Naturam expelles furca, tamen usque recurret."
   where
     quoteField =
-        Out.Field Nothing (Out.NonNullScalarType string) HashMap.empty
+        Out.Field Nothing (Out.NonNullScalarType string) KeyMap.empty
 
 schoolType :: Type.EnumType
-schoolType = EnumType "School" Nothing $ HashMap.fromList
+schoolType = EnumType "School" Nothing $ KeyMap.fromList
     [ ("NOMINALISM", EnumValue Nothing)
     , ("REALISM", EnumValue Nothing)
     , ("IDEALISM", EnumValue Nothing)
@@ -210,7 +211,7 @@ shouldResolveTo :: Text.Text -> Response Type.Value -> Expectation
 shouldResolveTo querySource expected =
     case parse document "" querySource of
         (Right parsedDocument) ->
-            execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value) parsedDocument >>= go
+            execute philosopherSchema Nothing (mempty :: KeyMap Type.Value) parsedDocument >>= go
         (Left errorBundle) -> expectationFailure $ errorBundlePretty errorBundle
   where
     go = \case
@@ -238,7 +239,7 @@ shouldContainError streamOrValue expected =
 
 parseAndExecute :: Schema IO
     -> Maybe Text
-    -> HashMap Name Type.Value
+    -> KeyMap Type.Value
     -> Text
     -> IO (Either (ResponseEventStream IO Type.Value) (Response Type.Value))
 parseAndExecute schema' operation variables
@@ -264,18 +265,18 @@ spec =
         context "Query" $ do
             it "skips unknown fields" $
                 let data'' = Object
-                        $ HashMap.singleton "philosopher"
+                        $ KeyMap.singleton "philosopher"
                         $ Object
-                        $ HashMap.singleton "firstName"
+                        $ KeyMap.singleton "firstName"
                         $ String "Friedrich"
                     expected = Response data'' mempty
                     sourceQuery = "{ philosopher { firstName surname } }"
                 in sourceQuery `shouldResolveTo` expected
             it "merges selections" $
                 let data'' = Object
-                        $ HashMap.singleton "philosopher"
+                        $ KeyMap.singleton "philosopher"
                         $ Object
-                        $ HashMap.fromList
+                        $ KeyMap.fromList
                             [ ("firstName", String "Friedrich")
                             , ("lastName", String "Nietzsche")
                             ]
@@ -284,7 +285,7 @@ spec =
                 in sourceQuery `shouldResolveTo` expected
 
             it "errors on invalid output enum values" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Value completion error. Expected type !School, found: EXISTENTIALISM."
@@ -296,7 +297,7 @@ spec =
                  in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for non-null unions" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Value completion error. Expected type !Interest, found: { instrument: \"piano\" }."
@@ -308,7 +309,7 @@ spec =
                  in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for invalid interfaces" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message
                             = "Value completion error. Expected type !Work, found:\
@@ -321,7 +322,7 @@ spec =
                  in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for invalid scalar arguments" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
                             "Argument \"id\" has invalid type. Expected type ID, found: True."
@@ -333,7 +334,7 @@ spec =
                  in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for failed result coercion" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message = "Unable to coerce result to !Int."
                         , locations = [Location 1 26]
@@ -344,7 +345,7 @@ spec =
                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for failed result coercion" $
-                let data'' = Object $ HashMap.singleton "genres" Null
+                let data'' = Object $ KeyMap.singleton "genres" Null
                     executionErrors = pure $ Error
                         { message = "PhilosopherException"
                         , locations = [Location 1 3]
@@ -365,7 +366,7 @@ spec =
                 in sourceQuery `shouldResolveTo` expected
 
             it "detects nullability errors" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
+                let data'' = Object $ KeyMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message = "Value completion error. Expected type !String, found: null."
                         , locations = [Location 1 26]
@@ -397,7 +398,7 @@ spec =
                             , path = []
                             }
                         expected = Response data'' executionErrors
-                        executeWithVars = execute philosopherSchema Nothing (HashMap.singleton "id" (Type.Int 1))
+                        executeWithVars = execute philosopherSchema Nothing (KeyMap.singleton "id" (Type.Int 1))
                     Right actual <- either (pure . parseError) executeWithVars
                         $ parse document "" "query($id: String) { philosopher(id: \"1\") { firstLanguage } }"
                     actual `shouldBe` expected
@@ -415,7 +416,7 @@ spec =
 
             context "Error path" $ do
                 let executeHero :: Document -> Either SomeException EitherStreamOrValue
-                    executeHero = execute heroSchema Nothing (HashMap.empty :: HashMap Name Type.Value)
+                    executeHero = execute heroSchema Nothing (KeyMap.empty :: KeyMap Type.Value)
 
                 it "at the beggining of the list" $
                     let Right (Right actual) = either (pure . parseError) executeHero
@@ -428,12 +429,12 @@ spec =
         context "Subscription" $
             it "subscribes" $ do
                 let data'' = Object
-                        $ HashMap.singleton "newQuote"
+                        $ KeyMap.singleton "newQuote"
                         $ Object
-                        $ HashMap.singleton "quote"
+                        $ KeyMap.singleton "quote"
                         $ String "Naturam expelles furca, tamen usque recurret."
                     expected = Response data'' mempty
-                Left stream <- execute philosopherSchema Nothing (mempty :: HashMap Name Type.Value)
+                Left stream <- execute philosopherSchema Nothing (mempty :: KeyMap Type.Value)
                     $ fromRight (error "Parse error")
                     $ parse document "" "subscription { newQuote { quote } }"
                 Just actual <- runConduit $ stream .| await

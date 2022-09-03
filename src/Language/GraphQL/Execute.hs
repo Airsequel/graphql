@@ -15,6 +15,8 @@ module Language.GraphQL.Execute
     , module Language.GraphQL.Execute.Coerce
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
 import Conduit (mapMC, (.|))
 import Control.Arrow (left)
 import Control.Monad.Catch
@@ -32,8 +34,6 @@ import qualified Control.Monad.Trans.Writer as Writer
 import Control.Monad (foldM)
 import qualified Language.GraphQL.AST.Document as Full
 import Data.Foldable (find)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 import Data.List.NonEmpty (NonEmpty(..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (fromMaybe)
@@ -64,7 +64,7 @@ import Prelude hiding (null)
 import Language.GraphQL.AST.Document (showVariableName)
 
 newtype ExecutorT m a = ExecutorT
-    { runExecutorT :: ReaderT (HashMap Full.Name (Type m)) (WriterT (Seq Error) m) a
+    { runExecutorT :: ReaderT (KeyMap (Type m)) (WriterT (Seq Error) m) a
     }
 
 instance Functor m => Functor (ExecutorT m) where
@@ -239,7 +239,7 @@ queryError (UnknownInputType variableDefinition) =
 execute :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
-    -> HashMap Full.Name a -- ^ Variable substitution function.
+    -> KeyMap a -- ^ Variable substitution function.
     -> Full.Document -- @GraphQL@ document.
     -> m (Either (ResponseEventStream m b) (Response b))
 execute schema' operationName subs document' =
@@ -249,7 +249,7 @@ executeRequest :: (MonadCatch m, Serialize a, VariableValue b)
     => Schema m
     -> Full.Document
     -> Maybe String
-    -> HashMap Full.Name b
+    -> KeyMap b
     -> m (Either (ResponseEventStream m a) (Response a))
 executeRequest schema sourceDocument operationName variableValues = do
     operationAndVariables <- sequence buildOperation
@@ -358,7 +358,7 @@ executeSelectionSet selections objectType objectValue errorPath = do
         executeField objectValue fields resolver errorPath
     Out.ObjectType _ _ _ resolvers = objectType
     go fields@(Transform.Field _ fieldName _ _ _ :| _) =
-        traverse (executeField' fields) $ HashMap.lookup fieldName resolvers
+        traverse (executeField' fields) $ KeyMap.lookup fieldName resolvers
 
 fieldsSegment :: forall m. NonEmpty (Transform.Field m) -> Path
 fieldsSegment (Transform.Field alias fieldName _ _ _ :| _) =
@@ -430,7 +430,7 @@ executeField objectValue fields (viewResolver -> resolverPair) errorPath =
 resolveFieldValue :: MonadCatch m
     => Out.Resolve m
     -> Type.Value
-    -> Full.Name
+    -> Key.Key
     -> Type.Subs
     -> ExecutorT m Type.Value
 resolveFieldValue resolver objectValue _fieldName argumentValues =
@@ -446,9 +446,9 @@ resolveAbstractType :: Monad m
     -> Type.Subs
     -> ExecutorT m (Maybe (Out.ObjectType m))
 resolveAbstractType abstractType values'
-    | Just (Type.String typeName) <- HashMap.lookup "__typename" values' = do
+    | Just (Type.String typeName) <- KeyMap.lookup "__typename" values' = do
         types' <- ExecutorT ask
-        case HashMap.lookup typeName types' of
+        case KeyMap.lookup typeName types' of
             Just (Type.Internal.ObjectType objectType) ->
                 if Type.Internal.instanceOf objectType abstractType
                     then pure $ Just objectType
@@ -482,7 +482,7 @@ completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.String string) =
     coerceResult outputType $ String string
 completeValue outputType@(Out.EnumBaseType enumType) _ _ (Type.Enum enum) =
     let Type.EnumType _ _ enumMembers = enumType
-     in if HashMap.member enum enumMembers
+     in if KeyMap.member enum enumMembers
         then coerceResult outputType $ Enum enum
         else throwM
             $ ValueCompletionException (show outputType)
@@ -529,16 +529,16 @@ mergeSelectionSets = foldr forEach mempty
         selectionSet' <> fieldSelectionSet
 
 coerceArgumentValues :: MonadCatch m
-    => HashMap Full.Name In.Argument
-    -> HashMap Full.Name (Full.Node Transform.Input)
+    => KeyMap In.Argument
+    -> KeyMap (Full.Node Transform.Input)
     -> m Type.Subs
 coerceArgumentValues argumentDefinitions argumentValues =
-    HashMap.foldrWithKey c pure argumentDefinitions mempty
+    KeyMap.foldrWithKey c pure argumentDefinitions mempty
   where
     c argumentName argumentType pure' resultMap =
         forEach argumentName argumentType resultMap >>= pure'
     forEach :: MonadCatch m
-         => Full.Name
+         => Key.Key
          -> In.Argument
          -> Type.Subs
          -> m Type.Subs
@@ -549,7 +549,7 @@ coerceArgumentValues argumentDefinitions argumentValues =
          in case matchedMap of
             Just matchedValues -> pure matchedValues
             Nothing
-                | Just inputValue <- HashMap.lookup argumentName argumentValues
+                | Just inputValue <- KeyMap.lookup argumentName argumentValues
                     -> throwM
                     $ InputCoercionException (Text.unpack argumentName) variableType
                     $ Just inputValue
@@ -574,9 +574,9 @@ coerceArgumentValues argumentDefinitions argumentValues =
         let coerceItem = coerceArgumentValue inputType
          in Type.List <$> traverse coerceItem list
     coerceArgumentValue (In.InputObjectBaseType inputType) (Transform.Object object)
-        | In.InputObjectType _ _ inputFields <- inputType = 
+        | In.InputObjectType _ _ inputFields <- inputType =
             let go = forEachField object
-                resultMap = HashMap.foldrWithKey go (pure mempty) inputFields
+                resultMap = KeyMap.foldrWithKey go (pure mempty) inputFields
              in Type.Object <$> resultMap
     coerceArgumentValue _ (Transform.Variable variable) = pure variable
     coerceArgumentValue _ _ = Nothing
@@ -602,14 +602,14 @@ collectFields objectType = foldl forEach OrderedMap.empty
         | otherwise = groupedFields
 
 coerceVariableValues :: (Monad m, VariableValue b)
-    => HashMap Full.Name (Schema.Type m)
+    => KeyMap (Schema.Type m)
     -> Full.OperationDefinition
-    -> HashMap Full.Name b
+    -> KeyMap b
     -> Either QueryError Type.Subs
 coerceVariableValues types operationDefinition' variableValues
     | Full.OperationDefinition _ _ variableDefinitions _ _ _ <-
         operationDefinition'
-    = foldr forEach (Right HashMap.empty) variableDefinitions
+    = foldr forEach (Right KeyMap.empty) variableDefinitions
     | otherwise = pure mempty
   where
     forEach variableDefinition (Right coercedValues) =
@@ -641,7 +641,7 @@ constValue Full.ConstNull = Type.Null
 constValue (Full.ConstEnum e) = Type.Enum e
 constValue (Full.ConstList list) = Type.List $ constValue . Full.node <$> list
 constValue (Full.ConstObject o) =
-    Type.Object $ HashMap.fromList $ constObjectField <$> o
+    Type.Object $ KeyMap.fromList $ constObjectField <$> o
   where
     constObjectField Full.ObjectField{value = value', ..} =
         (name, constValue $ Full.node value')
@@ -663,7 +663,7 @@ subscribe fields schema objectLocation
         $ Error "Schema doesn't support subscriptions." [] []
 
 mapSourceToResponseEvent :: (MonadCatch m, Serialize a)
-    => HashMap Full.Name (Type m)
+    => KeyMap (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)
     -> Out.SourceEventStream m
@@ -674,7 +674,7 @@ mapSourceToResponseEvent types' subscriptionType fields sourceStream
     .| mapMC (executeSubscriptionEvent types' subscriptionType fields)
 
 createSourceEventStream :: MonadCatch m
-    => HashMap Full.Name (Type m)
+    => KeyMap (Type m)
     -> Out.ObjectType m
     -> Full.Location
     -> Seq (Transform.Selection m)
@@ -684,7 +684,7 @@ createSourceEventStream _types subscriptionType objectLocation fields
     , Transform.Field _ fieldName arguments' _ errorLocation <-
         NonEmpty.head fieldGroup
     , Out.ObjectType _ _ _ fieldTypes <- subscriptionType
-    , resolverT <- fieldTypes HashMap.! fieldName
+    , resolverT <- fieldTypes KeyMap.! fieldName
     , Out.EventStreamResolver fieldDefinition _ resolver <- resolverT
     , Out.Field _ _fieldType argumentDefinitions <- fieldDefinition =
         case coerceArgumentValues argumentDefinitions arguments' of
@@ -719,7 +719,7 @@ resolveFieldEventStream result args resolver =
         }
 
 executeSubscriptionEvent :: (MonadCatch m, Serialize a)
-    => HashMap Full.Name (Type m)
+    => KeyMap (Type m)
     -> Out.ObjectType m
     -> Seq (Transform.Selection m)
     -> Type.Value

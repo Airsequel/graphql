@@ -31,10 +31,11 @@ module Language.GraphQL
     , graphqlSubs
     ) where
 
-import Control.Monad.Catch (MonadCatch)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import Control.Monad.Catch (MonadCatch)
 import Data.Maybe (catMaybes)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
@@ -70,13 +71,13 @@ graphqlSubs schema operationName variableValues document' =
                 Seq.Empty -> fmap formatResponse
                     <$> execute schema operationName variableValues parsed
                 errors -> pure $ pure
-                    $ HashMap.singleton "errors"
+                    $ KeyMap.singleton "errors"
                     $ Aeson.toJSON
                     $ fromValidationError <$> errors
   where
     validate = Validate.document schema Validate.specifiedRules
-    formatResponse (Response data'' Seq.Empty) = HashMap.singleton "data" data''
-    formatResponse (Response data'' errors') = HashMap.fromList
+    formatResponse (Response data'' Seq.Empty) = KeyMap.singleton "data" data''
+    formatResponse (Response data'' errors') = KeyMap.fromList
         [ ("data", data'')
         , ("errors", Aeson.toJSON $ fromError <$> errors')
         ]
@@ -103,8 +104,9 @@ module Language.GraphQL
     ( graphql
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
 import Control.Monad.Catch (MonadCatch)
-import Data.HashMap.Strict (HashMap)
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -123,7 +125,7 @@ import Text.Megaparsec (parse)
 graphql :: (MonadCatch m, VariableValue a, Serialize b)
     => Schema m -- ^ Resolvers.
     -> Maybe Text -- ^ Operation name.
-    -> HashMap Full.Name a -- ^ Variable substitution function.
+    -> KeyMap a -- ^ Variable substitution function.
     -> Text -- ^ Text representing a @GraphQL@ request document.
     -> m (Either (ResponseEventStream m b) (Response b)) -- ^ Response.
 graphql schema operationName variableValues document' =

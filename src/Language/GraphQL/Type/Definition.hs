@@ -3,7 +3,6 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Safe #-}
 
 -- | Types that can be used as both input and output types.
 module Language.GraphQL.Type.Definition
@@ -22,14 +21,15 @@ module Language.GraphQL.Type.Definition
     , string
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Int (Int32)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 import Data.List (intercalate)
 import Data.String (IsString(..))
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Language.GraphQL.AST (Name, escape)
+import Language.GraphQL.AST (escape)
 import Numeric (showFloat)
 import Prelude hiding (id)
 
@@ -40,9 +40,9 @@ data Value
     | String Text
     | Boolean Bool
     | Null
-    | Enum Name
+    | Enum Key.Key
     | List [Value] -- ^ Arbitrary nested list.
-    | Object (HashMap Name Value)
+    | Object (KeyMap Value)
     deriving Eq
 
 instance Show Value where
@@ -54,26 +54,26 @@ instance Show Value where
     show (String text) = "\"" <> Text.foldr (mappend . escape) "\"" text
     show (Boolean boolean') = show boolean'
     show Null = "null"
-    show (Enum name) = Text.unpack name
+    show (Enum name) = Key.toString name
     show (List list) = show list
     show (Object fields) = unwords
         [ "{"
-        , intercalate ", " (HashMap.foldrWithKey showObject [] fields)
+        , intercalate ", " (KeyMap.foldrWithKey showObject [] fields)
         , "}"
         ]
       where
         showObject key value accumulator =
-            concat [Text.unpack key, ": ", show value] : accumulator
+            concat [Key.toString key, ": ", show value] : accumulator
 
 instance IsString Value where
     fromString = String . fromString
 
 -- | Contains variables for the query. The key of the map is a variable name,
 -- and the value is the variable value.
-type Subs = HashMap Name Value
+type Subs = KeyMap Value
 
 -- | Argument list.
-newtype Arguments = Arguments (HashMap Name Value)
+newtype Arguments = Arguments (KeyMap Value)
     deriving (Eq, Show)
 
 instance Semigroup Arguments where
@@ -86,26 +86,26 @@ instance Monoid Arguments where
 --
 -- The leaf values of any request and input values to arguments are Scalars (or
 -- Enums) .
-data ScalarType = ScalarType Name (Maybe Text)
+data ScalarType = ScalarType Key.Key (Maybe Text)
 
 instance Eq ScalarType where
     (ScalarType this _) == (ScalarType that _) = this == that
 
 instance Show ScalarType where
-    show (ScalarType typeName _) = Text.unpack typeName
+    show (ScalarType typeName _) = Key.toString typeName
 
 -- | Enum type definition.
 --
 -- Some leaf values of requests and input values are Enums. GraphQL serializes
 -- Enum values as strings, however internally Enums can be represented by any
 -- kind of type, often integers.
-data EnumType = EnumType Name (Maybe Text) (HashMap Name EnumValue)
+data EnumType = EnumType Key.Key (Maybe Text) (KeyMap EnumValue)
 
 instance Eq EnumType where
     (EnumType this _ _) == (EnumType that _ _) = this == that
 
 instance Show EnumType where
-    show (EnumType typeName _ _) = Text.unpack typeName
+    show (EnumType typeName _ _) = Key.toString typeName
 
 -- | Enum value is a single member of an 'EnumType'.
 newtype EnumValue = EnumValue (Maybe Text)
@@ -163,7 +163,7 @@ id = ScalarType "ID" (Just description)
         \`\"4\"`) or integer (such as `4`) input value will be accepted as an ID."
 
 -- | Directive.
-data Directive = Directive Name Arguments
+data Directive = Directive Key.Key Arguments
     deriving (Eq, Show)
 
 -- | Directive processing status.
@@ -194,7 +194,7 @@ skip :: Status -> Status
 skip = handle skip'
   where
     skip' directive'@(Directive "skip" (Arguments arguments)) =
-        case HashMap.lookup "if" arguments of
+        case KeyMap.lookup "if" arguments of
             (Just (Boolean True)) -> Skip
             _ -> Include directive'
     skip' directive' = Continue directive'
@@ -203,7 +203,7 @@ include :: Status -> Status
 include = handle include'
   where
     include' directive'@(Directive "include" (Arguments arguments)) =
-        case HashMap.lookup "if" arguments of
+        case KeyMap.lookup "if" arguments of
             (Just (Boolean True)) -> Include directive'
             _ -> Skip
     include' directive' = Continue directive'

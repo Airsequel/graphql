@@ -1,0 +1,7 @@
+resolver: nightly-2022-09-03
+
+extra-deps:
+  - parser-combinators-1.3.0
+  - hspec-2.9.4
+  - hspec-core-2.9.4
+  - hspec-discover-2.9.4

@@ -32,10 +32,14 @@ module Language.GraphQL.Type.Out
     , pattern UnionBaseType
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Conduit
 import Control.Monad.Trans.Reader (ReaderT, asks)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -48,7 +52,7 @@ import qualified Language.GraphQL.Type.In as In
 -- Almost all of the GraphQL types you define will be object types. Object
 -- types have a name, but most importantly describe their fields.
 data ObjectType m = ObjectType
-    Name (Maybe Text) [InterfaceType m] (HashMap Name (Resolver m))
+    Name (Maybe Text) [InterfaceType m] (KeyMap (Resolver m))
 
 instance forall a. Eq (ObjectType a) where
     (ObjectType this _ _ _) == (ObjectType that _ _ _) = this == that
@@ -62,7 +66,7 @@ instance forall a. Show (ObjectType a) where
 -- is used to describe what types are possible, and what fields are in common
 -- across all types.
 data InterfaceType m = InterfaceType
-    Name (Maybe Text) [InterfaceType m] (HashMap Name (Field m))
+    Name (Maybe Text) [InterfaceType m] (KeyMap (Field m))
 
 instance forall a. Eq (InterfaceType a) where
     (InterfaceType this _ _ _) == (InterfaceType that _ _ _) = this == that
@@ -233,4 +237,4 @@ argument argumentName = do
     pure $ fromMaybe Null argumentValue
   where
     lookupArgument (Arguments argumentMap) =
-        HashMap.lookup argumentName argumentMap
+        KeyMap.lookup (Key.fromText argumentName) argumentMap

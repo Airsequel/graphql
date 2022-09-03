@@ -22,9 +22,11 @@ module Language.GraphQL.Execute.OrderedMap
     , traverseMaybe
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import qualified Data.Foldable as Foldable
-import Data.HashMap.Strict (HashMap, (!))
-import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe
 import Data.Text (Text)
 import Data.Vector (Vector)
 import qualified Data.Vector as Vector
@@ -37,11 +39,11 @@ import Prelude hiding (filter, lookup)
 --
 -- Internally this map uses an array with keys to preserve the order and an
 -- unorded map with key-value pairs.
-data OrderedMap v = OrderedMap (Vector Text) (HashMap Text v)
+data OrderedMap v = OrderedMap (Vector Text) (KeyMap v)
     deriving (Eq)
 
 instance Functor OrderedMap where
-    fmap f (OrderedMap vector hashMap) = OrderedMap vector $ fmap f hashMap
+    fmap f (OrderedMap vector keyMap) = OrderedMap vector $ fmap f keyMap
 
 instance Foldable OrderedMap where
     foldr f = foldrWithKey $ const f
@@ -55,8 +57,8 @@ instance Semigroup v => Monoid (OrderedMap v) where
     mempty = empty
 
 instance Traversable OrderedMap where
-    traverse f (OrderedMap vector hashMap) = OrderedMap vector
-        <$> traverse f hashMap
+    traverse f (OrderedMap vector keyMap) = OrderedMap vector
+        <$> traverse f keyMap
 
 instance Show v => Show (OrderedMap v) where
     showsPrec precedence map' = showParen (precedence > 10)
@@ -67,7 +69,7 @@ instance Show v => Show (OrderedMap v) where
 -- | Constructs a map with a single element.
 singleton :: forall v. Text -> v -> OrderedMap v
 singleton key value = OrderedMap (Vector.singleton key)
-    $ HashMap.singleton key value
+    $ KeyMap.singleton (Key.fromText key) value
 
 -- | Constructs an empty map.
 empty :: forall v. OrderedMap v
@@ -78,17 +80,18 @@ empty = OrderedMap mempty mempty
 -- | Reduces this map by applying a binary operator from right to left to all
 -- elements, using the given starting value.
 foldrWithKey :: forall v a. (Text -> v -> a -> a) -> a -> OrderedMap v -> a
-foldrWithKey f initial (OrderedMap vector hashMap) = foldr go initial vector
+foldrWithKey f initial (OrderedMap vector keyMap) = foldr go initial vector
   where
-    go key = f key (hashMap ! key)
+    go key = f key (fromJust $ KeyMap.lookup (Key.fromText key) keyMap)
 
 -- | Reduces this map by applying a binary operator from left to right to all
 -- elements, using the given starting value.
 foldlWithKey' :: forall v a. (a -> Text -> v -> a) -> a -> OrderedMap v -> a
-foldlWithKey' f initial (OrderedMap vector hashMap) =
+foldlWithKey' f initial (OrderedMap vector keyMap) =
     Vector.foldl' go initial vector
   where
-    go accumulator key = f accumulator key (hashMap ! key)
+    go accumulator key = f accumulator key
+        (fromJust $ KeyMap.lookup (Key.fromText key) keyMap)
 
 -- | Traverse over the elements and collect the 'Just' results.
 traverseMaybe
@@ -123,21 +126,21 @@ elems = fmap snd . toList
 -- map previously contained a mapping for the key, the existing and new values
 -- are combined.
 insert :: Semigroup v => Text -> v -> OrderedMap v -> OrderedMap v
-insert key value (OrderedMap vector hashMap)
-    | Just available <- HashMap.lookup key hashMap = OrderedMap vector
-        $ HashMap.insert key (available <> value) hashMap
+insert key value (OrderedMap vector keyMap)
+    | Just available <- KeyMap.lookup (Key.fromText key) keyMap = OrderedMap vector
+        $ KeyMap.insert (Key.fromText key) (available <> value) keyMap
     | otherwise = OrderedMap (Vector.snoc vector key)
-        $ HashMap.insert key value hashMap
+        $ KeyMap.insert (Key.fromText key) value keyMap
 
 -- | Associates the specified value with the specified key in this map. If this
 -- map previously contained a mapping for the key, the existing value is
 -- replaced by the new one.
 replace :: Text -> v -> OrderedMap v -> OrderedMap v
-replace key value (OrderedMap vector hashMap)
-    | HashMap.member key hashMap = OrderedMap vector
-        $ HashMap.insert key value hashMap
+replace key value (OrderedMap vector keyMap)
+    | KeyMap.member (Key.fromText key) keyMap = OrderedMap vector
+        $ KeyMap.insert (Key.fromText key) value keyMap
     | otherwise = OrderedMap (Vector.snoc vector key)
-        $ HashMap.insert key value hashMap
+        $ KeyMap.insert (Key.fromText key) value keyMap
 
 -- | Gives the size of this map, i.e. number of elements in it.
 size :: forall v. OrderedMap v -> Int
@@ -145,4 +148,4 @@ size (OrderedMap vector _) = Vector.length vector
 
 -- | Looks up a value in this map by key.
 lookup :: forall v. Text -> OrderedMap v -> Maybe v
-lookup key (OrderedMap _ hashMap) = HashMap.lookup key hashMap
+lookup key (OrderedMap _ keyMap) = KeyMap.lookup (Key.fromText key) keyMap

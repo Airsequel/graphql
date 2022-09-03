@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 
 -- | This module defines a minifier and a printer for the @GraphQL@ language.
 module Language.GraphQL.AST.Encoder
@@ -16,6 +15,7 @@ module Language.GraphQL.AST.Encoder
     , value
     ) where
 
+import qualified Data.Aeson.Key as Key
 import Data.Foldable (fold)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
@@ -78,13 +78,13 @@ operationDefinition formatter = \case
         "subscription " <> root name vars dirs sels
   where
     -- | Converts a Query or Mutation into a string.
-    root :: Maybe Full.Name ->
+    root :: Maybe Key.Key ->
         [Full.VariableDefinition] ->
         [Full.Directive] ->
         Full.SelectionSet ->
         Lazy.Text
     root name vars dirs sels
-        = Lazy.Text.fromStrict (fold name)
+        = Lazy.Text.fromStrict (fold (fmap Key.toText name))
         <> optempty (variableDefinitions formatter) vars
         <> optempty (directives formatter) dirs
         <> eitherFormat formatter " " mempty
@@ -101,15 +101,15 @@ variableDefinition formatter variableDefinition' =
      in variable variableName
     <> eitherFormat formatter ": " ":"
     <> type' variableType
-    <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
+    <> maybe mempty ((\x -> defaultValue formatter x)  . Full.node) defaultValue'
 
 defaultValue :: Formatter -> Full.ConstValue -> Lazy.Text
 defaultValue formatter val
     = eitherFormat formatter " = " "="
     <> value formatter (fromConstValue val)
 
-variable :: Full.Name -> Lazy.Text
-variable var = "$" <> Lazy.Text.fromStrict var
+variable :: Key.Key -> Lazy.Text
+variable var = "$" <> (Lazy.Text.fromStrict $ Key.toText var)
 
 selectionSet :: Formatter -> Full.SelectionSet -> Lazy.Text
 selectionSet formatter
@@ -147,8 +147,8 @@ colon formatter = eitherFormat formatter ": " ":"
 -- | Converts Field into a string.
 field :: Formatter -> Full.Field -> Lazy.Text
 field formatter (Full.Field alias name args dirs set _)
-    = optempty prependAlias (fold alias)
-    <> Lazy.Text.fromStrict name
+    = optempty prependAlias (Key.toText $ fold alias)
+    <> Lazy.Text.fromStrict (Key.toText name)
     <> optempty (arguments formatter) args
     <> optempty (directives formatter) dirs
     <> optempty selectionSetOpt' set
@@ -162,7 +162,7 @@ arguments formatter = parensCommas formatter $ argument formatter
 
 argument :: Formatter -> Full.Argument -> Lazy.Text
 argument formatter (Full.Argument name value' _)
-    = Lazy.Text.fromStrict name
+    = Lazy.Text.fromStrict (Key.toText name)
     <> colon formatter
     <> value formatter (Full.node value')
 
@@ -170,21 +170,21 @@ argument formatter (Full.Argument name value' _)
 
 fragmentSpread :: Formatter -> Full.FragmentSpread -> Lazy.Text
 fragmentSpread formatter (Full.FragmentSpread name directives' _)
-    = "..." <> Lazy.Text.fromStrict name
+    = "..." <> Lazy.Text.fromStrict (Key.toText name)
     <> optempty (directives formatter) directives'
 
 inlineFragment :: Formatter -> Full.InlineFragment -> Lazy.Text
 inlineFragment formatter (Full.InlineFragment typeCondition directives' selections _)
     = "... on "
-    <> Lazy.Text.fromStrict (fold typeCondition)
+    <> Lazy.Text.fromStrict (Key.toText $ fold typeCondition)
     <> directives formatter directives'
     <> eitherFormat formatter " " mempty
     <> selectionSet formatter selections
 
 fragmentDefinition :: Formatter -> Full.FragmentDefinition -> Lazy.Text
 fragmentDefinition formatter (Full.FragmentDefinition name tc dirs sels _)
-    = "fragment " <> Lazy.Text.fromStrict name
-    <> " on " <> Lazy.Text.fromStrict tc
+    = "fragment " <> Lazy.Text.fromStrict (Key.toText name)
+    <> " on " <> Lazy.Text.fromStrict (Key.toText tc)
     <> optempty (directives formatter) dirs
     <> eitherFormat formatter " " mempty
     <> selectionSet formatter sels
@@ -194,7 +194,9 @@ fragmentDefinition formatter (Full.FragmentDefinition name tc dirs sels _)
 -- | Converts a 'Full.Directive' into a string.
 directive :: Formatter -> Full.Directive -> Lazy.Text
 directive formatter (Full.Directive name args _)
-    = "@" <> Lazy.Text.fromStrict name <> optempty (arguments formatter) args
+    = "@"
+        <> Lazy.Text.fromStrict (Key.toText name)
+        <> optempty (arguments formatter) args
 
 directives :: Formatter -> [Full.Directive] -> Lazy.Text
 directives Minified = spaces (directive Minified)
@@ -208,7 +210,7 @@ value _ (Full.Float x) = Builder.toLazyText $ realFloat x
 value _ (Full.Boolean  x) = booleanValue x
 value _ Full.Null = "null"
 value formatter (Full.String string) = stringValue formatter string
-value _ (Full.Enum x) = Lazy.Text.fromStrict x
+value _ (Full.Enum x) = Lazy.Text.fromStrict $ Key.toText x
 value formatter (Full.List x) = listValue formatter x
 value formatter (Full.Object x) = objectValue formatter x
 
@@ -279,11 +281,11 @@ objectValue formatter = intercalate $ objectField formatter
 
 objectField :: Formatter -> Full.ObjectField Full.Value -> Lazy.Text
 objectField formatter (Full.ObjectField name (Full.Node value' _) _) =
-    Lazy.Text.fromStrict name <> colon formatter <> value formatter value'
+    Lazy.Text.fromStrict (Key.toText name) <> colon formatter <> value formatter value'
 
 -- | Converts a 'Full.Type' a type into a string.
 type' :: Full.Type -> Lazy.Text
-type' (Full.TypeNamed x) = Lazy.Text.fromStrict x
+type' (Full.TypeNamed x) = Lazy.Text.fromStrict $ Key.toText x
 type' (Full.TypeList x) = listType x
 type' (Full.TypeNonNull x) = nonNullType x
 
@@ -291,7 +293,7 @@ listType :: Full.Type -> Lazy.Text
 listType x = brackets (type' x)
 
 nonNullType :: Full.NonNullType -> Lazy.Text
-nonNullType (Full.NonNullTypeNamed x) = Lazy.Text.fromStrict x <> "!"
+nonNullType (Full.NonNullTypeNamed x) = Lazy.Text.fromStrict (Key.toText x) <> "!"
 nonNullType (Full.NonNullTypeList x) = listType x <> "!"
 
 -- * Internal

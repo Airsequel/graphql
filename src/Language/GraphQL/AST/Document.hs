@@ -3,7 +3,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 
 -- | This module defines an abstract syntax tree for the @GraphQL@ language. It
 -- follows closely the structure given in the specification. Please refer to
@@ -53,6 +52,7 @@ module Language.GraphQL.AST.Document
     , showVariable
     ) where
 
+import qualified Data.Aeson.Key as Key
 import Data.Char (ord)
 import Data.Foldable (toList)
 import Data.Int (Int32)
@@ -68,7 +68,7 @@ import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation)
 -- ** Source Text
 
 -- | Name.
-type Name = Text
+type Name = Key.Key
 
 -- | Error location, line and column.
 data Location = Location
@@ -271,13 +271,13 @@ data Value
 
 instance Show Value where
     showList = mappend . showList'
-    show (Variable variableName) = '$' : Text.unpack variableName
+    show (Variable variableName) = '$' : Key.toString variableName
     show (Int integer) = show integer
     show (Float float) = show $ ConstFloat float
     show (String text) = show $  ConstString text
     show (Boolean boolean) = show boolean
     show Null = "null"
-    show (Enum name) = Text.unpack name
+    show (Enum name) = Key.toString name
     show (List list) = show list
     show (Object fields) = showObject fields
 
@@ -300,7 +300,7 @@ instance Show ConstValue where
     show (ConstString text) = "\"" <> Text.foldr (mappend . escape) "\"" text
     show (ConstBoolean boolean) = show boolean
     show ConstNull = "null"
-    show (ConstEnum name) = Text.unpack name
+    show (ConstEnum name) = Key.toString name
     show (ConstList list) = show list
     show (ConstObject fields) = showObject fields
 
@@ -314,7 +314,7 @@ data ObjectField a = ObjectField
     } deriving Eq
 
 instance Show a => Show (ObjectField a) where
-    show ObjectField{..} = Text.unpack name ++ ": " ++ show value
+    show ObjectField{..} = Key.toString name ++ ": " ++ show value
 
 instance Functor ObjectField where
     fmap f ObjectField{..} = ObjectField name (f <$> value) location
@@ -342,7 +342,7 @@ data VariableDefinition =
     deriving (Eq, Show)
 
 showVariableName :: VariableDefinition -> String
-showVariableName (VariableDefinition name _ _ _) = "$" <> Text.unpack name
+showVariableName (VariableDefinition name _ _ _) = "$" <> Key.toString name
 
 showVariable :: VariableDefinition -> String
 showVariable var@(VariableDefinition _ type' _ _) = showVariableName var <> ":" <> " " <> show type'
@@ -357,12 +357,12 @@ data Type
     deriving Eq
 
 instance Show Type where
-    show (TypeNamed typeName) = Text.unpack typeName
+    show (TypeNamed typeName) = Key.toString typeName
     show (TypeList listType) = concat ["[", show listType, "]"]
     show (TypeNonNull nonNullType) = show nonNullType
 
 -- | Represents type names.
-type NamedType = Name
+type NamedType = Key.Key
 
 -- | Helper type to represent Non-Null types and lists of such types.
 data NonNullType
@@ -371,7 +371,7 @@ data NonNullType
     deriving Eq
 
 instance Show NonNullType where
-    show (NonNullTypeNamed typeName) = '!' : Text.unpack typeName
+    show (NonNullTypeNamed typeName) = '!' : Key.toString typeName
     show (NonNullTypeList listType) =  concat ["![", show listType, "]"]
 
 -- ** Directives
@@ -527,6 +527,7 @@ instance Foldable t => Show (ImplementsInterfaces t) where
     show (ImplementsInterfaces interfaces) = Text.unpack
         $ Text.append "implements"
         $ Text.intercalate " & "
+        $ fmap Key.toText
         $ toList interfaces
 
 -- | Definition of a single field in a type.
@@ -600,6 +601,7 @@ instance Foldable t => Eq (UnionMemberTypes t) where
 instance Foldable t => Show (UnionMemberTypes t) where
     show (UnionMemberTypes memberTypes) = Text.unpack
         $ Text.intercalate " | "
+        $ fmap Key.toText
         $ toList memberTypes
 
 -- ** Enums

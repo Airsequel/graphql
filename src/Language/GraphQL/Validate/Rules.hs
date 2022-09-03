@@ -49,8 +49,9 @@ import Control.Monad.Trans.Reader (ReaderT(..), ask, asks, mapReaderT)
 import Control.Monad.Trans.State (StateT, evalStateT, gets, modify)
 import Data.Bifunctor (first)
 import Data.Foldable (find, fold, foldl', toList)
-import qualified Data.HashMap.Strict as HashMap
-import Data.HashMap.Strict (HashMap)
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.HashSet (HashSet)
 import qualified Data.HashSet as HashSet
 import Data.List (groupBy, sortBy, sortOn)
@@ -71,7 +72,7 @@ import Language.GraphQL.Validate.Validation
 
 -- Local help type that contains a hash set to track visited fragments.
 type ValidationState m a =
-    StateT (HashSet Full.Name) (ReaderT (Validation m) Seq) a
+    StateT (HashSet Key.Key) (ReaderT (Validation m) Seq) a
 
 -- | Default rules given in the specification.
 specifiedRules :: forall m. [Rule m]
@@ -257,7 +258,7 @@ findDuplicates filterByName thisLocation errorMessage = do
         then pure $ error' locations'
         else lift mempty
   where
-    error' locations' = Error 
+    error' locations' = Error
         { message = errorMessage
         , locations = locations'
         }
@@ -331,7 +332,7 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
         | Full.FragmentSpread fragmentName _ location' <- fragmentSelection -> do
             types' <- asks $ Schema.types . schema
             typeCondition <- findSpreadTarget fragmentName
-            case HashMap.lookup typeCondition types' of
+            case KeyMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = spreadError fragmentName typeCondition
                     , locations = [location']
@@ -341,7 +342,7 @@ fragmentSpreadTypeExistenceRule = SelectionRule $ const $ \case
         | Full.InlineFragment maybeType _ _ location' <- fragmentSelection
         , Just typeCondition <- maybeType -> do
             types' <- asks $ Schema.types . schema
-            case HashMap.lookup typeCondition types' of
+            case KeyMap.lookup typeCondition types' of
                 Nothing -> pure $ Error
                     { message = inlineError typeCondition
                     , locations = [location']
@@ -380,7 +381,7 @@ fragmentsOnCompositeTypesRule = FragmentRule definitionRule inlineRule
     check typeCondition location' = do
         types' <- asks $ Schema.types . schema
         -- Skip unknown types, they are checked by another rule.
-        _ <- lift $ maybeToSeq $ HashMap.lookup typeCondition types'
+        _ <- lift $ maybeToSeq $ KeyMap.lookup typeCondition types'
         case Type.lookupTypeCondition typeCondition types' of
             Nothing -> pure $ Error
                 { message = errorMessage typeCondition
@@ -455,7 +456,7 @@ noFragmentCyclesRule :: forall m. Rule m
 noFragmentCyclesRule = FragmentDefinitionRule $ \case
     Full.FragmentDefinition fragmentName _ _ selections location' -> do
         state <- evalStateT (collectCycles selections) (0, fragmentName)
-        let spreadPath = fst <$> sortBy (comparing snd) (HashMap.toList state)
+        let spreadPath = fst <$> sortBy (comparing snd) (KeyMap.toList state)
         case reverse spreadPath of
             x : _ | x == fragmentName -> pure $ Error
                 { message = concat
@@ -471,8 +472,8 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
   where
     collectCycles :: Traversable t
         => t Full.Selection
-        -> StateT (Int, Full.Name) (ReaderT (Validation m) Seq) (HashMap Full.Name Int)
-    collectCycles = foldM forEach HashMap.empty
+        -> StateT (Int, Key.Key) (ReaderT (Validation m) Seq) (KeyMap Int)
+    collectCycles = foldM forEach KeyMap.empty
     forEach accumulator = \case
         Full.FieldSelection fieldSelection -> forField accumulator fieldSelection
         Full.InlineFragmentSelection fragmentSelection ->
@@ -483,8 +484,8 @@ noFragmentCyclesRule = FragmentDefinitionRule $ \case
         firstFragmentName <- gets snd
         modify $ first (+ 1)
         lastIndex <- gets fst
-        let newAccumulator = HashMap.insert fragmentName lastIndex accumulator
-        let inVisitetFragment = HashMap.member fragmentName accumulator
+        let newAccumulator = KeyMap.insert fragmentName lastIndex accumulator
+        let inVisitetFragment = KeyMap.member fragmentName accumulator
         if fragmentName == firstFragmentName || inVisitetFragment
             then pure newAccumulator
             else collectFromSpread fragmentName newAccumulator
@@ -603,7 +604,7 @@ variablesAreInputTypesRule = VariablesRule
 -- that operation.
 noUndefinedVariablesRule :: forall m. Rule m
 noUndefinedVariablesRule =
-    variableUsageDifference (flip HashMap.difference) errorMessage
+    variableUsageDifference (flip KeyMap.difference) errorMessage
   where
     errorMessage Nothing variableName = concat
         [ "Variable \"$"
@@ -619,17 +620,17 @@ noUndefinedVariablesRule =
         ]
 
 type UsageDifference
-    = HashMap Full.Name [Full.Location]
-    -> HashMap Full.Name [Full.Location]
-    -> HashMap Full.Name [Full.Location]
+    = KeyMap [Full.Location]
+    -> KeyMap [Full.Location]
+    -> KeyMap [Full.Location]
 
 variableUsageDifference :: forall m. UsageDifference
-    -> (Maybe Full.Name -> Full.Name -> String)
+    -> (Maybe Key.Key -> Key.Key -> String)
     -> Rule m
 variableUsageDifference difference errorMessage = OperationDefinitionRule $ \case
     Full.SelectionSet _ _ -> lift mempty
     Full.OperationDefinition _ operationName variables _ selections _ ->
-        let variableNames = HashMap.fromList $ getVariableName <$> variables
+        let variableNames = KeyMap.fromList $ getVariableName <$> variables
          in mapReaderT (readerMapper operationName variableNames)
             $ flip evalStateT HashSet.empty
             $ filterSelections'
@@ -637,17 +638,17 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
   where
     readerMapper operationName variableNames' = Seq.fromList
         . fmap (makeError operationName)
-        . HashMap.toList
+        . KeyMap.toList
         . difference variableNames'
-        . HashMap.fromListWith (++)
+        . KeyMap.fromListWith (++)
         . toList
     getVariableName (Full.VariableDefinition variableName _ _ location') =
         (variableName, [location'])
     filterSelections' :: Foldable t
         => t Full.Selection
-        -> ValidationState m (Full.Name, [Full.Location])
+        -> ValidationState m (Key.Key, [Full.Location])
     filterSelections' = filterSelections variableFilter
-    variableFilter :: Full.Selection -> ValidationState m (Full.Name, [Full.Location])
+    variableFilter :: Full.Selection -> ValidationState m (Key.Key, [Full.Location])
     variableFilter (Full.InlineFragmentSelection inline)
         | Full.InlineFragment _ directives' _ _ <- inline =
             lift $ lift $ mapDirectives directives'
@@ -678,7 +679,7 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
 -- fragment transitively included by that operation. Unused variables cause a
 -- validation error.
 noUnusedVariablesRule :: forall m. Rule m
-noUnusedVariablesRule = variableUsageDifference HashMap.difference errorMessage
+noUnusedVariablesRule = variableUsageDifference KeyMap.difference errorMessage
   where
     errorMessage Nothing variableName = concat
         [ "Variable \"$"
@@ -728,7 +729,7 @@ fieldsOnCorrectTypeRule = FieldRule fieldRule
         , "\"."
         ]
 
-compositeTypeName :: forall m. Type.CompositeType m -> Full.Name
+compositeTypeName :: forall m. Type.CompositeType m -> Key.Key
 compositeTypeName (Type.CompositeObjectType (Out.ObjectType typeName _ _ _)) =
     typeName
 compositeTypeName (Type.CompositeInterfaceType interfaceType) =
@@ -737,7 +738,7 @@ compositeTypeName (Type.CompositeInterfaceType interfaceType) =
 compositeTypeName (Type.CompositeUnionType (Out.UnionType typeName _ _)) =
     typeName
 
-typeNameIfComposite :: forall m. Out.Type m -> Maybe Full.Name
+typeNameIfComposite :: forall m. Out.Type m -> Maybe Key.Key
 typeNameIfComposite = fmap compositeTypeName . Type.outToComposite
 
 -- | Field selections on scalars or enums are never allowed, because they are
@@ -801,7 +802,7 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
     fieldRule _ _ = lift mempty
     go typeName fieldName fieldDefinition (Full.Argument argumentName _ location') errors
         | Out.Field _ _ definitions <- fieldDefinition
-        , Just _ <- HashMap.lookup argumentName definitions = errors
+        , Just _ <- KeyMap.lookup argumentName definitions = errors
         | otherwise = errors |> Error
             { message = fieldMessage argumentName fieldName typeName
             , locations = [location']
@@ -816,12 +817,12 @@ knownArgumentNamesRule = ArgumentsRule fieldRule directiveRule
         , "\"."
         ]
     directiveRule (Full.Directive directiveName arguments _) = do
-        available <- asks $ HashMap.lookup directiveName
+        available <- asks $ KeyMap.lookup directiveName
             . Schema.directives . schema
         Full.Argument argumentName _ location' <- lift $ Seq.fromList arguments
         case available of
             Just (Schema.Directive _ _ definitions)
-                | not $ HashMap.member argumentName definitions ->
+                | not $ KeyMap.member argumentName definitions ->
                     pure $ makeError argumentName directiveName location'
             _ -> lift mempty
     makeError argumentName directiveName location' = Error
@@ -842,7 +843,7 @@ knownDirectiveNamesRule :: Rule m
 knownDirectiveNamesRule = DirectivesRule $ const $ \directives' -> do
     definitions' <- asks $ Schema.directives . schema
     let directiveSet = HashSet.fromList $ fmap directiveName directives'
-    let definitionSet = HashSet.fromList $ HashMap.keys definitions'
+    let definitionSet = HashSet.fromList $ KeyMap.keys definitions'
     let difference = HashSet.difference directiveSet definitionSet
     let undefined' = filter (definitionFilter difference) directives'
     lift $ Seq.fromList $ makeError <$> undefined'
@@ -875,7 +876,7 @@ knownInputFieldNamesRule = ValueRule go constGo
     constGo  _ _ = lift mempty
     forEach objectType (Full.ObjectField inputFieldName _ location')
         | In.InputObjectType _ _ fieldTypes <- objectType
-        , Just _ <- HashMap.lookup inputFieldName fieldTypes = Nothing
+        , Just _ <- KeyMap.lookup inputFieldName fieldTypes = Nothing
         | otherwise
         , In.InputObjectType typeName _ _ <- objectType = pure $ Error
             { message = errorMessage inputFieldName typeName
@@ -898,7 +899,7 @@ directivesInValidLocationsRule = DirectivesRule directivesRule
     directivesRule directiveLocation directives' = do
         Full.Directive directiveName _ location <- lift $ Seq.fromList directives'
         maybeDefinition <- asks
-            $ HashMap.lookup directiveName . Schema.directives . schema
+            $ KeyMap.lookup directiveName . Schema.directives . schema
         case maybeDefinition of
             Just (Schema.Directive _ allowedLocations _)
                 | directiveLocation `notElem` allowedLocations -> pure $ Error
@@ -924,15 +925,15 @@ providedRequiredArgumentsRule = ArgumentsRule fieldRule directiveRule
         | Just typeField <- Type.lookupTypeField fieldName objectType
         , Out.Field _ _ definitions <- typeField =
             let forEach = go (fieldMessage fieldName) arguments location'
-             in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
+             in lift $ KeyMap.foldrWithKey forEach Seq.empty definitions
     fieldRule _ _ = lift mempty
     directiveRule (Full.Directive directiveName arguments location') = do
         available <- asks
-            $ HashMap.lookup directiveName . Schema.directives . schema
+            $ KeyMap.lookup directiveName . Schema.directives . schema
         case available of
             Just (Schema.Directive _ _ definitions) ->
                 let forEach = go (directiveMessage directiveName) arguments location'
-                 in lift $ HashMap.foldrWithKey forEach Seq.empty definitions
+                 in lift $ KeyMap.foldrWithKey forEach Seq.empty definitions
             _ -> lift mempty
     go makeMessage arguments location' argumentName argumentType errors
         | In.Argument _ type' optionalValue <- argumentType
@@ -989,8 +990,8 @@ providedRequiredInputFieldsRule = ValueRule go constGo
         , In.InputObjectType objectTypeName _ fieldDefinitions <- objectType
             = lift
             $ Seq.fromList
-            $ HashMap.elems
-            $ flip HashMap.mapMaybeWithKey fieldDefinitions
+            $ KeyMap.elems
+            $ flip KeyMap.mapMaybeWithKey fieldDefinitions
             $ forEach inputFields objectTypeName location'
     go _ _ = lift mempty
     constGo  _ _ = lift mempty
@@ -1045,7 +1046,7 @@ overlappingFieldsCanBeMergedRule = OperationDefinitionRule $ \case
         fieldTuples <- evalStateT (collectFields selectionType selectionSet) HashSet.empty
         fieldsInSetCanMerge fieldTuples
     fieldsInSetCanMerge :: forall m
-        . HashMap Full.Name (NonEmpty (Full.Field, Type.CompositeType m))
+        . KeyMap (NonEmpty (Full.Field, Type.CompositeType m))
         -> ReaderT (Validation m) Seq Error
     fieldsInSetCanMerge fieldTuples = do
         validation <- ask
@@ -1099,7 +1100,7 @@ overlappingFieldsCanBeMergedRule = OperationDefinitionRule $ \case
                 let collectA = collectFields' compositeA selectionsA
                 let collectB = collectFields' compositeB selectionsB
                 fieldsInSetCanMerge
-                    $ foldl' (HashMap.unionWith (<>)) HashMap.empty
+                    $ foldl' (KeyMap.unionWith (<>)) KeyMap.empty
                     $ collectA <> collectB
             _ -> pure $ makeError (node fieldA) (node fieldB)
     makeError fieldA fieldB =
@@ -1131,9 +1132,9 @@ overlappingFieldsCanBeMergedRule = OperationDefinitionRule $ \case
             Right (compositeA, compositeB)
         | otherwise = Left False
     flattenPairs :: forall m
-        . HashMap Full.Name (NonEmpty (Full.Field, Type.CompositeType m))
+        . KeyMap (NonEmpty (Full.Field, Type.CompositeType m))
         -> (Seq (FieldInfo m), Seq (FieldInfo m, FieldInfo m))
-    flattenPairs xs = HashMap.foldr splitSingleFields (Seq.empty, Seq.empty)
+    flattenPairs xs = KeyMap.foldr splitSingleFields (Seq.empty, Seq.empty)
         $ foldr lookupTypeField [] <$> xs
     splitSingleFields :: forall m
         . [FieldInfo m]
@@ -1169,7 +1170,7 @@ overlappingFieldsCanBeMergedRule = OperationDefinitionRule $ \case
     forField parentType accumulator field@(Full.Field alias fieldName _ _ _ _) =
         let key = fromMaybe fieldName alias
             value = (field, parentType) :| []
-         in pure $ HashMap.insertWith (<>) key value accumulator
+         in pure $ KeyMap.insertWith (<>) key value accumulator
     forSpread accumulator (Full.FragmentSpread fragmentName _ _) = do
         inVisitetFragments <- gets $ HashSet.member fragmentName
         if inVisitetFragments
@@ -1262,13 +1263,13 @@ possibleFragmentSpreadsRule = SelectionRule go
          in pure $ Schema.ObjectType <$> members
     getPossibleTypeList (Type.CompositeInterfaceType interfaceType) =
         let Out.InterfaceType typeName _ _ _ = interfaceType
-         in HashMap.lookupDefault [] typeName
+         in KeyMap.lookupDefault [] typeName
         <$> asks (Schema.implementations . schema)
     getPossibleTypes compositeType
         = foldr (HashSet.insert . internalTypeName) HashSet.empty
         <$> getPossibleTypeList compositeType
 
-internalTypeName :: forall m. Schema.Type m -> Full.Name
+internalTypeName :: forall m. Schema.Type m -> Key.Key
 internalTypeName (Schema.ScalarType (Definition.ScalarType typeName _)) =
     typeName
 internalTypeName (Schema.EnumType (Definition.EnumType typeName _ _)) = typeName
@@ -1279,7 +1280,7 @@ internalTypeName (Schema.InterfaceType (Out.InterfaceType typeName _ _ _)) =
     typeName
 internalTypeName (Schema.UnionType (Out.UnionType typeName _ _)) = typeName
 
-findSpreadTarget :: Full.Name -> ReaderT (Validation m1) Seq Full.TypeCondition
+findSpreadTarget :: Key.Key -> ReaderT (Validation m1) Seq Full.TypeCondition
 findSpreadTarget fragmentName = do
     ast' <- asks ast
     let target = find (isSpreadTarget fragmentName) ast'
@@ -1397,7 +1398,7 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     findDirectiveVariables variables directive = do
         let Full.Directive directiveName arguments _ = directive
         directiveDefinitions <- lift $ asks $ Schema.directives . schema
-        case HashMap.lookup directiveName directiveDefinitions of
+        case KeyMap.lookup directiveName directiveDefinitions of
             Just (Schema.Directive _ _ directiveArguments) ->
                 mapArguments variables directiveArguments arguments
             Nothing -> pure mempty
@@ -1420,7 +1421,7 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
             <$> isVariableUsageAllowed locationType locationValue variableDefinition
         | otherwise = pure mempty
     findArgumentVariables :: [Full.VariableDefinition]
-        -> HashMap Full.Name In.Argument
+        -> KeyMap In.Argument
         -> Full.Argument
         -> ValidationState m (Seq Error)
     findArgumentVariables variables argumentTypes argument
@@ -1436,7 +1437,7 @@ variablesInAllowedPositionRule = OperationDefinitionRule $ \case
     extractArgument (In.Argument _ locationType locationValue) =
         (locationType, locationValue)
     locationPair extract fieldTypes name =
-        extract <$> HashMap.lookup name fieldTypes
+        extract <$> KeyMap.lookup name fieldTypes
     traverseObjectField variables fieldTypes Full.ObjectField{..}
         | Full.Node{ node = Full.Variable variableName } <- value
             = maybeUsageAllowed variableName variables
@@ -1581,7 +1582,7 @@ valuesOfCorrectTypeRule = ValueRule go constGo
     check (In.EnumBaseType enumType) Full.Node{ node }
         | Definition.EnumType _ _ members <- enumType
         , Full.ConstEnum memberValue <- node
-        , HashMap.member memberValue members = mempty
+        , KeyMap.member memberValue members = mempty
     check (In.InputObjectBaseType objectType) Full.Node{ node }
         -- Skip, objects are checked recursively by the validation traverser.
         | In.InputObjectType{}  <- objectType

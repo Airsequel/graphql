@@ -13,12 +13,12 @@ module Language.GraphQL.Validate
     , module Language.GraphQL.Validate.Rules
     ) where
 
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
 import Control.Monad (join)
 import Control.Monad.Trans.Class (MonadTrans(..))
 import Control.Monad.Trans.Reader (runReaderT)
 import Data.Foldable (toList)
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
 import Data.Sequence (Seq(..), (><), (|>))
 import qualified Data.Sequence as Seq
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation(..))
@@ -34,7 +34,7 @@ import Language.GraphQL.Validate.Validation (Validation(Validation))
 import qualified Language.GraphQL.Validate.Validation as Validation
 
 type ApplySelectionRule m a
-    = HashMap Full.Name (Schema.Type m)
+    = KeyMap (Schema.Type m)
     -> Validation.Rule m
     -> Maybe (Out.Type m)
     -> a
@@ -283,7 +283,7 @@ operationDefinition rule context operation
     schema' = Validation.schema context
     queryRoot = Just $ Out.NamedObjectType $ Schema.query schema'
     types' = Schema.types schema'
-        
+
 typeToOut :: forall m. Schema.Type m -> Maybe (Out.Type m)
 typeToOut (Schema.ObjectType objectType) =
     Just $ Out.NamedObjectType objectType
@@ -322,10 +322,10 @@ constValue _ _ = const mempty
 inputFieldType :: In.InputField -> In.Type
 inputFieldType (In.InputField _ inputFieldType' _) = inputFieldType'
 
-valueTypeByName :: Full.Name -> Maybe In.Type -> Maybe In.Type
+valueTypeByName :: Key.Key -> Maybe In.Type -> Maybe In.Type
 valueTypeByName fieldName (Just( In.InputObjectBaseType inputObjectType)) =
     let In.InputObjectType _ _ fieldTypes = inputObjectType
-     in inputFieldType <$> HashMap.lookup fieldName fieldTypes
+     in inputFieldType <$> KeyMap.lookup fieldName fieldTypes
 valueTypeByName _ _ = Nothing
 
 fragmentDefinition :: forall m
@@ -351,9 +351,9 @@ fragmentDefinition rule context definition'
 
 lookupType :: forall m
     . Full.TypeCondition
-    -> HashMap Full.Name (Schema.Type m)
+    -> KeyMap (Schema.Type m)
     -> Maybe (Out.Type m)
-lookupType typeCondition types' = HashMap.lookup typeCondition types'
+lookupType typeCondition types' = KeyMap.lookup typeCondition types'
     >>= typeToOut
 
 selectionSet :: Traversable t
@@ -403,8 +403,8 @@ arguments :: forall m
     -> Seq (Validation.RuleT m)
 arguments rule argumentTypes = foldMap forEach . Seq.fromList
   where
-    forEach argument'@(Full.Argument argumentName _ _) = 
-       let argumentType = HashMap.lookup argumentName argumentTypes
+    forEach argument'@(Full.Argument argumentName _ _) =
+       let argumentType = KeyMap.lookup argumentName argumentTypes
         in argument rule argumentType argument'
 
 argument :: forall m
@@ -476,8 +476,8 @@ directive :: forall m. Validation m -> ApplyRule m Full.Directive
 directive _ (Validation.ArgumentsRule _ argumentsRule) directive' =
     pure $ argumentsRule directive'
 directive context rule (Full.Directive directiveName arguments' _) =
-    let argumentTypes = maybe HashMap.empty directiveArguments
-            $ HashMap.lookup directiveName
+    let argumentTypes = maybe KeyMap.empty directiveArguments
+            $ KeyMap.lookup directiveName
             $ Schema.directives
             $ Validation.schema context
      in arguments rule argumentTypes arguments'

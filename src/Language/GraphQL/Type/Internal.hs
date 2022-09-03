@@ -28,8 +28,9 @@ module Language.GraphQL.Type.Internal
     , types
     ) where
 
-import Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import qualified Language.GraphQL.AST as Full
 import Language.GraphQL.AST.DirectiveLocation (DirectiveLocation)
@@ -51,7 +52,7 @@ data Type m
 data Directive = Directive (Maybe Text) [DirectiveLocation] In.Arguments
 
 -- | Directive definitions.
-type Directives = HashMap Full.Name Directive
+type Directives = KeyMap Directive
 
 -- | A Schema is created by supplying the root types of each type of operation,
 --   query and mutation (optional). A schema definition is then supplied to the
@@ -62,9 +63,9 @@ data Schema m = Schema
     (Maybe (Out.ObjectType m)) -- ^ Mutation.
     (Maybe (Out.ObjectType m)) -- ^ Subscription.
     Directives -- ^ Directives
-    (HashMap Full.Name (Type m)) -- ^ Types.
+    (KeyMap (Type m)) -- ^ Types.
     -- Interface implementations (used only for faster access).
-    (HashMap Full.Name [Type m])
+    (KeyMap [Type m])
 
 -- | Schema description.
 description :: forall m. Schema m -> Maybe Text
@@ -87,11 +88,11 @@ directives :: forall m. Schema m -> Directives
 directives (Schema _ _ _ _ directives' _ _) = directives'
 
 -- | Types referenced by the schema.
-types :: forall m. Schema m -> HashMap Full.Name (Type m)
+types :: forall m. Schema m -> KeyMap (Type m)
 types (Schema _ _ _ _ _ types' _) = types'
 
 -- | Interface implementations.
-implementations :: forall m. Schema m -> HashMap Full.Name [Type m]
+implementations :: forall m. Schema m -> KeyMap [Type m]
 implementations (Schema _ _ _ _ _ _ implementations') = implementations'
 
 -- | These types may describe the parent context of a selection set.
@@ -132,11 +133,11 @@ instanceOf objectType (AbstractUnionType unionType) =
     go unionMemberType acc = acc || objectType == unionMemberType
 
 lookupTypeCondition :: forall m
-    . Full.Name
-    -> HashMap Full.Name (Type m)
+    . Key.Key
+    -> KeyMap (Type m)
     -> Maybe (CompositeType m)
 lookupTypeCondition type' types' =
-    case HashMap.lookup type' types' of
+    case KeyMap.lookup (Key.fromText type') types' of
         Just (ObjectType objectType) ->
             Just $ CompositeObjectType objectType
         Just (UnionType unionType) -> Just $ CompositeUnionType unionType
@@ -144,9 +145,9 @@ lookupTypeCondition type' types' =
             Just $ CompositeInterfaceType interfaceType
         _ -> Nothing
 
-lookupInputType :: Full.Type -> HashMap Full.Name (Type m) -> Maybe In.Type
+lookupInputType :: Full.Type -> KeyMap (Type m) -> Maybe In.Type
 lookupInputType (Full.TypeNamed name) types' =
-    case HashMap.lookup name types' of
+    case KeyMap.lookup (Key.fromText name) types' of
         Just (ScalarType scalarType) ->
             Just $ In.NamedScalarType scalarType
         Just (EnumType enumType) ->
@@ -158,7 +159,7 @@ lookupInputType (Full.TypeList list) types'
     = In.ListType
     <$> lookupInputType list types'
 lookupInputType (Full.TypeNonNull (Full.NonNullTypeNamed nonNull)) types' =
-    case HashMap.lookup nonNull types' of
+    case KeyMap.lookup (Key.fromText nonNull) types' of
         Just (ScalarType scalarType) ->
             Just $ In.NonNullScalarType scalarType
         Just (EnumType enumType) ->
@@ -170,12 +171,12 @@ lookupInputType (Full.TypeNonNull (Full.NonNullTypeList nonNull)) types'
     = In.NonNullListType
     <$> lookupInputType nonNull types'
 
-lookupTypeField :: forall a. Full.Name -> Out.Type a -> Maybe (Out.Field a)
+lookupTypeField :: forall a. Key.Key -> Out.Type a -> Maybe (Out.Field a)
 lookupTypeField fieldName outputType =
     outToComposite outputType >>= lookupCompositeField fieldName
 
 lookupCompositeField :: forall a
-    . Full.Name
+    . Key.Key
     -> CompositeType a
     -> Maybe (Out.Field a)
 lookupCompositeField fieldName = \case
@@ -184,9 +185,9 @@ lookupCompositeField fieldName = \case
     _ -> Nothing
   where
     objectChild (Out.ObjectType _ _ _ resolvers) =
-        resolverType <$> HashMap.lookup fieldName resolvers
+        resolverType <$> KeyMap.lookup (Key.fromText fieldName) resolvers
     interfaceChild (Out.InterfaceType _ _ _ fields) =
-        HashMap.lookup fieldName fields
+        KeyMap.lookup (Key.fromText fieldName) fields
     resolverType (Out.ValueResolver objectField _) = objectField
     resolverType (Out.EventStreamResolver objectField _ _) = objectField
 

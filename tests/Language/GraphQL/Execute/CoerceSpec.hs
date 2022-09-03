@@ -7,7 +7,9 @@ module Language.GraphQL.Execute.CoerceSpec
     ( spec
     ) where
 
-import qualified Data.HashMap.Strict as HashMap
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Maybe (isNothing)
 import qualified Language.GraphQL.Execute.Coerce as Coerce
 import Language.GraphQL.Type
@@ -16,7 +18,7 @@ import Prelude hiding (id)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 
 direction :: EnumType
-direction = EnumType "Direction" Nothing  $ HashMap.fromList
+direction = EnumType "Direction" Nothing  $ KeyMap.fromList
     [ ("NORTH", EnumValue Nothing)
     , ("EAST", EnumValue Nothing)
     , ("SOUTH", EnumValue Nothing)

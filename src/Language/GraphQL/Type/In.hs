@@ -3,7 +3,6 @@
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | Input types and values.
@@ -23,10 +22,11 @@ module Language.GraphQL.Type.In
     , pattern ScalarBaseType
     ) where
 
-import Data.HashMap.Strict (HashMap)
+import qualified Data.Aeson.KeyMap as KeyMap
+import Data.Aeson.KeyMap (KeyMap)
+import qualified Data.Aeson.Key as Key
 import Data.Text (Text)
 import qualified Data.Text as Text
-import Language.GraphQL.AST.Document (Name)
 import qualified Language.GraphQL.Type.Definition as Definition
 
 -- | Single field of an 'InputObjectType'.
@@ -37,13 +37,13 @@ data InputField = InputField (Maybe Text) Type (Maybe Definition.Value)
 -- An input object defines a structured collection of fields which may be
 -- supplied to a field argument.
 data InputObjectType = InputObjectType
-    Name (Maybe Text) (HashMap Name InputField)
+    Key.Key (Maybe Text) (KeyMap InputField)
 
 instance Eq InputObjectType where
     (InputObjectType this _ _) == (InputObjectType that _ _) = this == that
 
 instance Show InputObjectType where
-    show (InputObjectType typeName _ _) = Text.unpack typeName
+    show (InputObjectType typeName _ _) = Key.toString typeName
 
 -- | These types may be used as input types for arguments and directives.
 --
@@ -75,7 +75,7 @@ instance Show Type where
 data Argument = Argument (Maybe Text) Type (Maybe Definition.Value)
 
 -- | Field argument definitions.
-type Arguments = HashMap Name Argument
+type Arguments = KeyMap Argument
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
 pattern ScalarBaseType :: Definition.ScalarType -> Type
