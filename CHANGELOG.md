@@ -16,6 +16,9 @@ and this project adheres to
 - `Language.GraphQL`: Added information about the *json* flag and switching to
   *graphql-spice* for JSON support.
 
+### Added
+- Partial schema printing: operation type encoder.
+
 ## [1.0.3.0] - 2022-03-27
 ### Fixed
 - Index position in error path. (Index and Segment paths of a field have been

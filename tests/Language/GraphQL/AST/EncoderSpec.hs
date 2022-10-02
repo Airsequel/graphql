@@ -173,3 +173,8 @@ spec = do
                 |] '\n'
                 actual = definition pretty operation
              in actual `shouldBe` expected
+
+    describe "operationType" $
+        it "produces lowercase mutation operation type" $
+            let actual = operationType pretty Full.Mutation
+             in actual `shouldBe` "mutation"

@@ -11,6 +11,7 @@ module Language.GraphQL.AST.Encoder
     , directive
     , document
     , minified
+    , operationType
     , pretty
     , type'
     , value
@@ -34,7 +35,7 @@ import qualified Language.GraphQL.AST.Document as Full
 --   Use 'pretty' or 'minified' to construct the formatter.
 data Formatter
     = Minified
-    | Pretty Word
+    | Pretty !Word
 
 -- | Constructs a formatter for pretty printing.
 pretty :: Formatter
@@ -293,6 +294,12 @@ listType x = brackets (type' x)
 nonNullType :: Full.NonNullType -> Lazy.Text
 nonNullType (Full.NonNullTypeNamed x) = Lazy.Text.fromStrict x <> "!"
 nonNullType (Full.NonNullTypeList x) = listType x <> "!"
+
+-- | Produces lowercase operation type: query, mutation or subscription.
+operationType :: Formatter -> Full.OperationType -> Lazy.Text
+operationType _formatter Full.Query = "query"
+operationType _formatter Full.Mutation = "mutation"
+operationType _formatter Full.Subscription = "subscription"
 
 -- * Internal
 
