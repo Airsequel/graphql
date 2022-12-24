@@ -58,6 +58,7 @@ import qualified Text.Megaparsec.Char.Lexer as Lexer
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+import Control.Monad (void)
 
 -- | Standard parser.
 -- Accepts the type of the parsed token.
@@ -93,7 +94,7 @@ dollar = symbol "$"
 
 -- | Parser for "@".
 at :: Parser ()
-at = symbol "@" >> pure ()
+at = void $ symbol "@"
 
 -- | Parser for "&".
 amp :: Parser T.Text
@@ -101,7 +102,7 @@ amp = symbol "&"
 
 -- | Parser for ":".
 colon :: Parser ()
-colon = symbol ":" >> pure ()
+colon = void $ symbol ":"
 
 -- | Parser for "=".
 equals :: Parser T.Text
@@ -220,7 +221,7 @@ escapeSequence = do
 
 -- | Parser for the "Byte Order Mark".
 unicodeBOM :: Parser ()
-unicodeBOM = optional (char '\xfeff') >> pure ()
+unicodeBOM = void $ optional $ char '\xfeff'
 
 -- | Parses "extend" followed by a 'symbol'. It is used by schema extensions.
 extend :: forall a. Text -> String -> NonEmpty (Parser a) -> Parser a
