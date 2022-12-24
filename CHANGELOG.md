@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [Unreleased]
+## [1.1.0.0] - 2022-12-24
 ### Changed
 - Removed deprecated `Language.GraphQL.Error` functions: `addErr`, `addErrMsg`,
   `singleError`.
@@ -490,9 +490,9 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v1.0.3.0
-[1.0.3.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=1.0.3.0&rev_to=v1.0.2.0
-[1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=1.0.2.0&rev_to=v1.0.1.0
+[1.1.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.1.0.0&rev_to=v1.0.3.0
+[1.0.3.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.3.0&rev_to=v1.0.2.0
+[1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.2.0&rev_to=v1.0.1.0
 [1.0.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.1.0&rev_to=v1.0.0.0
 [1.0.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.0.0&rev_to=v0.11.1.0
 [0.11.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.1.0&rev_to=v0.11.0.0

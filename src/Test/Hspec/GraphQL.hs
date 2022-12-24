@@ -9,7 +9,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Test helpers.
-module Test.Hspec.GraphQL
+module Test.Hspec.GraphQL {-# DEPRECATED "Use graphql-spice package instead" #-}
     ( shouldResolve
     , shouldResolveTo
     ) where
@@ -43,7 +43,7 @@ shouldResolve executor query = do
         _ -> expectationFailure
             "the query is expected to resolve to a value, but it resolved to an event stream"
 #else
-module Test.Hspec.GraphQL
+module Test.Hspec.GraphQL {-# DEPRECATED "Use graphql-spice package instead" #-}
     (
     ) where
 #endif

@@ -6,7 +6,7 @@
 
 module Schemas.HeroSchema (heroSchema) where
 
-import Control.Exception (Exception(..), SomeException)
+import Control.Exception (Exception(..))
 import Control.Monad.Catch (throwM)
 import Language.GraphQL.Error (ResolverException (..))
 import qualified Language.GraphQL.Type.In as In
@@ -25,11 +25,11 @@ instance Exception HeroException where
         ResolverException resolverException <- fromException e
         cast resolverException
 
-heroSchema :: Type.Schema (Either SomeException)
+heroSchema :: Type.Schema IO
 heroSchema =
     schemaWithTypes Nothing queryType Nothing Nothing [] mempty
 
-type ObjectType = Out.ObjectType (Either SomeException)
+type ObjectType = Out.ObjectType IO
 
 queryType :: ObjectType
 queryType = Out.ObjectType "Query" Nothing []
@@ -42,7 +42,7 @@ queryType = Out.ObjectType "Query" Nothing []
         $ In.Argument Nothing (In.NamedScalarType Type.id) Nothing
     heroResolver = pure $ Type.Object mempty
 
-stringField :: Out.Field (Either SomeException)
+stringField :: Out.Field IO
 stringField = Out.Field Nothing (Out.NonNullScalarType Type.string) HashMap.empty
 
 heroType :: ObjectType

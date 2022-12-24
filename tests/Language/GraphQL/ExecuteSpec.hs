@@ -13,7 +13,7 @@ module Language.GraphQL.ExecuteSpec
     ( spec
     ) where
 
-import Control.Exception (Exception(..), SomeException)
+import Control.Exception (Exception(..))
 import Control.Monad.Catch (throwM)
 import Data.Conduit
 import Data.HashMap.Strict (HashMap)
@@ -202,7 +202,7 @@ schoolType = EnumType "School" Nothing $ HashMap.fromList
     ]
 
 type EitherStreamOrValue = Either
-    (ResponseEventStream (Either SomeException) Type.Value)
+    (ResponseEventStream IO Type.Value)
     (Response Type.Value)
 
 -- Asserts that a query resolves to a value.
@@ -414,16 +414,16 @@ spec =
                      in sourceQuery `shouldResolveTo` expected
 
             context "Error path" $ do
-                let executeHero :: Document -> Either SomeException EitherStreamOrValue
+                let executeHero :: Document -> IO EitherStreamOrValue
                     executeHero = execute heroSchema Nothing (HashMap.empty :: HashMap Name Type.Value)
 
-                it "at the beggining of the list" $
-                    let Right (Right actual) = either (pure . parseError) executeHero
-                            $ parse document "" "{ hero(id: \"1\") { friends { name } } }"
-                        Response _ errors' = actual
+                it "at the beggining of the list" $ do
+                    Right actual <- either (pure . parseError) executeHero
+                        $ parse document "" "{ hero(id: \"1\") { friends { name } } }"
+                    let Response _ errors' = actual
                         Error _ _ path' = fromJust $ Seq.lookup 0 errors'
                         expected = [Segment "hero", Segment "friends", Index 0, Segment "name"]
-                    in path' `shouldBe` expected
+                     in path' `shouldBe` expected
 
         context "Subscription" $
             it "subscribes" $ do

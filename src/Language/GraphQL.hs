@@ -45,6 +45,7 @@ import qualified Language.GraphQL.Validate as Validate
 import Language.GraphQL.Type.Schema (Schema)
 import Text.Megaparsec (parse)
 
+{-# DEPRECATED graphql "Use graphql-spice package instead" #-}
 -- | If the text parses correctly as a @GraphQL@ query the query is
 -- executed using the given 'Schema'.
 graphql :: MonadCatch m
@@ -53,6 +54,7 @@ graphql :: MonadCatch m
     -> m (Either (ResponseEventStream m Aeson.Value) Aeson.Object) -- ^ Response.
 graphql schema = graphqlSubs schema mempty mempty
 
+{-# DEPRECATED graphqlSubs "Use graphql-spice package instead" #-}
 -- | If the text parses correctly as a @GraphQL@ query the substitution is
 -- applied to the query and the query is then executed using to the given
 -- 'Schema'.
