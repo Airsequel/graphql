@@ -4,6 +4,7 @@ module Language.GraphQL.AST.EncoderSpec
     ( spec
     ) where
 
+import Data.List.NonEmpty (NonEmpty(..))
 import qualified Language.GraphQL.AST.Document as Full
 import Language.GraphQL.AST.Encoder
 import Language.GraphQL.TH
@@ -178,3 +179,18 @@ spec = do
         it "produces lowercase mutation operation type" $
             let actual = operationType pretty Full.Mutation
              in actual `shouldBe` "mutation"
+
+    describe "typeSystemDefinition" $
+        it "produces a schema with an indented operation type definition" $
+            let queryType = Full.OperationTypeDefinition Full.Query "QueryRootType"
+                mutationType = Full.OperationTypeDefinition Full.Mutation "MutationType"
+                operations = queryType :| pure mutationType
+                definition' = Full.SchemaDefinition [] operations
+                expected = Text.Lazy.snoc [gql|
+                  schema {
+                    query: QueryRootType
+                    mutation: MutationType
+                  }
+                |] '\n'
+                actual = typeSystemDefinition pretty definition'
+             in actual `shouldBe` expected

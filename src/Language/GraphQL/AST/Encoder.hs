@@ -14,6 +14,7 @@ module Language.GraphQL.AST.Encoder
     , operationType
     , pretty
     , type'
+    , typeSystemDefinition
     , value
     ) where
 
@@ -54,7 +55,30 @@ document formatter defs
     encodeDocument = foldr executableDefinition [] defs
     executableDefinition (Full.ExecutableDefinition executableDefinition') acc =
         definition formatter executableDefinition' : acc
-    executableDefinition _ acc = acc
+    executableDefinition (Full.TypeSystemDefinition typeSystemDefinition' _location) acc =
+        typeSystemDefinition formatter typeSystemDefinition' : acc
+    executableDefinition _ acc = acc -- TODO: TypeSystemExtension missing.
+
+withLineBreak :: Formatter -> Lazy.Text.Text -> Lazy.Text.Text
+withLineBreak formatter encodeDefinition
+    | Pretty _ <- formatter = Lazy.Text.snoc encodeDefinition '\n'
+    | Minified <- formatter = encodeDefinition
+
+-- | Converts a t'Full.TypeSystemDefinition' into a string.
+typeSystemDefinition :: Formatter -> Full.TypeSystemDefinition -> Lazy.Text
+typeSystemDefinition formatter = \case
+    Full.SchemaDefinition operationDirectives operationTypeDefinitions' ->
+        withLineBreak formatter
+            $ optempty (directives formatter) operationDirectives
+            <> "schema "
+            <> bracesList formatter operationTypeDefinition (NonEmpty.toList operationTypeDefinitions')
+    _ -> "" -- TODO: TypeDefinition and DerictiveDefinition missing.
+  where
+    operationTypeDefinition (Full.OperationTypeDefinition operationType' namedType')
+        = indentLine (incrementIndent formatter)
+        <> operationType formatter operationType'
+        <> colon formatter
+        <> Lazy.Text.fromStrict namedType'
 
 -- | Converts a t'Full.ExecutableDefinition' into a string.
 definition :: Formatter -> Full.ExecutableDefinition -> Lazy.Text
@@ -100,7 +124,7 @@ variableDefinition formatter variableDefinition' =
     let Full.VariableDefinition variableName variableType defaultValue' _ =
             variableDefinition'
      in variable variableName
-    <> eitherFormat formatter ": " ":"
+    <> colon formatter
     <> type' variableType
     <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
 
@@ -127,20 +151,26 @@ indent :: (Integral a) => a -> Lazy.Text
 indent indentation = Lazy.Text.replicate (fromIntegral indentation) indentSymbol
 
 selection :: Formatter -> Full.Selection -> Lazy.Text
-selection formatter = Lazy.Text.append indent' . encodeSelection
+selection formatter = Lazy.Text.append (indentLine formatter')
+    . encodeSelection
   where
     encodeSelection (Full.FieldSelection fieldSelection) =
-        field incrementIndent fieldSelection
+        field formatter' fieldSelection
     encodeSelection (Full.InlineFragmentSelection fragmentSelection) =
-        inlineFragment incrementIndent fragmentSelection
+        inlineFragment formatter' fragmentSelection
     encodeSelection (Full.FragmentSpreadSelection fragmentSelection) =
-        fragmentSpread incrementIndent fragmentSelection
-    incrementIndent
-        | Pretty indentation <- formatter = Pretty $ indentation + 1
-        | otherwise = Minified
-    indent'
-        | Pretty indentation <- formatter = indent $ indentation + 1
-        | otherwise = ""
+        fragmentSpread formatter' fragmentSelection
+    formatter' = incrementIndent formatter
+
+indentLine :: Formatter -> Lazy.Text
+indentLine formatter
+    | Pretty indentation <- formatter = indent indentation
+    | otherwise = ""
+
+incrementIndent :: Formatter -> Formatter
+incrementIndent formatter
+    | Pretty indentation <- formatter = Pretty $ indentation + 1
+    | otherwise = Minified
 
 colon :: Formatter -> Lazy.Text
 colon formatter = eitherFormat formatter ": " ":"
