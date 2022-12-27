@@ -9,6 +9,7 @@ and this project adheres to
 ## [Unreleased]
 ### Added
 - Partial schema printing: schema definition encoder.
+- `Semigroup` and `Monoid` instances for `AST.Document.Description`.
 
 ## [1.1.0.0] - 2022-12-24
 ### Changed

@@ -180,7 +180,7 @@ spec = do
             let actual = operationType pretty Full.Mutation
              in actual `shouldBe` "mutation"
 
-    describe "typeSystemDefinition" $
+    describe "typeSystemDefinition" $ do
         it "produces a schema with an indented operation type definition" $
             let queryType = Full.OperationTypeDefinition Full.Query "QueryRootType"
                 mutationType = Full.OperationTypeDefinition Full.Mutation "MutationType"
@@ -192,5 +192,12 @@ spec = do
                     mutation: MutationType
                   }
                 |] '\n'
+                actual = typeSystemDefinition pretty definition'
+             in actual `shouldBe` expected
+
+        it "encodes a scalar type definition" $
+            let uuidType = Full.ScalarTypeDefinition mempty "UUID" mempty
+                definition' = Full.TypeDefinition uuidType
+                expected = "scalar UUID"
                 actual = typeSystemDefinition pretty definition'
              in actual `shouldBe` expected

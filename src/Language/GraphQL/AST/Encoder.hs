@@ -72,13 +72,28 @@ typeSystemDefinition formatter = \case
             $ optempty (directives formatter) operationDirectives
             <> "schema "
             <> bracesList formatter operationTypeDefinition (NonEmpty.toList operationTypeDefinitions')
-    _ -> "" -- TODO: TypeDefinition and DerictiveDefinition missing.
+    Full.TypeDefinition typeDefinition' -> typeDefinition formatter typeDefinition'
+    _ -> "" -- TODO: DerictiveDefinition missing.
   where
     operationTypeDefinition (Full.OperationTypeDefinition operationType' namedType')
         = indentLine (incrementIndent formatter)
         <> operationType formatter operationType'
         <> colon formatter
         <> Lazy.Text.fromStrict namedType'
+
+typeDefinition :: Formatter -> Full.TypeDefinition -> Lazy.Text.Text
+typeDefinition formatter = \case
+    Full.ScalarTypeDefinition description' name' directives'
+        -> optempty (description formatter) description'
+        <> "scalar "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+    _typeDefinition' -> "" -- TODO: Types missing.
+
+description :: Formatter -> Full.Description -> Lazy.Text.Text
+description _formatter (Full.Description Nothing) = ""
+description formatter (Full.Description (Just description')) =
+    stringValue formatter description'
 
 -- | Converts a t'Full.ExecutableDefinition' into a string.
 definition :: Formatter -> Full.ExecutableDefinition -> Lazy.Text

@@ -464,6 +464,14 @@ data SchemaExtension
 newtype Description = Description (Maybe Text)
     deriving (Eq, Show)
 
+instance Semigroup Description
+  where
+    Description lhs <> Description rhs = Description $ lhs <> rhs
+
+instance Monoid Description
+  where
+    mempty = Description mempty
+
 -- ** Types
 
 -- | Type definitions describe various user-defined types.

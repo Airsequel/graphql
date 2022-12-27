@@ -18,3 +18,9 @@ spec = do
                     ]
                 expected = "{ field1: 1.2, field2: null }"
              in show object `shouldBe` expected
+
+    describe "Description" $
+        it "keeps content when merging with no description" $
+            let expected = Description $ Just "Left description"
+                actual = expected <> Description Nothing
+             in actual `shouldBe` expected
