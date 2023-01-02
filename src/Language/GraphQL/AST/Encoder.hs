@@ -81,6 +81,31 @@ typeSystemDefinition formatter = \case
         <> colon formatter
         <> Lazy.Text.fromStrict namedType'
 
+fieldDefinition :: Formatter -> Full.FieldDefinition -> Lazy.Text.Text
+fieldDefinition formatter fieldDefinition' =
+    let Full.FieldDefinition description' name' arguments' type'' directives' = fieldDefinition'
+     in optempty (description formatter) description'
+            <> indentLine formatter
+            <> Lazy.Text.fromStrict name'
+            <> argumentsDefinition formatter arguments'
+            <> colon formatter
+            <> type' type''
+            <> optempty (directives formatter) directives'
+
+argumentsDefinition :: Formatter -> Full.ArgumentsDefinition -> Lazy.Text.Text
+argumentsDefinition formatter (Full.ArgumentsDefinition arguments') =
+    parensCommas formatter (argumentDefinition formatter) arguments'
+
+argumentDefinition :: Formatter -> Full.InputValueDefinition -> Lazy.Text.Text
+argumentDefinition formatter definition' =
+    let Full.InputValueDefinition description' name' type'' defaultValue' directives' = definition'
+     in optempty (description formatter) description'
+            <> Lazy.Text.fromStrict name'
+            <> colon formatter
+            <> type' type''
+            <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
+            <> directives formatter directives'
+
 typeDefinition :: Formatter -> Full.TypeDefinition -> Lazy.Text.Text
 typeDefinition formatter = \case
     Full.ScalarTypeDefinition description' name' directives'
@@ -88,7 +113,16 @@ typeDefinition formatter = \case
         <> "scalar "
         <> Lazy.Text.fromStrict name'
         <> optempty (directives formatter) directives'
+    Full.InterfaceTypeDefinition description' name' directives' fields'
+        -> optempty (description formatter) description'
+        <> "interface "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (fieldDefinition nextFormatter) fields'
     _typeDefinition' -> "" -- TODO: Types missing.
+  where
+    nextFormatter = incrementIndent formatter
 
 description :: Formatter -> Full.Description -> Lazy.Text.Text
 description _formatter (Full.Description Nothing) = ""
@@ -243,8 +277,10 @@ directive formatter (Full.Directive name args _)
     = "@" <> Lazy.Text.fromStrict name <> optempty (arguments formatter) args
 
 directives :: Formatter -> [Full.Directive] -> Lazy.Text
-directives Minified = spaces (directive Minified)
-directives formatter = Lazy.Text.cons ' ' . spaces (directive formatter)
+directives Minified values = spaces (directive Minified) values
+directives formatter values
+    | null values = ""
+    | otherwise = Lazy.Text.cons ' ' $ spaces (directive formatter) values
 
 -- | Converts a 'Full.Value' into a string.
 value :: Formatter -> Full.Value -> Lazy.Text

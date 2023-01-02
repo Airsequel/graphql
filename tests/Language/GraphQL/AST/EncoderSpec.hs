@@ -201,3 +201,19 @@ spec = do
                 expected = "scalar UUID"
                 actual = typeSystemDefinition pretty definition'
              in actual `shouldBe` expected
+
+        it "encodes an interface definition" $
+            let someType = Full.TypeNamed "String"
+                argument = Full.InputValueDefinition mempty "arg" someType Nothing mempty
+                arguments = Full.ArgumentsDefinition [argument]
+                definition' = Full.TypeDefinition
+                    $ Full.InterfaceTypeDefinition mempty "UUID" mempty
+                    $ pure
+                    $ Full.FieldDefinition mempty "value" arguments someType mempty
+                expected = [gql|
+                  interface UUID {
+                    value(arg: String): String
+                  }
+                |]
+                actual = typeSystemDefinition pretty definition'
+             in actual `shouldBe` expected
