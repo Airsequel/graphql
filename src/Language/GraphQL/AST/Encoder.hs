@@ -18,7 +18,7 @@ module Language.GraphQL.AST.Encoder
     , value
     ) where
 
-import Data.Foldable (fold)
+import Data.Foldable (fold, Foldable (..))
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Text (Text)
 import qualified Data.Text as Text
@@ -106,13 +106,21 @@ argumentDefinition formatter definition' =
             <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
             <> directives formatter directives'
 
-typeDefinition :: Formatter -> Full.TypeDefinition -> Lazy.Text.Text
+typeDefinition :: Formatter -> Full.TypeDefinition -> Lazy.Text
 typeDefinition formatter = \case
     Full.ScalarTypeDefinition description' name' directives'
         -> optempty (description formatter) description'
         <> "scalar "
         <> Lazy.Text.fromStrict name'
         <> optempty (directives formatter) directives'
+    Full.ObjectTypeDefinition description' name' ifaces' directives' fields'
+        -> optempty (description formatter) description'
+        <> "type "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (" " <>) (implementsInterfaces ifaces')
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (fieldDefinition nextFormatter) fields'
     Full.InterfaceTypeDefinition description' name' directives' fields'
         -> optempty (description formatter) description'
         <> "interface "
@@ -123,6 +131,14 @@ typeDefinition formatter = \case
     _typeDefinition' -> "" -- TODO: Types missing.
   where
     nextFormatter = incrementIndent formatter
+
+implementsInterfaces :: Foldable t => Full.ImplementsInterfaces t -> Lazy.Text
+implementsInterfaces (Full.ImplementsInterfaces interfaces)
+    | null interfaces = mempty
+    | otherwise = Lazy.Text.fromStrict
+        $ Text.append "implements"
+        $ Text.intercalate " & "
+        $ toList interfaces
 
 description :: Formatter -> Full.Description -> Lazy.Text.Text
 description _formatter (Full.Description Nothing) = ""
