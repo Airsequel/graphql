@@ -128,6 +128,13 @@ typeDefinition formatter = \case
         <> optempty (directives formatter) directives'
         <> eitherFormat formatter " " ""
         <> bracesList formatter (fieldDefinition nextFormatter) fields'
+    Full.UnionTypeDefinition description' name' directives' members'
+        -> optempty (description formatter) description'
+        <> "union "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> unionMemberTypes formatter members'
     _typeDefinition' -> "" -- TODO: Types missing.
   where
     nextFormatter = incrementIndent formatter
@@ -136,9 +143,22 @@ implementsInterfaces :: Foldable t => Full.ImplementsInterfaces t -> Lazy.Text
 implementsInterfaces (Full.ImplementsInterfaces interfaces)
     | null interfaces = mempty
     | otherwise = Lazy.Text.fromStrict
-        $ Text.append "implements"
+        $ Text.append "implements "
         $ Text.intercalate " & "
         $ toList interfaces
+
+unionMemberTypes :: Foldable t => Formatter -> Full.UnionMemberTypes t -> Lazy.Text
+unionMemberTypes formatter (Full.UnionMemberTypes memberTypes)
+    | null memberTypes = mempty
+    | Minified <- formatter = Lazy.Text.fromStrict
+        $ Text.append "= "
+        $ Text.intercalate " | "
+        $ toList memberTypes
+    | Pretty _ <- formatter
+        = Lazy.Text.append "="
+        $ Lazy.Text.concat
+        $ (("\n" <> indentSymbol <> "| ") <>) . Lazy.Text.fromStrict
+        <$> toList memberTypes
 
 description :: Formatter -> Full.Description -> Lazy.Text.Text
 description _formatter (Full.Description Nothing) = ""
