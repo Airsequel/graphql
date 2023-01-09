@@ -218,7 +218,7 @@ spec = do
                 actual = typeSystemDefinition pretty definition'
              in actual `shouldBe` expected
 
-        it "encodes an enum definition" $
+        it "encodes an union definition" $
             let definition' = Full.TypeDefinition
                     $ Full.UnionTypeDefinition mempty "SearchResult" mempty
                     $ Full.UnionMemberTypes ["Photo", "Person"]
@@ -226,6 +226,26 @@ spec = do
                   union SearchResult =
                     | Photo
                     | Person
+                |]
+                actual = typeSystemDefinition pretty definition'
+             in actual `shouldBe` expected
+
+        it "encodes an enum definition" $
+            let values =
+                    [ Full.EnumValueDefinition mempty "NORTH" mempty
+                    , Full.EnumValueDefinition mempty "EAST" mempty
+                    , Full.EnumValueDefinition mempty "SOUTH" mempty
+                    , Full.EnumValueDefinition mempty "WEST" mempty
+                    ]
+                definition' = Full.TypeDefinition
+                    $ Full.EnumTypeDefinition mempty "Direction" mempty values
+                expected = [gql|
+                  enum Direction {
+                    NORTH
+                    EAST
+                    SOUTH
+                    WEST
+                  }
                 |]
                 actual = typeSystemDefinition pretty definition'
              in actual `shouldBe` expected

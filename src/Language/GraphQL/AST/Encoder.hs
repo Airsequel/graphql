@@ -135,6 +135,13 @@ typeDefinition formatter = \case
         <> optempty (directives formatter) directives'
         <> eitherFormat formatter " " ""
         <> unionMemberTypes formatter members'
+    Full.EnumTypeDefinition description' name' directives' members'
+        -> optempty (description formatter) description'
+        <> "enum "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (enumValueDefinition formatter) members'
     _typeDefinition' -> "" -- TODO: Types missing.
   where
     nextFormatter = incrementIndent formatter
@@ -159,6 +166,20 @@ unionMemberTypes formatter (Full.UnionMemberTypes memberTypes)
         $ Lazy.Text.concat
         $ (("\n" <> indentSymbol <> "| ") <>) . Lazy.Text.fromStrict
         <$> toList memberTypes
+
+enumValueDefinition :: Formatter -> Full.EnumValueDefinition -> Lazy.Text
+enumValueDefinition (Pretty _) enumValue =
+    let Full.EnumValueDefinition description' name' directives' = enumValue
+        formatter = Pretty 1
+     in description formatter description'
+        <> indentLine formatter
+        <> Lazy.Text.fromStrict name'
+        <> directives formatter directives'
+enumValueDefinition Minified enumValue =
+    let Full.EnumValueDefinition description' name' directives' = enumValue
+     in description Minified description'
+        <> Lazy.Text.fromStrict name'
+        <> directives Minified directives'
 
 description :: Formatter -> Full.Description -> Lazy.Text.Text
 description _formatter (Full.Description Nothing) = ""
