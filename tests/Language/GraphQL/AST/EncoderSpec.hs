@@ -249,3 +249,21 @@ spec = do
                 |]
                 actual = typeSystemDefinition pretty definition'
              in actual `shouldBe` expected
+
+        it "encodes an input type" $
+            let intType = Full.TypeNonNull $ Full.NonNullTypeNamed "Int"
+                stringType = Full.TypeNamed "String"
+                fields =
+                    [ Full.InputValueDefinition mempty "a" stringType Nothing mempty
+                    , Full.InputValueDefinition mempty "b" intType Nothing mempty
+                    ]
+                definition' = Full.TypeDefinition
+                    $ Full.InputObjectTypeDefinition mempty "ExampleInputObject" mempty fields
+                expected = [gql|
+                  input ExampleInputObject {
+                    a: String
+                    b: Int!
+                  }
+                |]
+                actual = typeSystemDefinition pretty definition'
+             in actual `shouldBe` expected

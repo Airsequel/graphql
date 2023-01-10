@@ -106,6 +106,17 @@ argumentDefinition formatter definition' =
             <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
             <> directives formatter directives'
 
+inputValueDefinition :: Formatter -> Full.InputValueDefinition -> Lazy.Text.Text
+inputValueDefinition formatter definition' =
+    let Full.InputValueDefinition description' name' type'' defaultValue' directives' = definition'
+     in optempty (description formatter) description'
+            <> indentLine formatter
+            <> Lazy.Text.fromStrict name'
+            <> colon formatter
+            <> type' type''
+            <> maybe mempty (defaultValue formatter . Full.node) defaultValue'
+            <> directives formatter directives'
+
 typeDefinition :: Formatter -> Full.TypeDefinition -> Lazy.Text
 typeDefinition formatter = \case
     Full.ScalarTypeDefinition description' name' directives'
@@ -142,7 +153,13 @@ typeDefinition formatter = \case
         <> optempty (directives formatter) directives'
         <> eitherFormat formatter " " ""
         <> bracesList formatter (enumValueDefinition formatter) members'
-    _typeDefinition' -> "" -- TODO: Types missing.
+    Full.InputObjectTypeDefinition description' name' directives' fields'
+        -> optempty (description formatter) description'
+        <> "input "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (inputValueDefinition nextFormatter) fields'
   where
     nextFormatter = incrementIndent formatter
 
