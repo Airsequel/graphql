@@ -29,6 +29,7 @@ import qualified Data.Text.Lazy.Builder as Builder
 import Data.Text.Lazy.Builder.Int (decimal)
 import Data.Text.Lazy.Builder.RealFloat (realFloat)
 import qualified Language.GraphQL.AST.Document as Full
+import qualified Language.GraphQL.AST.DirectiveLocation as DirectiveLocation
 
 -- | Instructs the encoder whether the GraphQL document should be minified or
 --   pretty printed.
@@ -59,6 +60,9 @@ document formatter defs
         typeSystemDefinition formatter typeSystemDefinition' : acc
     executableDefinition _ acc = acc -- TODO: TypeSystemExtension missing.
 
+directiveLocation :: DirectiveLocation.DirectiveLocation -> Lazy.Text
+directiveLocation = Lazy.Text.pack . show
+
 withLineBreak :: Formatter -> Lazy.Text.Text -> Lazy.Text.Text
 withLineBreak formatter encodeDefinition
     | Pretty _ <- formatter = Lazy.Text.snoc encodeDefinition '\n'
@@ -73,7 +77,13 @@ typeSystemDefinition formatter = \case
             <> "schema "
             <> bracesList formatter operationTypeDefinition (NonEmpty.toList operationTypeDefinitions')
     Full.TypeDefinition typeDefinition' -> typeDefinition formatter typeDefinition'
-    _ -> "" -- TODO: DerictiveDefinition missing.
+    Full.DirectiveDefinition description' name' arguments' locations
+        -> description formatter description'
+        <> "@"
+        <> Lazy.Text.fromStrict name' -- TODO: TypeSystemExtension missing.
+        <> argumentsDefinition formatter arguments'
+        <> " on"
+        <> pipeList formatter (directiveLocation <$> locations)
   where
     operationTypeDefinition (Full.OperationTypeDefinition operationType' namedType')
         = indentLine (incrementIndent formatter)
@@ -174,15 +184,16 @@ implementsInterfaces (Full.ImplementsInterfaces interfaces)
 unionMemberTypes :: Foldable t => Formatter -> Full.UnionMemberTypes t -> Lazy.Text
 unionMemberTypes formatter (Full.UnionMemberTypes memberTypes)
     | null memberTypes = mempty
-    | Minified <- formatter = Lazy.Text.fromStrict
-        $ Text.append "= "
-        $ Text.intercalate " | "
-        $ toList memberTypes
-    | Pretty _ <- formatter
-        = Lazy.Text.append "="
-        $ Lazy.Text.concat
-        $ (("\n" <> indentSymbol <> "| ") <>) . Lazy.Text.fromStrict
+    | otherwise = Lazy.Text.append "="
+        $ pipeList formatter
+        $ Lazy.Text.fromStrict
         <$> toList memberTypes
+
+pipeList :: Foldable t => Formatter -> t Lazy.Text -> Lazy.Text
+pipeList Minified =  (" " <>) . Lazy.Text.intercalate " | " . toList
+pipeList (Pretty _) =  Lazy.Text.concat
+    . fmap (("\n" <> indentSymbol <> "| ") <>)
+    . toList 
 
 enumValueDefinition :: Formatter -> Full.EnumValueDefinition -> Lazy.Text
 enumValueDefinition (Pretty _) enumValue =
