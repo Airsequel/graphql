@@ -58,7 +58,8 @@ document formatter defs
         definition formatter executableDefinition' : acc
     executableDefinition (Full.TypeSystemDefinition typeSystemDefinition' _location) acc =
         typeSystemDefinition formatter typeSystemDefinition' : acc
-    executableDefinition _ acc = acc -- TODO: TypeSystemExtension missing.
+    executableDefinition (Full.TypeSystemExtension typeSystemExtension' _location) acc =
+        typeSystemExtension formatter typeSystemExtension' : acc
 
 directiveLocation :: DirectiveLocation.DirectiveLocation -> Lazy.Text
 directiveLocation = Lazy.Text.pack . show
@@ -68,28 +69,48 @@ withLineBreak formatter encodeDefinition
     | Pretty _ <- formatter = Lazy.Text.snoc encodeDefinition '\n'
     | Minified <- formatter = encodeDefinition
 
+typeSystemExtension :: Formatter -> Full.TypeSystemExtension -> Lazy.Text
+typeSystemExtension formatter = \case
+    Full.SchemaExtension schemaExtension' ->
+        schemaExtension formatter schemaExtension'
+    Full.TypeExtension typeExtension' -> typeExtension formatter typeExtension'
+
+schemaExtension :: Formatter -> Full.SchemaExtension -> Lazy.Text
+schemaExtension formatter = \case
+    Full.SchemaOperationExtension operationDirectives operationTypeDefinitions' ->
+        withLineBreak formatter
+            $ "extend schema "
+            <> optempty (directives formatter) operationDirectives
+            <> bracesList formatter (operationTypeDefinition formatter) (NonEmpty.toList operationTypeDefinitions')
+    Full.SchemaDirectivesExtension operationDirectives -> "extend schema "
+        <> optempty (directives formatter) (NonEmpty.toList operationDirectives)
+
+typeExtension :: Formatter -> Full.TypeExtension -> Lazy.Text
+typeExtension = const $ const "" -- TODO: Type extensions missing.
+
 -- | Converts a t'Full.TypeSystemDefinition' into a string.
 typeSystemDefinition :: Formatter -> Full.TypeSystemDefinition -> Lazy.Text
 typeSystemDefinition formatter = \case
     Full.SchemaDefinition operationDirectives operationTypeDefinitions' ->
         withLineBreak formatter
-            $ optempty (directives formatter) operationDirectives
-            <> "schema "
-            <> bracesList formatter operationTypeDefinition (NonEmpty.toList operationTypeDefinitions')
+            $ "schema "
+            <> optempty (directives formatter) operationDirectives
+            <> bracesList formatter (operationTypeDefinition formatter) (NonEmpty.toList operationTypeDefinitions')
     Full.TypeDefinition typeDefinition' -> typeDefinition formatter typeDefinition'
     Full.DirectiveDefinition description' name' arguments' locations
         -> description formatter description'
         <> "@"
-        <> Lazy.Text.fromStrict name' -- TODO: TypeSystemExtension missing.
+        <> Lazy.Text.fromStrict name'
         <> argumentsDefinition formatter arguments'
         <> " on"
         <> pipeList formatter (directiveLocation <$> locations)
-  where
-    operationTypeDefinition (Full.OperationTypeDefinition operationType' namedType')
-        = indentLine (incrementIndent formatter)
-        <> operationType formatter operationType'
-        <> colon formatter
-        <> Lazy.Text.fromStrict namedType'
+
+operationTypeDefinition :: Formatter -> Full.OperationTypeDefinition -> Lazy.Text.Text
+operationTypeDefinition formatter (Full.OperationTypeDefinition operationType' namedType')
+    = indentLine (incrementIndent formatter)
+    <> operationType formatter operationType'
+    <> colon formatter
+    <> Lazy.Text.fromStrict namedType'
 
 fieldDefinition :: Formatter -> Full.FieldDefinition -> Lazy.Text.Text
 fieldDefinition formatter fieldDefinition' =
