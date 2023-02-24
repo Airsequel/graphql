@@ -66,8 +66,9 @@ queryType :: Out.ObjectType IO
 queryType = Out.ObjectType "Query" Nothing []
     $ HashMap.fromList
     [ ("philosopher", ValueResolver philosopherField philosopherResolver)
-    , ("genres", ValueResolver genresField genresResolver)
+    , ("throwing", ValueResolver throwingField throwingResolver)
     , ("count", ValueResolver countField countResolver)
+    , ("sequence", ValueResolver sequenceField sequenceResolver)
     ]
   where
     philosopherField =
@@ -75,15 +76,22 @@ queryType = Out.ObjectType "Query" Nothing []
         $ HashMap.singleton "id"
         $ In.Argument Nothing (In.NamedScalarType id) Nothing
     philosopherResolver = pure $ Object mempty
-    genresField =
+    throwingField =
         let fieldType = Out.ListType $ Out.NonNullScalarType string
          in Out.Field Nothing fieldType HashMap.empty
-    genresResolver :: Resolve IO
-    genresResolver = throwM PhilosopherException
+    throwingResolver :: Resolve IO
+    throwingResolver = throwM PhilosopherException
     countField =
         let fieldType = Out.NonNullScalarType int
          in Out.Field Nothing fieldType HashMap.empty
     countResolver = pure ""
+    sequenceField =
+        let fieldType = Out.ListType $ Out.NonNullScalarType int
+         in Out.Field Nothing fieldType HashMap.empty
+    sequenceResolver = pure intSequence
+
+intSequence :: Value
+intSequence = Type.List [Type.Int 1, Type.Int 2, Type.Int 3]
 
 musicType :: Out.ObjectType IO
 musicType = Out.ObjectType "Music" Nothing []
@@ -344,14 +352,14 @@ spec =
                 in sourceQuery `shouldResolveTo` expected
 
             it "gives location information for failed result coercion" $
-                let data'' = Object $ HashMap.singleton "genres" Null
+                let data'' = Object $ HashMap.singleton "throwing" Null
                     executionErrors = pure $ Error
                         { message = "PhilosopherException"
                         , locations = [Location 1 3]
-                        , path = [Segment "genres"]
+                        , path = [Segment "throwing"]
                         }
                     expected = Response data'' executionErrors
-                    sourceQuery = "{ genres }"
+                    sourceQuery = "{ throwing }"
                 in sourceQuery `shouldResolveTo` expected
 
             it "sets data to null if a root field isn't nullable" $
@@ -373,6 +381,12 @@ spec =
                         }
                     expected = Response data'' executionErrors
                     sourceQuery = "{ philosopher(id: \"1\") { firstLanguage } }"
+                in sourceQuery `shouldResolveTo` expected
+
+            it "returns list elements in the original order" $
+                let data'' = Object $ HashMap.singleton "sequence" intSequence
+                    expected = Response data'' mempty
+                    sourceQuery = "{ sequence }"
                 in sourceQuery `shouldResolveTo` expected
 
             context "queryError" $ do

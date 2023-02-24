@@ -11,6 +11,9 @@ and this project adheres to
 - Partial schema printing: schema definition encoder.
 - `Semigroup` and `Monoid` instances for `AST.Document.Description`.
 
+### Fixed
+- Fix resolvers returning a list in the reverse order.
+
 ## [1.1.0.0] - 2022-12-24
 ### Changed
 - Removed deprecated `Language.GraphQL.Error` functions: `addErr`, `addErrMsg`,

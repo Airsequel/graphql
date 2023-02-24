@@ -39,6 +39,7 @@ import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (fromMaybe)
 import Data.Sequence (Seq)
 import qualified Data.Sequence as Seq
+import qualified Data.Vector as Vector
 import Data.Text (Text)
 import qualified Data.Text as Text
 import Data.Typeable (cast)
@@ -466,12 +467,12 @@ completeValue :: (MonadCatch m, Serialize a)
 completeValue (Out.isNonNullType -> False) _ _ Type.Null =
     pure null
 completeValue outputType@(Out.ListBaseType listType) fields errorPath (Type.List list)
-    = foldM go (0, []) list >>= coerceResult outputType . List . snd
+    = foldM go Vector.empty list >>= coerceResult outputType . List . Vector.toList
   where
-    go (index, accumulator) listItem = do
-        let updatedPath = Index index : errorPath
-        completedValue <- completeValue listType fields updatedPath listItem
-        pure (index + 1, completedValue : accumulator)
+    go accumulator listItem =
+        let updatedPath = Index (Vector.length accumulator) : errorPath
+         in Vector.snoc accumulator
+            <$> completeValue listType fields updatedPath listItem
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.Int int) =
     coerceResult outputType $ Int int
 completeValue outputType@(Out.ScalarBaseType _) _ _ (Type.Boolean boolean) =
