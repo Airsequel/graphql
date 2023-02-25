@@ -86,7 +86,69 @@ schemaExtension formatter = \case
         <> optempty (directives formatter) (NonEmpty.toList operationDirectives)
 
 typeExtension :: Formatter -> Full.TypeExtension -> Lazy.Text
-typeExtension = const $ const "" -- TODO: Type extensions missing.
+typeExtension formatter = \case
+    Full.ScalarTypeExtension name' directives'
+        -> "extend scalar "
+        <> Lazy.Text.fromStrict name'
+        <> directives formatter (NonEmpty.toList directives')
+    Full.ObjectTypeFieldsDefinitionExtension name' ifaces' directives' fields'
+        -> "extend type "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (" " <>) (implementsInterfaces ifaces')
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (fieldDefinition nextFormatter) (NonEmpty.toList fields')
+    Full.ObjectTypeDirectivesExtension name' ifaces' directives'
+        -> "extend type "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (" " <>) (implementsInterfaces ifaces')
+        <> optempty (directives formatter) (NonEmpty.toList directives')
+    Full.ObjectTypeImplementsInterfacesExtension name' ifaces'
+        -> "extend type "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (" " <>) (implementsInterfaces ifaces')
+    Full.InterfaceTypeFieldsDefinitionExtension name' directives' fields'
+        -> "extend interface "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (fieldDefinition nextFormatter) (NonEmpty.toList fields')
+    Full.InterfaceTypeDirectivesExtension name' directives'
+        -> "extend interface "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) (NonEmpty.toList directives')
+    Full.UnionTypeUnionMemberTypesExtension name' directives' members'
+        -> "extend union "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> unionMemberTypes formatter members'
+    Full.UnionTypeDirectivesExtension name' directives'
+        -> "extend union "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) (NonEmpty.toList directives')
+    Full.EnumTypeEnumValuesDefinitionExtension name' directives' members'
+        -> "extend enum "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (enumValueDefinition formatter) (NonEmpty.toList members')
+    Full.EnumTypeDirectivesExtension name' directives'
+        -> "extend enum "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) (NonEmpty.toList directives')
+    Full.InputObjectTypeInputFieldsDefinitionExtension name' directives' fields'
+        -> "extend input "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) directives'
+        <> eitherFormat formatter " " ""
+        <> bracesList formatter (inputValueDefinition nextFormatter) (NonEmpty.toList fields')
+    Full.InputObjectTypeDirectivesExtension name' directives'
+        -> "extend input "
+        <> Lazy.Text.fromStrict name'
+        <> optempty (directives formatter) (NonEmpty.toList directives')
+  where
+    nextFormatter = incrementIndent formatter
 
 -- | Converts a t'Full.TypeSystemDefinition' into a string.
 typeSystemDefinition :: Formatter -> Full.TypeSystemDefinition -> Lazy.Text
