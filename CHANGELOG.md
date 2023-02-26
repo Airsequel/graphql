@@ -10,9 +10,16 @@ and this project adheres to
 ### Added
 - Schema printing.
 - `Semigroup` and `Monoid` instances for `AST.Document.Description`.
+- Support for vector 0.13.0.0 and transformers 0.6.1.0.
 
 ### Fixed
 - Fix resolvers returning a list in the reverse order.
+
+### Removed
+- GHC 8 support.
+- Cabal -json flag.
+- `Test.Hspec.GraphQL`: moved to `graphql-spice` package.
+- CPP `ifdef WITH_JSON` blocks.
 
 ## [1.1.0.0] - 2022-12-24
 ### Changed

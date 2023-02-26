@@ -5,14 +5,8 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE CPP #-}
 
 -- | Types and functions used for input and result coercion.
---
--- JSON instances in this module are only available with the __json__
--- flag that is currently on by default, but will be disabled in the future.
--- Refer to the documentation in the 'Language.GraphQL' module and to
--- the __graphql-spice__ package.
 module Language.GraphQL.Execute.Coerce
     ( Output(..)
     , Serialize(..)
@@ -21,10 +15,6 @@ module Language.GraphQL.Execute.Coerce
     , matchFieldValues
     ) where
 
-#ifdef WITH_JSON
-import qualified Data.Aeson as Aeson
-import Data.Scientific (toBoundedInteger, toRealFloat)
-#endif
 import Data.Int (Int32)
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
@@ -232,69 +222,3 @@ instance Serialize Type.Value where
         $ HashMap.fromList
         $ OrderedMap.toList object
     serialize _ _ = Nothing
-
-#ifdef WITH_JSON
-instance Serialize Aeson.Value where
-    serialize (Out.ScalarBaseType scalarType) value
-        | Type.ScalarType "Int" _ <- scalarType
-        , Int int <- value = Just $ Aeson.toJSON int
-        | Type.ScalarType "Float" _ <- scalarType
-        , Float float <- value = Just $ Aeson.toJSON float
-        | Type.ScalarType "String" _ <- scalarType
-        , String string <- value = Just $ Aeson.String string
-        | Type.ScalarType "ID" _ <- scalarType
-        , String string <- value = Just $ Aeson.String string
-        | Type.ScalarType "Boolean" _ <- scalarType
-        , Boolean boolean <- value = Just $ Aeson.Bool boolean
-    serialize _ (Enum enum) = Just $ Aeson.String enum
-    serialize _ (List list) = Just $ Aeson.toJSON list
-    serialize _ (Object object) = Just
-        $ Aeson.object
-        $ OrderedMap.toList
-        $ Aeson.toJSON <$> object
-    serialize _ _ = Nothing
-    null = Aeson.Null
-
-instance VariableValue Aeson.Value where
-    coerceVariableValue _ Aeson.Null = Just Type.Null
-    coerceVariableValue (In.ScalarBaseType scalarType) value
-        | (Aeson.String stringValue) <- value = Just $ Type.String stringValue
-        | (Aeson.Bool booleanValue) <- value = Just $ Type.Boolean booleanValue
-        | (Aeson.Number numberValue) <- value
-        , (Type.ScalarType "Float" _) <- scalarType =
-            Just $ Type.Float $ toRealFloat numberValue
-        | (Aeson.Number numberValue) <- value = -- ID or Int
-            Type.Int <$> toBoundedInteger numberValue
-    coerceVariableValue (In.EnumBaseType _) (Aeson.String stringValue) =
-        Just $ Type.Enum stringValue
-    coerceVariableValue (In.InputObjectBaseType objectType) value
-        | (Aeson.Object objectValue) <- value = do
-            let (In.InputObjectType _ _ inputFields) = objectType
-            (newObjectValue, resultMap) <- foldWithKey objectValue inputFields
-            if HashMap.null newObjectValue
-                then Just $ Type.Object resultMap
-                else Nothing
-      where
-        foldWithKey objectValue = HashMap.foldrWithKey matchFieldValues'
-            $ Just (objectValue, HashMap.empty)
-        matchFieldValues' _ _ Nothing = Nothing
-        matchFieldValues' fieldName inputField (Just (objectValue, resultMap)) =
-            let (In.InputField _ fieldType _) = inputField
-                insert = flip (HashMap.insert fieldName) resultMap
-                newObjectValue = HashMap.delete fieldName objectValue
-             in case HashMap.lookup fieldName objectValue of
-                    Just variableValue -> do
-                        coerced <- coerceVariableValue fieldType variableValue
-                        pure (newObjectValue, insert coerced)
-                    Nothing -> Just (objectValue, resultMap)
-    coerceVariableValue (In.ListBaseType listType) value
-        | (Aeson.Array arrayValue) <- value =
-            Type.List <$> foldr foldVector (Just []) arrayValue
-        | otherwise = coerceVariableValue listType value
-      where
-        foldVector _ Nothing = Nothing
-        foldVector variableValue (Just list) = do
-            coerced <- coerceVariableValue listType variableValue
-            pure $ coerced : list 
-    coerceVariableValue _ _ = Nothing
-#endif
