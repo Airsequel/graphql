@@ -6,7 +6,7 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
-## [Unreleased]
+## [1.2.0.0] - 2023-02-28
 ### Added
 - Schema printing.
 - `Semigroup` and `Monoid` instances for `AST.Document.Description`.
@@ -505,7 +505,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[Unreleased]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=master&rev_to=v1.1.0.0
+[1.2.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.2.0.0&rev_to=v1.1.0.0
 [1.1.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.1.0.0&rev_to=v1.0.3.0
 [1.0.3.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.3.0&rev_to=v1.0.2.0
 [1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.2.0&rev_to=v1.0.1.0
