@@ -5,8 +5,8 @@ version:        1.2.0.0
 synopsis:       Haskell GraphQL implementation
 description:    Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
 category:       Language
-homepage:       https://www.caraus.tech/projects/pub-graphql
-bug-reports:    https://www.caraus.tech/projects/pub-graphql/issues
+homepage:       https://git.caraus.tech/OSS/graphql
+bug-reports:    https://git.caraus.tech/OSS/graphql/issues
 author:         Danny Navarro <j@dannynavarro.net>,
                 Matthías Páll Gissurarson <mpg@mpg.is>,
                 Sólrún Halla Einarsdóttir <she@mpg.is>
@@ -25,7 +25,7 @@ tested-with:
 
 source-repository head
   type: git
-  location: git://caraus.tech/pub/graphql.git
+  location: https://git.caraus.tech/OSS/graphql.git
 
 library
   exposed-modules:

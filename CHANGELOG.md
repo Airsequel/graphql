@@ -6,6 +6,8 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [Unreleased]
+
 ## [1.2.0.0] - 2023-02-28
 ### Added
 - Schema printing.
@@ -400,7 +402,6 @@ and this project adheres to
 - `Language.GraphQL.Schema`: `enum`, `enumA`, `wrappedEnum` and `wrappedEnumA`.
   Use `scalar`, `scalarA`, `wrappedScalar` and `wrappedScalarA` instead.
 
-
 ## [0.5.1.0] - 2019-10-22
 ### Deprecated
 - `Language.GraphQL.AST.Arguments`. Use `[Language.GraphQL.AST.Argument]`
@@ -505,24 +506,24 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
-[1.2.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.2.0.0&rev_to=v1.1.0.0
-[1.1.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.1.0.0&rev_to=v1.0.3.0
-[1.0.3.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.3.0&rev_to=v1.0.2.0
-[1.0.2.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.2.0&rev_to=v1.0.1.0
-[1.0.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.1.0&rev_to=v1.0.0.0
-[1.0.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v1.0.0.0&rev_to=v0.11.1.0
-[0.11.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.1.0&rev_to=v0.11.0.0
-[0.11.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.11.0.0&rev_to=v0.10.0.0
-[0.10.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.10.0.0&rev_to=v0.9.0.0
-[0.9.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.9.0.0&rev_to=v0.8.0.0
-[0.8.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.8.0.0&rev_to=v0.7.0.0
-[0.7.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.7.0.0&rev_to=v0.6.1.0
-[0.6.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.6.1.0&rev_to=v0.6.0.0
-[0.6.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.6.0.0&rev_to=v0.5.1.0
-[0.5.1.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.1.0&rev_to=v0.5.0.1
-[0.5.0.1]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.0.1&rev_to=v0.5.0.0
-[0.5.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.5.0.0&rev_to=v0.4.0.0
-[0.4.0.0]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.4.0.0&rev_to=v0.3
-[0.3]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.3&rev_to=v0.2.1
-[0.2.1]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.2.1&rev_to=v0.2
-[0.2]: https://www.caraus.tech/projects/pub-graphql/repository/23/diff?rev=v0.2&rev_to=v0.1
+[1.2.0.0]: https://git.caraus.tech/OSS/graphql/compare/v1.1.0.0...v1.2.0.0
+[1.1.0.0]: https://git.caraus.tech/OSS/graphql/compare/v1.0.3.0...v1.1.0.0
+[1.0.3.0]: https://git.caraus.tech/OSS/graphql/compare/v1.0.2.0...v1.0.3.0
+[1.0.2.0]: https://git.caraus.tech/OSS/graphql/compare/v1.0.1.0...v1.0.2.0
+[1.0.1.0]: https://git.caraus.tech/OSS/graphql/compare/v1.0.0.0...v1.0.1.0
+[1.0.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.11.1.0...v1.0.0.0
+[0.11.1.0]: https://git.caraus.tech/OSS/graphql/compare/v0.11.0.0...v0.11.1.0
+[0.11.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.10.0.0...v0.11.0.0
+[0.10.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.9.0.0...v0.10.0.0
+[0.9.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.8.0.0...v0.9.0.0
+[0.8.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.7.0.0...v0.8.0.0
+[0.7.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.6.1.0...v0.7.0.0
+[0.6.1.0]: https://git.caraus.tech/OSS/graphql/compare/v0.6.0.0...v0.6.1.0
+[0.6.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.5.1.0...v0.6.0.0
+[0.5.1.0]: https://git.caraus.tech/OSS/graphql/compare/v0.5.0.1...v0.5.1.0
+[0.5.0.1]: https://git.caraus.tech/OSS/graphql/compare/v0.5.0.0...v0.5.0.1
+[0.5.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.4.0.0...v0.5.0.0
+[0.4.0.0]: https://git.caraus.tech/OSS/graphql/compare/v0.3...v0.4.0.0
+[0.3]: https://git.caraus.tech/OSS/graphql/compare/v0.2.1...v0.3
+[0.2.1]: https://git.caraus.tech/OSS/graphql/compare/v0.2...v0.2.1
+[0.2]: https://git.caraus.tech/OSS/graphql/compare/v0.1...v0.2
