@@ -1,7 +1,7 @@
 cabal-version: 2.4
 
 name:           graphql
-version:        1.2.0.0
+version:        1.2.0.1
 synopsis:       Haskell GraphQL implementation
 description:    Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
 category:       Language
@@ -97,7 +97,7 @@ test-suite graphql-test
     conduit,
     exceptions,
     graphql,
-    hspec ^>= 2.10.9,
+    hspec >= 2.10.9 && < 2.12,
     hspec-expectations ^>= 0.8.2,
     hspec-megaparsec ^>= 2.2.0,
     megaparsec,
