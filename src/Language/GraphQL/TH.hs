@@ -21,7 +21,7 @@ stripIndentation code = reverse
     indent count (' ' : xs) = indent (count - 1) xs
     indent _ xs = xs
     withoutLeadingNewlines = dropNewlines code
-    dropNewlines = dropWhile (== '\n')
+    dropNewlines = dropWhile $ flip any ['\n', '\r'] . (==)
     spaces = length $ takeWhile (== ' ') withoutLeadingNewlines
 
 -- | Removes leading and trailing newlines. Indentation of the first line is
