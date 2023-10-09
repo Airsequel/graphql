@@ -556,33 +556,24 @@ coerceArgumentValues argumentDefinitions argumentValues =
                     $ Just inputValue
                 | otherwise -> throwM
                     $ InputCoercionException (Text.unpack argumentName) variableType Nothing
+
     matchFieldValues' = matchFieldValues coerceArgumentValue
         $ Full.node <$> argumentValues
-    coerceArgumentValue inputType (Transform.Int integer) =
-        coerceInputLiteral inputType (Type.Int integer)
-    coerceArgumentValue inputType (Transform.Boolean boolean) =
-        coerceInputLiteral inputType (Type.Boolean boolean)
-    coerceArgumentValue inputType (Transform.String string) =
-        coerceInputLiteral inputType (Type.String string)
-    coerceArgumentValue inputType (Transform.Float float) =
-        coerceInputLiteral inputType (Type.Float float)
-    coerceArgumentValue inputType (Transform.Enum enum) =
-        coerceInputLiteral inputType (Type.Enum enum)
-    coerceArgumentValue inputType Transform.Null
-        | In.isNonNullType inputType = Nothing
-        | otherwise = coerceInputLiteral inputType Type.Null
-    coerceArgumentValue (In.ListBaseType inputType) (Transform.List list) =
-        let coerceItem = coerceArgumentValue inputType
-         in Type.List <$> traverse coerceItem list
-    coerceArgumentValue (In.InputObjectBaseType inputType) (Transform.Object object)
-        | In.InputObjectType _ _ inputFields <- inputType = 
-            let go = forEachField object
-                resultMap = HashMap.foldrWithKey go (pure mempty) inputFields
-             in Type.Object <$> resultMap
-    coerceArgumentValue _ (Transform.Variable variable) = pure variable
-    coerceArgumentValue _ _ = Nothing
-    forEachField object variableName (In.InputField _ variableType defaultValue) =
-        matchFieldValues coerceArgumentValue object variableName variableType defaultValue
+
+    coerceArgumentValue inputType transform =
+      coerceInputLiteral inputType $ extractArgumentValue transform 
+
+    extractArgumentValue (Transform.Int integer) = Type.Int integer
+    extractArgumentValue (Transform.Boolean boolean) = Type.Boolean boolean
+    extractArgumentValue (Transform.String string) = Type.String string
+    extractArgumentValue (Transform.Float float) = Type.Float float
+    extractArgumentValue (Transform.Enum enum) = Type.Enum enum
+    extractArgumentValue Transform.Null = Type.Null
+    extractArgumentValue (Transform.List list) = 
+      Type.List $ extractArgumentValue <$> list
+    extractArgumentValue (Transform.Object object) =
+      Type.Object $ extractArgumentValue <$> object
+    extractArgumentValue (Transform.Variable variable) = variable
 
 collectFields :: Monad m
     => Out.ObjectType m
