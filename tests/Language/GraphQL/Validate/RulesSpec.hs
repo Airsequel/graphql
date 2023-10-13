@@ -878,7 +878,7 @@ spec =
                         { message =
                             "Variable \"$dogCommandArg\" of type \
                             \\"DogCommand\" used in position expecting type \
-                            \\"!DogCommand\"."
+                            \\"DogCommand!\"."
                         , locations = [AST.Location 1 26]
                         }
                  in validate queryString `shouldBe` [expected]
@@ -925,7 +925,7 @@ spec =
                 |]
                     expected = Error
                         { message =
-                            "Value 3 cannot be coerced to type \"!CatCommand\"."
+                            "Value 3 cannot be coerced to type \"CatCommand!\"."
                         , locations = [AST.Location 3 36]
                         }
                  in validate queryString `shouldBe` [expected]
@@ -940,7 +940,7 @@ spec =
                 |]
                     expected = Error
                         { message =
-                            "Value 3 cannot be coerced to type \"!String\"."
+                            "Value 3 cannot be coerced to type \"String!\"."
                         , locations = [AST.Location 2 28]
                         }
                  in validate queryString `shouldBe` [expected]

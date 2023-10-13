@@ -115,12 +115,12 @@ instance forall a. Show (Type a) where
     show (NamedInterfaceType interfaceType) = show interfaceType
     show (NamedUnionType unionType) = show unionType
     show (ListType baseType) = concat ["[", show baseType, "]"]
-    show (NonNullScalarType scalarType) = '!' : show scalarType
-    show (NonNullEnumType enumType) = '!' : show enumType
-    show (NonNullObjectType inputObjectType) = '!' : show inputObjectType
-    show (NonNullInterfaceType interfaceType) = '!' : show interfaceType
-    show (NonNullUnionType unionType) = '!' : show unionType
-    show (NonNullListType baseType) = concat ["![", show baseType, "]"]
+    show (NonNullScalarType scalarType) = showNonNullType scalarType
+    show (NonNullEnumType enumType) = showNonNullType enumType
+    show (NonNullObjectType inputObjectType) = showNonNullType inputObjectType
+    show (NonNullInterfaceType interfaceType) = showNonNullType interfaceType
+    show (NonNullUnionType unionType) = showNonNullType unionType
+    show (NonNullListType baseType) = showNonNullListType baseType
 
 -- | Matches either 'NamedScalarType' or 'NonNullScalarType'.
 pattern ScalarBaseType :: forall m. ScalarType -> Type m

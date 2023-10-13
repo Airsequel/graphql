@@ -371,8 +371,8 @@ data NonNullType
     deriving Eq
 
 instance Show NonNullType where
-    show (NonNullTypeNamed typeName) = '!' : Text.unpack typeName
-    show (NonNullTypeList listType) =  concat ["![", show listType, "]"]
+    show (NonNullTypeNamed typeName) = Text.unpack $ typeName <> "!"
+    show (NonNullTypeList listType) = concat ["[", show listType, "]!"]
 
 -- ** Directives
 

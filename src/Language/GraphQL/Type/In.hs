@@ -66,10 +66,11 @@ instance Show Type where
     show (NamedEnumType enumType) = show enumType
     show (NamedInputObjectType inputObjectType) = show inputObjectType
     show (ListType baseType) = concat ["[", show baseType, "]"]
-    show (NonNullScalarType scalarType) = '!' : show scalarType
-    show (NonNullEnumType enumType) = '!' : show enumType
-    show (NonNullInputObjectType inputObjectType) = '!' : show inputObjectType
-    show (NonNullListType baseType) = concat ["![", show baseType, "]"]
+    show (NonNullScalarType scalarType) = Definition.showNonNullType scalarType
+    show (NonNullEnumType enumType) = Definition.showNonNullType enumType
+    show (NonNullInputObjectType inputObjectType) =
+        Definition.showNonNullType inputObjectType
+    show (NonNullListType baseType) = Definition.showNonNullListType baseType
 
 -- | Field argument definition.
 data Argument = Argument (Maybe Text) Type (Maybe Definition.Value)

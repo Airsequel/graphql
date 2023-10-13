@@ -295,7 +295,7 @@ spec =
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
-                            "Value completion error. Expected type !School, found: EXISTENTIALISM."
+                            "Value completion error. Expected type School!, found: EXISTENTIALISM."
                         , locations = [Location 1 17]
                         , path = [Segment "philosopher", Segment "school"]
                         }
@@ -307,7 +307,7 @@ spec =
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message =
-                            "Value completion error. Expected type !Interest, found: { instrument: \"piano\" }."
+                            "Value completion error. Expected type Interest!, found: { instrument: \"piano\" }."
                         , locations = [Location 1 17]
                         , path = [Segment "philosopher", Segment "interest"]
                         }
@@ -319,7 +319,7 @@ spec =
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
                         { message
-                            = "Value completion error. Expected type !Work, found:\
+                            = "Value completion error. Expected type Work!, found:\
                             \ { title: \"Also sprach Zarathustra: Ein Buch f\252r Alle und Keinen\" }."
                         , locations = [Location 1 17]
                         , path = [Segment "philosopher", Segment "majorWork"]
@@ -343,7 +343,7 @@ spec =
             it "gives location information for failed result coercion" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
-                        { message = "Unable to coerce result to !Int."
+                        { message = "Unable to coerce result to Int!."
                         , locations = [Location 1 26]
                         , path = [Segment "philosopher", Segment "century"]
                         }
@@ -364,7 +364,7 @@ spec =
 
             it "sets data to null if a root field isn't nullable" $
                 let executionErrors = pure $ Error
-                        { message = "Unable to coerce result to !Int."
+                        { message = "Unable to coerce result to Int!."
                         , locations = [Location 1 3]
                         , path = [Segment "count"]
                         }
@@ -375,7 +375,7 @@ spec =
             it "detects nullability errors" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
-                        { message = "Value completion error. Expected type !String, found: null."
+                        { message = "Value completion error. Expected type String!, found: null."
                         , locations = [Location 1 26]
                         , path = [Segment "philosopher", Segment "firstLanguage"]
                         }

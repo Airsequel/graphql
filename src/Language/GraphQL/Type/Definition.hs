@@ -18,6 +18,8 @@ module Language.GraphQL.Type.Definition
     , float
     , id
     , int
+    , showNonNullType
+    , showNonNullListType
     , selection
     , string
     ) where
@@ -207,3 +209,11 @@ include = handle include'
             (Just (Boolean True)) -> Include directive'
             _ -> Skip
     include' directive' = Continue directive'
+
+showNonNullType :: Show a => a -> String
+showNonNullType = (++ "!") . show
+
+showNonNullListType :: Show a => a -> String
+showNonNullListType listType =
+    let representation = show listType
+     in concat ["[", representation, "]!"]
