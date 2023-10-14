@@ -9,6 +9,7 @@ and this project adheres to
 ## [Unreleased]
 ### Fixed
 - `gql` removes not only leading `\n` but also `\r`.
+- Fix non nullable type string representation in executor error messages.
 
 ## [1.2.0.1] - 2023-04-25
 ### Fixed
