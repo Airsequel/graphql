@@ -69,6 +69,7 @@ queryType = Out.ObjectType "Query" Nothing []
     , ("throwing", ValueResolver throwingField throwingResolver)
     , ("count", ValueResolver countField countResolver)
     , ("sequence", ValueResolver sequenceField sequenceResolver)
+    , ("withInputObject", ValueResolver withInputObjectField withInputObjectResolver)
     ]
   where
     philosopherField =
@@ -89,6 +90,17 @@ queryType = Out.ObjectType "Query" Nothing []
         let fieldType = Out.ListType $ Out.NonNullScalarType int
          in Out.Field Nothing fieldType HashMap.empty
     sequenceResolver = pure intSequence
+    withInputObjectResolver = pure $ Type.Int 0
+    withInputObjectField =
+        Out.Field Nothing (Out.NonNullScalarType int) $ HashMap.fromList
+            [("values", In.Argument Nothing withInputObjectArgumentType Nothing)]
+    withInputObjectArgumentType = In.NonNullListType
+        $ In.NonNullInputObjectType inputObjectType
+
+inputObjectType :: In.InputObjectType
+inputObjectType = In.InputObjectType "InputObject" Nothing $
+    HashMap.singleton "name" $
+        In.InputField Nothing (In.NonNullScalarType int) Nothing
 
 intSequence :: Value
 intSequence = Type.List [Type.Int 1, Type.Int 2, Type.Int 3]
@@ -328,18 +340,6 @@ spec =
                     sourceQuery = "{ philosopher { majorWork { title } } }"
                  in sourceQuery `shouldResolveTo` expected
 
-            it "gives location information for invalid scalar arguments" $
-                let data'' = Object $ HashMap.singleton "philosopher" Null
-                    executionErrors = pure $ Error
-                        { message =
-                            "Argument \"id\" has invalid type. Expected type ID, found: True."
-                        , locations = [Location 1 15]
-                        , path = [Segment "philosopher"]
-                        }
-                    expected = Response data'' executionErrors
-                    sourceQuery = "{ philosopher(id: true) { lastName } }"
-                 in sourceQuery `shouldResolveTo` expected
-
             it "gives location information for failed result coercion" $
                 let data'' = Object $ HashMap.singleton "philosopher" Null
                     executionErrors = pure $ Error
@@ -388,6 +388,25 @@ spec =
                     expected = Response data'' mempty
                     sourceQuery = "{ sequence }"
                 in sourceQuery `shouldResolveTo` expected
+
+            context "Arguments" $ do
+                it "gives location information for invalid scalar arguments" $
+                    let data'' = Object $ HashMap.singleton "philosopher" Null
+                        executionErrors = pure $ Error
+                            { message =
+                                "Argument \"id\" has invalid type. Expected type ID, found: True."
+                            , locations = [Location 1 15]
+                            , path = [Segment "philosopher"]
+                            }
+                        expected = Response data'' executionErrors
+                        sourceQuery = "{ philosopher(id: true) { lastName } }"
+                    in sourceQuery `shouldResolveTo` expected
+
+                it "puts an object in a list if needed" $
+                    let data'' = Object $ HashMap.singleton "withInputObject" $ Type.Int 0
+                        expected = Response data'' mempty
+                        sourceQuery = "{ withInputObject(values: { name: 0 }) }"
+                    in sourceQuery `shouldResolveTo` expected
 
             context "queryError" $ do
                 let namedQuery name = "query " <> name <> " { philosopher(id: \"1\") { interest } }"
