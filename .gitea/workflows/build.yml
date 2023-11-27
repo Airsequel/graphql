@@ -1,0 +1,68 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+    branches: [master]
+
+jobs:
+  audit:
+    runs-on: alpine
+    steps:
+      - name: Set up environment
+        shell: ash {0}
+        run: |
+          apk add --no-cache git bash curl build-base readline-dev openssl-dev zlib-dev libpq-dev gmp-dev
+      - name: Prepare system
+        run: |
+          curl --create-dirs --output-dir \
+            ~/.ghcup/bin https://downloads.haskell.org/~ghcup/0.1.19.5/x86_64-linux-ghcup-0.1.19.5 -o ghcup
+          chmod +x ~/.ghcup/bin/ghcup
+          ~/.ghcup/bin/ghcup install ghc 9.4.8
+          ~/.ghcup/bin/ghcup install cabal 3.6.2.0
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal update
+          ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal install hlint --constraint="hlint ==3.6.1"
+      - run: ~/.cabal/bin/hlint -- src tests
+
+  test:
+    runs-on: alpine
+    steps:
+      - name: Set up environment
+        shell: ash {0}
+        run: |
+          apk add --no-cache git bash curl build-base readline-dev openssl-dev zlib-dev libpq-dev gmp-dev
+      - name: Prepare system
+        run: |
+          curl --create-dirs --output-dir \
+            ~/.ghcup/bin https://downloads.haskell.org/~ghcup/0.1.19.5/x86_64-linux-ghcup-0.1.19.5 -o ghcup
+          chmod +x ~/.ghcup/bin/ghcup
+          ~/.ghcup/bin/ghcup install ghc 9.4.8
+          ~/.ghcup/bin/ghcup install cabal 3.6.2.0
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal update
+          ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal build graphql-test
+      - run: ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal test --test-show-details=direct
+
+  doc:
+    runs-on: alpine
+    steps:
+      - name: Set up environment
+        shell: ash {0}
+        run: |
+          apk add --no-cache git bash curl build-base readline-dev openssl-dev zlib-dev libpq-dev gmp-dev
+      - name: Prepare system
+        run: |
+          curl --create-dirs --output-dir \
+            ~/.ghcup/bin https://downloads.haskell.org/~ghcup/0.1.19.5/x86_64-linux-ghcup-0.1.19.5 -o ghcup
+          chmod +x ~/.ghcup/bin/ghcup
+          ~/.ghcup/bin/ghcup install ghc 9.4.8
+          ~/.ghcup/bin/ghcup install cabal 3.6.2.0
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal update
+      - run: ~/.ghcup/bin/ghcup run --ghc 9.4.8 --cabal 3.6.2.0 -- cabal haddock --enable-documentation
