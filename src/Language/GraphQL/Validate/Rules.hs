@@ -668,11 +668,26 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
         = filterSelections' selections
         >>= lift . mapReaderT (<> mapDirectives directives') . pure
     findDirectiveVariables (Full.Directive _ arguments _) = mapArguments arguments
-    mapArguments = Seq.fromList . mapMaybe findArgumentVariables
+
+    mapArguments = Seq.fromList . (>>= findArgumentVariables)
     mapDirectives = foldMap findDirectiveVariables
-    findArgumentVariables (Full.Argument _ Full.Node{ node = Full.Variable value', ..} _) =
-        Just (value', [location])
-    findArgumentVariables _ = Nothing
+
+    findArgumentVariables (Full.Argument _ Full.Node{node = value, ..} _) =
+        findValueVariables location value
+
+    findValueVariables location (Full.Variable value') = [(value', [location])]
+    findValueVariables location (Full.List values) =
+        values
+            >>= (\(Full.Node{node = value}) -> findValueVariables location value)
+    findValueVariables _ (Full.Object fields) =
+        fields
+            >>= ( \( Full.ObjectField
+                        { location = location
+                        , value = Full.Node{node = value}
+                        }
+                    ) -> findValueVariables location value
+                )
+    findValueVariables _ _ = []
     makeError operationName (variableName, locations') = Error
         { message = errorMessage operationName variableName
         , locations = locations'
