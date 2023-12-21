@@ -618,6 +618,10 @@ noUndefinedVariablesRule =
         , "\"."
         ]
 
+-- Used to find the difference between defined and used variables. The first
+-- argument are variables defined in the operation, the second argument are
+-- variables used in the query. It should return the difference between these
+-- 2 sets.
 type UsageDifference
     = HashMap Full.Name [Full.Location]
     -> HashMap Full.Name [Full.Location]

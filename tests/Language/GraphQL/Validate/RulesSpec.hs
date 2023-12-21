@@ -18,7 +18,7 @@ import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Validate
-import Test.Hspec (Spec, context, describe, it, shouldBe, shouldContain)
+import Test.Hspec (Spec, context, describe, it, shouldBe, shouldContain, xit)
 import Text.Megaparsec (parse, errorBundlePretty)
 
 petSchema :: Schema IO
@@ -560,7 +560,7 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
-        context "noUnusedVariablesRule" $
+        context "noUnusedVariablesRule" $ do
             it "rejects unused variables" $
                 let queryString = [gql|
                   query variableUnused($atOtherHomes: Boolean) {
@@ -576,6 +576,16 @@ spec =
                         , locations = [AST.Location 1 22]
                         }
                  in validate queryString `shouldBe` [expected]
+
+            xit "detects variables in properties of input objects" $
+                let queryString = [gql|
+                  query withVar ($name: String!) {
+                    findDog (complex: { name: $name }) {
+                      name
+                    }
+                  }
+                |]
+                 in validate queryString `shouldBe` []
 
         context "uniqueInputFieldNamesRule" $
             it "rejects duplicate fields in input objects" $
