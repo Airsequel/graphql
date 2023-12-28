@@ -538,7 +538,7 @@ spec =
                         }
                  in validate queryString `shouldContain` [expected]
 
-        context "noUndefinedVariablesRule" $
+        context "noUndefinedVariablesRule" $ do
             it "rejects undefined variables" $
                 let queryString = [gql|
                   query variableIsNotDefinedUsedInSingleFragment {
@@ -560,6 +560,20 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
+            xit "gets location of the variable inside an input object" $
+                let queryString = [gql|
+                  query {
+                    findDog (complex: { name: $name }) {
+                      name
+                    }
+                  }
+                |]
+                    expected = Error
+                        { message = "Variable \"$name\" is not defined."
+                        , locations = [AST.Location 2 29]
+                        }
+                 in validate queryString `shouldBe` [expected]
+
         context "noUnusedVariablesRule" $ do
             it "rejects unused variables" $
                 let queryString = [gql|
@@ -577,7 +591,7 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
-            xit "detects variables in properties of input objects" $
+            it "detects variables in properties of input objects" $
                 let queryString = [gql|
                   query withVar ($name: String!) {
                     findDog (complex: { name: $name }) {

@@ -11,6 +11,7 @@ and this project adheres to
 - `gql` removes not only leading `\n` but also `\r`.
 - Fix non nullable type string representation in executor error messages.
 - Fix input objects not being coerced to lists.
+- Fix used variables are not found in the properties of input objects.
 
 ## [1.2.0.1] - 2023-04-25
 ### Fixed
