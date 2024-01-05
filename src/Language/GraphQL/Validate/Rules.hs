@@ -2,11 +2,13 @@
    v. 2.0. If a copy of the MPL was not distributed with this file, You can
    obtain one at https://mozilla.org/MPL/2.0/. -}
 
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 
 -- | This module contains default rules defined in the GraphQL specification.
@@ -61,6 +63,7 @@ import Data.Sequence (Seq(..), (|>))
 import qualified Data.Sequence as Seq
 import Data.Text (Text)
 import qualified Data.Text as Text
+import GHC.Records (HasField(..))
 import qualified Language.GraphQL.AST.Document as Full
 import qualified Language.GraphQL.Type.Definition as Definition
 import qualified Language.GraphQL.Type.Internal as Type
@@ -668,25 +671,16 @@ variableUsageDifference difference errorMessage = OperationDefinitionRule $ \cas
         = filterSelections' selections
         >>= lift . mapReaderT (<> mapDirectives directives') . pure
     findDirectiveVariables (Full.Directive _ arguments _) = mapArguments arguments
-
     mapArguments = Seq.fromList . (>>= findArgumentVariables)
     mapDirectives = foldMap findDirectiveVariables
 
-    findArgumentVariables (Full.Argument _ Full.Node{node = value, ..} _) =
-        findValueVariables location value
+    findArgumentVariables (Full.Argument _ value _) = findNodeVariables value
+    findNodeVariables Full.Node{ node = value, ..} = findValueVariables location value
 
     findValueVariables location (Full.Variable value') = [(value', [location])]
-    findValueVariables location (Full.List values) =
-        values
-            >>= (\(Full.Node{node = value}) -> findValueVariables location value)
-    findValueVariables _ (Full.Object fields) =
-        fields
-            >>= ( \( Full.ObjectField
-                        { location = location
-                        , value = Full.Node{node = value}
-                        }
-                    ) -> findValueVariables location value
-                )
+    findValueVariables _ (Full.List values) = values >>= findNodeVariables
+    findValueVariables _ (Full.Object fields) = fields
+        >>= findNodeVariables . getField @"value"
     findValueVariables _ _ = []
     makeError operationName (variableName, locations') = Error
         { message = errorMessage operationName variableName

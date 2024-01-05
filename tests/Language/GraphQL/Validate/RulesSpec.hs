@@ -18,7 +18,7 @@ import Language.GraphQL.Type
 import qualified Language.GraphQL.Type.In as In
 import qualified Language.GraphQL.Type.Out as Out
 import Language.GraphQL.Validate
-import Test.Hspec (Spec, context, describe, it, shouldBe, shouldContain, xit)
+import Test.Hspec (Spec, context, describe, it, shouldBe, shouldContain)
 import Text.Megaparsec (parse, errorBundlePretty)
 
 petSchema :: Schema IO
@@ -29,6 +29,7 @@ queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
     [ ("dog", dogResolver)
     , ("cat", catResolver)
     , ("findDog", findDogResolver)
+    , ("findCats", findCatsResolver)
     ]
   where
     dogField = Field Nothing (Out.NamedObjectType dogType) mempty
@@ -39,6 +40,11 @@ queryType = ObjectType "Query" Nothing [] $ HashMap.fromList
     findDogResolver = ValueResolver findDogField $ pure Null
     catField = Field Nothing (Out.NamedObjectType catType) mempty
     catResolver = ValueResolver catField $ pure Null
+    findCatsArguments = HashMap.singleton "commands"
+        $ In.Argument Nothing (In.NonNullListType $ In.NonNullEnumType catCommandType)
+        $ Just $ List []
+    findCatsField = Field Nothing (Out.NonNullListType $ Out.NonNullObjectType catType) findCatsArguments
+    findCatsResolver = ValueResolver findCatsField $ pure $ List []
 
 catCommandType :: EnumType
 catCommandType = EnumType "CatCommand" Nothing $ HashMap.fromList
@@ -560,7 +566,7 @@ spec =
                         }
                  in validate queryString `shouldBe` [expected]
 
-            xit "gets location of the variable inside an input object" $
+            it "gets variable location inside an input object" $
                 let queryString = [gql|
                   query {
                     findDog (complex: { name: $name }) {
@@ -571,6 +577,20 @@ spec =
                     expected = Error
                         { message = "Variable \"$name\" is not defined."
                         , locations = [AST.Location 2 29]
+                        }
+                 in validate queryString `shouldBe` [expected]
+
+            it "gets variable location inside an array" $
+                let queryString = [gql|
+                  query {
+                    findCats (commands: [JUMP, $command]) {
+                      name
+                    }
+                  }
+                |]
+                    expected = Error
+                        { message = "Variable \"$command\" is not defined."
+                        , locations = [AST.Location 2 30]
                         }
                  in validate queryString `shouldBe` [expected]
 
