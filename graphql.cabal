@@ -1,7 +1,7 @@
 cabal-version: 2.4
 
 name:           graphql
-version:        1.2.0.1
+version:        1.2.0.2
 synopsis:       Haskell GraphQL implementation
 description:    Haskell <https://spec.graphql.org/June2018/ GraphQL> implementation.
 category:       Language
@@ -11,7 +11,7 @@ author:         Danny Navarro <j@dannynavarro.net>,
                 Matthías Páll Gissurarson <mpg@mpg.is>,
                 Sólrún Halla Einarsdóttir <she@mpg.is>
 maintainer:     belka@caraus.de
-copyright:      (c) 2019-2023 Eugen Wissner,
+copyright:      (c) 2019-2024 Eugen Wissner,
                 (c) 2015-2017 J. Daniel Navarro
 license:        MPL-2.0 AND BSD-3-Clause
 license-files:  LICENSE,

@@ -561,7 +561,7 @@ coerceArgumentValues argumentDefinitions argumentValues =
         $ Full.node <$> argumentValues
 
     coerceArgumentValue inputType transform =
-      coerceInputLiteral inputType $ extractArgumentValue transform 
+      coerceInputLiteral inputType $ extractArgumentValue transform
 
     extractArgumentValue (Transform.Int integer) = Type.Int integer
     extractArgumentValue (Transform.Boolean boolean) = Type.Boolean boolean
@@ -569,7 +569,7 @@ coerceArgumentValues argumentDefinitions argumentValues =
     extractArgumentValue (Transform.Float float) = Type.Float float
     extractArgumentValue (Transform.Enum enum) = Type.Enum enum
     extractArgumentValue Transform.Null = Type.Null
-    extractArgumentValue (Transform.List list) = 
+    extractArgumentValue (Transform.List list) =
       Type.List $ extractArgumentValue <$> list
     extractArgumentValue (Transform.Object object) =
       Type.Object $ extractArgumentValue <$> object
