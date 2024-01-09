@@ -6,6 +6,10 @@ The format is based on
 and this project adheres to
 [Haskell Package Versioning Policy](https://pvp.haskell.org/).
 
+## [1.2.0.3] - 2024-01-09
+### Fixed
+- Fix corrupted source distribution.
+
 ## [1.2.0.2] - 2024-01-09
 ### Fixed
 - `gql` removes not only leading `\n` but also `\r`.
@@ -515,6 +519,7 @@ and this project adheres to
 ### Added
 - Data types for the GraphQL language.
 
+[1.2.0.3]: https://git.caraus.tech/OSS/graphql/compare/v1.2.0.2...v1.2.0.3
 [1.2.0.2]: https://git.caraus.tech/OSS/graphql/compare/v1.2.0.1...v1.2.0.2
 [1.2.0.1]: https://git.caraus.tech/OSS/graphql/compare/v1.2.0.0...v1.2.0.1
 [1.2.0.0]: https://git.caraus.tech/OSS/graphql/compare/v1.1.0.0...v1.2.0.0
